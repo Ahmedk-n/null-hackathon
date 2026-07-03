@@ -1,0 +1,214 @@
+/* Keystone ledger design system (plan §1). Terminal/CAD aesthetic:
+   warm paper, hairline grid, uppercase tracked labels, monospace numerals. */
+
+:root {
+  /* paper + ink */
+  --bg:            #f5f4ef;   /* page */
+  --panel:         #fbfaf6;   /* raised panel */
+  --panel-2:       #efeee8;   /* inset / header row */
+  --ink:           #1a1a15;   /* primary text */
+  --ink-2:         #45443d;   /* secondary text */
+  --muted:         #7a786f;   /* labels / captions */
+  --hair:          #d8d5cc;   /* 1px borders (the grid) */
+  --hair-strong:   #b7b3a7;   /* section dividers */
+
+  /* semantic accents (desaturated to fit paper) */
+  --thesis:        #2c4a76;   /* blue */
+  --claim:         #2f6b64;   /* teal */
+  --assumption:    #6f6d64;   /* grey */
+  --keystone:      #b23a2e;   /* red */
+  --increase:      #a9741a;   /* amber (weight ▲ / temporal) */
+  --decrease:      #7a786f;   /* grey (weight ▼) */
+  --ok:            #3c7a3a;   /* integrity high / HOLDING */
+  --warn:          #a9741a;   /* integrity mid */
+  --bad:           #b23a2e;   /* integrity low / FAILED */
+
+  /* type */
+  --sans: "Inter", "Söhne", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* rhythm */
+  --row-h: 34px;  --gap: 14px;  --pad: 14px;  --radius: 0;  /* sharp corners */
+}
+
+/* Zero border-radius reset — the whole screen is a grid of hairline cells.
+   Components that must opt out set border-radius explicitly (e.g. radios). */
+* {
+  border-radius: 0;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* ── Labels ─────────────────────────────────────────────────────────── */
+.label {
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ── Values / numerals / ids / timestamps ───────────────────────────── */
+.mono {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+/* ── Ledger row (the signature component) ───────────────────────────── */
+.ledger-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: var(--row-h);
+  padding: 0 2px;
+  border-bottom: 1px solid var(--hair);
+  gap: var(--gap);
+}
+.ledger-row .ledger-value {
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Section header ─────────────────────────────────────────────────── */
+.section-header {
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--hair-strong);
+}
+
+/* ── Hairline borders ───────────────────────────────────────────────── */
+.hair {
+  border: 1px solid var(--hair);
+}
+.hair-b {
+  border-bottom: 1px solid var(--hair);
+}
+.hair-t {
+  border-top: 1px solid var(--hair);
+}
+.hair-r {
+  border-right: 1px solid var(--hair);
+}
+
+/* ── Panels ─────────────────────────────────────────────────────────── */
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--hair);
+}
+.panel-inset {
+  background: var(--panel-2);
+}
+
+/* ── Buttons ────────────────────────────────────────────────────────── */
+.btn {
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--ink);
+  background: var(--panel);
+  border: 1px solid var(--hair-strong);
+  padding: 8px 14px;
+  cursor: pointer;
+  line-height: 1;
+  transition: background 0.12s ease;
+}
+.btn:hover:not(:disabled) {
+  background: var(--panel-2);
+}
+.btn:disabled {
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.6;
+}
+.btn-primary {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--ink-2);
+}
+
+/* ── Fields ─────────────────────────────────────────────────────────── */
+.field-input {
+  width: 100%;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--hair-strong);
+  padding: 8px 10px;
+  font-family: var(--mono);
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+}
+.field-input:focus {
+  outline: none;
+  border-color: var(--ink);
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tab {
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 12px 16px;
+  cursor: pointer;
+}
+.tab:hover {
+  color: var(--ink-2);
+}
+.tab-active {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+
+/* ── Chip ───────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  font-size: 10px;
+  padding: 2px 8px;
+  border: 1px solid var(--hair-strong);
+  color: var(--muted);
+  white-space: nowrap;
+}

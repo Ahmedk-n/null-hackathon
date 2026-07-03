@@ -2,17 +2,43 @@
 import { useState } from "react";
 import type { Attack, Graph } from "@/engine";
 import type { CompanyContext, ContextInput, DecisionContextPack } from "@/context";
-import { keystoneStore, useKeystone, selectIntegrity, selectKeystoneId, selectFailures } from "@/store/useKeystone";
+import {
+  keystoneStore,
+  useKeystone,
+  selectIntegrity,
+  selectKeystoneId,
+  selectFailures,
+} from "@/store/useKeystone";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { LoadPanel } from "@/ui/LoadPanel";
 import { ContextPanel } from "@/ui/ContextPanel";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
-import { FIXTURE_DECISION } from "@/llm/fixture";
+import {
+  TopBar,
+  Tabs,
+  StatusStrip,
+  Button,
+  SectionHeader,
+  LedgerRow,
+  type TabDef,
+} from "@/ui/primitives";
 
-export default function KeystoneApp() {
-  const [decision, setDecision] = useState(FIXTURE_DECISION);
+const TABS: TabDef[] = [
+  { id: "context", label: "1 · Context" },
+  { id: "graph", label: "2 · Graph" },
+  { id: "stress", label: "3 · Stress" },
+];
+
+export default function KeystoneApp({
+  startedAt,
+  decision,
+}: {
+  startedAt: string;
+  decision: string;
+}) {
+  const [activeTab, setActiveTab] = useState("context");
   const [building, setBuilding] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -51,22 +77,7 @@ export default function KeystoneApp() {
       const graph = (await exRes.json()) as Graph;
       await new Promise((resolve) => setTimeout(resolve, 800));
       keystoneStore.getState().setGraph(graph);
-    } finally {
-      setBuilding(false);
-    }
-  }
-
-  // Secondary base path: build a structure from just the decision text (no context pack).
-  async function build() {
-    setBuilding(true);
-    try {
-      const res = await fetch("/api/extract", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ decision }),
-      });
-      const graph = (await res.json()) as Graph;
-      keystoneStore.getState().setGraph(graph);
+      setActiveTab("graph");
     } finally {
       setBuilding(false);
     }
@@ -90,55 +101,231 @@ export default function KeystoneApp() {
 
   const assumptions = workingGraph?.nodes.filter((n) => n.type === "assumption") ?? [];
 
+  // Bottom status strip: live reads of engine/store outputs.
+  const statusItems = [
+    { key: "Nodes", value: workingGraph ? workingGraph.nodes.length : "—" },
+    { key: "Keystone", value: keystoneId ?? "—" },
+    {
+      key: "Integrity",
+      value: workingGraph ? `${Math.round(integrityValue)}%` : "—",
+      accent:
+        !workingGraph
+          ? undefined
+          : integrityValue >= 60
+            ? "var(--ok)"
+            : integrityValue >= 35
+              ? "var(--warn)"
+              : "var(--bad)",
+    },
+    {
+      key: "Source",
+      value: contextSource ?? "—",
+      accent: contextSource === "fixture" ? "var(--warn)" : undefined,
+    },
+  ];
+
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "360px 1fr", height: "100vh" }}>
-      <aside style={{ padding: 16, borderRight: "1px solid #1b2230", overflowY: "auto", display: "flex", flexDirection: "column", gap: 16 }}>
-        <h1 style={{ fontSize: 22, letterSpacing: 2, margin: 0 }}>KEYSTONE</h1>
+    <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+      <TopBar
+        title="▣ Keystone"
+        subtitle={`Decision: "${decision}"`}
+        timestamp={startedAt}
+        actions={
+          <>
+            <Button onClick={() => undefined} title="Fit graph to view">
+              Fit
+            </Button>
+            <Button onClick={() => keystoneStore.getState().reset()}>Reset</Button>
+          </>
+        }
+      />
 
-        <ContextPanel onAnalyse={analyse} building={building} />
+      <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
-        {decisionContextPack && contextSource && (
-          <ContextUsedPanel pack={decisionContextPack} source={contextSource} />
+      <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        {activeTab === "context" && (
+          <ContextTab
+            onAnalyse={analyse}
+            building={building}
+            pack={decisionContextPack}
+            source={contextSource}
+            decision={decision}
+            startedAt={startedAt}
+          />
         )}
+        {activeTab === "graph" && (
+          <GraphTab
+            graph={workingGraph}
+            keystoneId={keystoneId}
+            failures={failures}
+            integrityValue={integrityValue}
+            assumptions={assumptions}
+          />
+        )}
+        {activeTab === "stress" && (
+          <StressTab
+            graph={workingGraph}
+            keystoneId={keystoneId}
+            failures={failures}
+            onApplyLoad={applyLoad}
+            loading={loading}
+            loadApplied={loadApplied}
+            attacks={attacks}
+          />
+        )}
+      </main>
 
-        <details>
-          <summary style={{ color: "#8b98a5", fontSize: 11, letterSpacing: 1.5, cursor: "pointer" }}>
-            BUILD FROM DECISION ONLY
-          </summary>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 8 }}>
-            <textarea
-              value={decision}
-              onChange={(e) => setDecision(e.target.value)}
-              rows={3}
-              style={{ width: "100%", background: "#0f1620", color: "#e6edf3", border: "1px solid #46525f", borderRadius: 8, padding: 8, boxSizing: "border-box" }}
-            />
-            <button onClick={build} disabled={building} style={{ padding: "10px 14px", background: "#1b2230", color: "#e6edf3", border: "1px solid #46525f", borderRadius: 8, fontWeight: 700, cursor: "pointer" }}>
-              {building ? "Building…" : "Build Structure"}
-            </button>
+      <StatusStrip items={statusItems} />
+    </div>
+  );
+}
+
+// ── Tab panes (R1: wrap the existing pieces so the app stays functional) ──
+
+const RAIL: React.CSSProperties = {
+  width: 360,
+  minWidth: 360,
+  borderRight: "1px solid var(--hair)",
+  padding: "var(--pad)",
+  overflowY: "auto",
+  display: "flex",
+  flexDirection: "column",
+  gap: "var(--gap)",
+  background: "var(--panel)",
+};
+
+function ContextTab({
+  onAnalyse,
+  building,
+  pack,
+  source,
+  decision,
+  startedAt,
+}: {
+  onAnalyse: (input: ContextInput) => void;
+  building: boolean;
+  pack: DecisionContextPack | null;
+  source: "live" | "fixture" | null;
+  decision: string;
+  startedAt: string;
+}) {
+  return (
+    <div style={{ display: "flex", height: "100%" }}>
+      <div style={RAIL}>
+        <SectionHeader>Session</SectionHeader>
+        <div>
+          <LedgerRow label="Decision" value={decision} />
+          <LedgerRow label="Started" value={startedAt} />
+          <LedgerRow label="Source" value={source ?? "—"} accent={source === "fixture" ? "var(--warn)" : undefined} />
+        </div>
+        <ContextPanel onAnalyse={onAnalyse} building={building} />
+      </div>
+      <div style={{ flex: 1, padding: "var(--pad)", overflowY: "auto" }}>
+        <SectionHeader>Context Used</SectionHeader>
+        {pack && source ? (
+          <ContextUsedPanel pack={pack} source={source} />
+        ) : (
+          <div className="label" style={{ marginTop: 8 }}>
+            Analyse a decision to populate the context pack.
           </div>
-        </details>
+        )}
+      </div>
+    </div>
+  );
+}
 
-        {workingGraph && (
+function GraphTab({
+  graph,
+  keystoneId,
+  failures,
+  integrityValue,
+  assumptions,
+}: {
+  graph: Graph | null;
+  keystoneId: string | null;
+  failures: ReadonlySet<string>;
+  integrityValue: number;
+  assumptions: Graph["nodes"];
+}) {
+  return (
+    <div style={{ display: "flex", height: "100%" }}>
+      <div style={RAIL}>
+        <SectionHeader>Graph Ledger</SectionHeader>
+        {graph ? (
           <>
             <IntegrityGauge value={integrityValue} />
             <div>
-              <div style={{ color: "#8b98a5", fontSize: 11, letterSpacing: 1.5, marginBottom: 8 }}>ASSUMPTIONS</div>
+              <SectionHeader>Assumptions</SectionHeader>
               {assumptions.map((a) => (
-                <ConfidenceSlider key={a.id} id={a.id} label={a.label} value={a.confidence} onChange={(id, v) => keystoneStore.getState().setConfidence(id, v)} />
+                <ConfidenceSlider
+                  key={a.id}
+                  id={a.id}
+                  label={a.label}
+                  value={a.confidence}
+                  onChange={(id, v) => keystoneStore.getState().setConfidence(id, v)}
+                />
               ))}
             </div>
-            <LoadPanel onApplyLoad={applyLoad} onReset={() => keystoneStore.getState().reset()} loading={loading} loadApplied={loadApplied} attacks={attacks} />
           </>
-        )}
-      </aside>
-
-      <section>
-        {workingGraph ? (
-          <KeystoneCanvas graph={workingGraph} keystoneId={keystoneId} failures={failures} />
         ) : (
-          <div style={{ padding: 24, color: "#8b98a5" }}>Analyse a decision to begin.</div>
+          <div className="label">No structure yet — analyse a decision first.</div>
         )}
-      </section>
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {graph ? (
+          <KeystoneCanvas graph={graph} keystoneId={keystoneId} failures={failures} />
+        ) : (
+          <div className="label" style={{ padding: "var(--pad)" }}>
+            Analyse a decision to assemble the structure.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StressTab({
+  graph,
+  keystoneId,
+  failures,
+  onApplyLoad,
+  loading,
+  loadApplied,
+  attacks,
+}: {
+  graph: Graph | null;
+  keystoneId: string | null;
+  failures: ReadonlySet<string>;
+  onApplyLoad: () => void;
+  loading: boolean;
+  loadApplied: boolean;
+  attacks: Attack[];
+}) {
+  return (
+    <div style={{ display: "flex", height: "100%" }}>
+      <div style={RAIL}>
+        <SectionHeader>Attack Ledger</SectionHeader>
+        {graph ? (
+          <LoadPanel
+            onApplyLoad={onApplyLoad}
+            onReset={() => keystoneStore.getState().reset()}
+            loading={loading}
+            loadApplied={loadApplied}
+            attacks={attacks}
+          />
+        ) : (
+          <div className="label">Analyse a decision before applying load.</div>
+        )}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {graph ? (
+          <KeystoneCanvas graph={graph} keystoneId={keystoneId} failures={failures} />
+        ) : (
+          <div className="label" style={{ padding: "var(--pad)" }}>
+            No structure to stress yet.
+          </div>
+        )}
+      </div>
     </div>
   );
 }
