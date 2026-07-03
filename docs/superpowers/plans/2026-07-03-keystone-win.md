@@ -53,11 +53,11 @@
 - [x] Shake wrapper OUTSIDE data-canvas-tilt (T10 transform untouched): x/rotateZ keyframes 0.4s on empty→non-empty failure edge; perspective 1400→1200→1400 push, rest value preserved for T10.
 
 ### W1-5 · Causal callout on the crack
-- [ ] When `k_credible` fails, annotate the node: *"CRACKED: meeting tomorrow raised execution severity 0.8→1.0"* — join context→consequence ON the graph, not in a side panel. Source strings from `pack.contextWeightAdjustments` reasons.
+- [x] `keystoneCalloutFor` (pure, exported): matches keystone attack raw vs effective severity + strongest category adjustment → blueprint tag "CRACKED / EXECUTION SEVERITY 0.43→0.65 / <real reason>"; neutral THRESHOLD CROSSED in raw mode; fades in 0.5s after crack. Wired through GraphTab AND StressTab (orchestrator added StressTab props).
 
 ### W1-6 · Assembly build-in + force arrows
-- [ ] Nodes assemble from `z:-200, opacity:0` staggered bottom-up on first mount (replace bare `setTimeout(800)` beat in `KeystoneApp.tsx:65`).
-- [ ] On Apply Load: red force arrows (SVG overlay) drive down into thesis/failed nodes.
+- [x] Entrance animation staggered bottom-up (`buildDelayFor = layer*0.12 + idx*0.05`), once per base-graph identity via WeakSet; KeystoneApp reveal timer intentionally kept (sequencing beat, noted deviation).
+- [x] 3 deterministic red force arrows (self-drawing shafts, slide-down, LOAD label) over thesis on Apply Load; vanish on reset.
 
 ### W1-7 · Keystone tension telegraph
 - [x] KeystoneGlow overlay: breathing 1.2s pulse while `loadApplied && !isFailed`, 30px flare 0.25s at failure, calm rim otherwise; `loadApplied` threaded through node data and passed from StressTab (orchestrator wired the call site).

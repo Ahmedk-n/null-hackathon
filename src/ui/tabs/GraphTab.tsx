@@ -13,6 +13,10 @@ import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { SelectionPanel } from "@/ui/SelectionPanel";
 import { LedgerRow, SectionHeader, Field } from "@/ui/primitives";
+import type { ContextWeightAdjustment } from "@/context";
+
+// Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
+const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
 
 const RAIL: React.CSSProperties = {
   width: 340,
@@ -42,6 +46,14 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const integrityValue = useKeystone(selectIntegrity);
   const tilt = useKeystone((s) => s.tilt);
   const selectedNodeId = useKeystone((s) => s.selectedNodeId);
+  // W1-5/W1-6 — sourced from the store so the causal callout reads real pack data and
+  // the force arrows / build-in key off load + base-graph identity.
+  const attacks = useKeystone((s) => s.attacks);
+  const rawAttacks = useKeystone((s) => s.rawAttacks);
+  const loadApplied = useKeystone((s) => s.loadApplied);
+  const baseGraph = useKeystone((s) => s.baseGraph);
+  const pack = useKeystone((s) => s.decisionContextPack);
+  const contextAdjustments = pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS;
 
   const [search, setSearch] = useState("");
   const [failedOnly, setFailedOnly] = useState(false);
@@ -188,6 +200,11 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           keystoneId={keystoneId}
           failures={failures}
           tilt={tilt}
+          loadApplied={loadApplied}
+          attacks={attacks}
+          rawAttacks={rawAttacks}
+          contextAdjustments={contextAdjustments}
+          buildKey={baseGraph}
           onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           fitSignal={fitSignal}
         />

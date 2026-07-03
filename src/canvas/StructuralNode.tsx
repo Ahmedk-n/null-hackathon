@@ -5,6 +5,18 @@ import { useState } from "react";
 import type { NodeType } from "@/engine";
 import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, BAD, PANEL, INK, MUTED } from "@/ui/tokens";
 
+/**
+ * Causal callout attached to the keystone when it cracks (W1-5). Sourced from real
+ * DecisionContextPack data by `keystoneCalloutFor` — never hardcoded. `detail`/`reason`
+ * are present only when a context adjustment actually moved the keystone's severity;
+ * a bare `{ headline: "THRESHOLD CROSSED" }` is the neutral (raw-mode) case.
+ */
+export interface CausalCallout {
+  headline: string;
+  detail?: string;
+  reason?: string;
+}
+
 export interface StructuralNodeData {
   label: string;
   type: NodeType;
@@ -14,6 +26,12 @@ export interface StructuralNodeData {
   /** Whether load is currently applied — gates the keystone tension telegraph. */
   loadApplied?: boolean;
   collapseDelay?: number;
+  /** Assembly build-in delay (W1-6a) — staggers this node's entrance bottom-up. */
+  buildDelay?: number;
+  /** Whether to play the entrance animation this mount (first build of the graph only). */
+  animateEntrance?: boolean;
+  /** Blueprint causal annotation shown on the cracked keystone (W1-5). */
+  causalCallout?: CausalCallout | null;
   /** Layer index (assumption 0 · claim 1 · thesis 2) — passed from the canvas. */
   layer?: number;
   /** Resting elevation in px (layer Z + keystone bump) — passed from the canvas. */
@@ -49,14 +67,23 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const failedShadow = `0 0 18px rgba(178,58,46,0.5), 0 16px 26px rgba(26,26,21,0.28)`;
 
   const collapseDelay = data.collapseDelay ?? 0;
+  const buildDelay = data.buildDelay ?? 0;
   // Parallax lift on hover: +16px toward the viewer.
   const liveZ = restingZ + (hover ? 16 : 0);
+
+  // W1-6a — entrance build-in: rise from below/behind, staggered bottom-up. Only when
+  // the canvas flags the graph's first mount, and never for a node that mounts failed.
+  const entrance = (data.animateEntrance ?? false) && !data.isFailed;
 
   return (
     <motion.div
       onHoverStart={() => setHover(true)}
       onHoverEnd={() => setHover(false)}
-      initial={false}
+      initial={
+        entrance
+          ? { opacity: 0, y: 40, scale: 0.96, z: restingZ - 160, rotateX: 0, rotateY: 0, rotate: 0 }
+          : false
+      }
       animate={
         data.isFailed
           ? {
@@ -68,12 +95,14 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
               y: 18,
               z: -70,
             }
-          : { opacity: 1, rotateX: 0, rotateY: 0, rotate: 0, y: 0, z: liveZ }
+          : { opacity: 1, rotateX: 0, rotateY: 0, rotate: 0, y: 0, z: liveZ, scale: 1 }
       }
       transition={
         data.isFailed
           ? { duration: 0.55, delay: collapseDelay, ease: FALL_EASE }
-          : { duration: 0.4, ease: "easeOut" }
+          : entrance
+            ? { duration: 0.5, delay: buildDelay, ease: [0.22, 1, 0.36, 1] }
+            : { duration: 0.4, ease: "easeOut" }
       }
       style={{
         transformStyle: "preserve-3d",
@@ -128,6 +157,11 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
 
       {/* W1-3 — debris flung from the keystone at its failure moment. */}
       {data.isKeystone && data.isFailed && <KeystoneDebris delay={collapseDelay} />}
+
+      {/* W1-5 — causal callout: fades in AFTER the crack draws (~0.5s past collapse). */}
+      {data.isKeystone && data.isFailed && data.causalCallout && (
+        <CausalCalloutTag callout={data.causalCallout} appearDelay={collapseDelay + 0.5} />
+      )}
 
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
     </motion.div>
@@ -203,6 +237,68 @@ function KeystoneDebris({ delay = 0 }: { delay?: number }) {
         );
       })}
     </>
+  );
+}
+
+// W1-5 — blueprint causal annotation attached to the cracked keystone: a hairline
+// leader line from the node edge to an uppercase .mono, zero-radius, --bad label that
+// reads the context→consequence link ("CRACKED · EXECUTION SEVERITY 0.43→0.65" + the
+// real adjustment reason). Fades in after the crack has drawn.
+function CausalCalloutTag({
+  callout,
+  appearDelay,
+}: {
+  callout: CausalCallout;
+  appearDelay: number;
+}) {
+  return (
+    <motion.div
+      data-testid="causal-callout"
+      className="mono"
+      initial={{ opacity: 0, x: -6 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.4, delay: appearDelay, ease: "easeOut" }}
+      style={{
+        position: "absolute",
+        left: 200,
+        top: -10,
+        width: 214,
+        display: "flex",
+        alignItems: "flex-start",
+        pointerEvents: "none",
+        borderRadius: 0,
+      }}
+    >
+      {/* hairline leader line from the node edge to the label */}
+      <svg width={22} height={20} viewBox="0 0 22 20" style={{ overflow: "visible", flex: "0 0 auto", marginTop: 8 }}>
+        <circle cx={0} cy={10} r={1.6} fill={BAD} />
+        <line x1={0} y1={10} x2={22} y2={10} stroke={BAD} strokeWidth={0.75} />
+      </svg>
+      <div style={{ borderLeft: `2px solid ${BAD}`, paddingLeft: 6, borderRadius: 0 }}>
+        <div
+          style={{
+            color: BAD,
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.12em",
+            textTransform: "uppercase",
+            lineHeight: 1.2,
+          }}
+        >
+          {callout.headline}
+        </div>
+        {callout.detail && (
+          <div style={{ color: INK, fontSize: 9, letterSpacing: "0.08em", marginTop: 2, lineHeight: 1.3 }}>
+            {callout.detail}
+          </div>
+        )}
+        {callout.reason && (
+          <div style={{ color: MUTED, fontSize: 9, letterSpacing: "0.04em", marginTop: 2, lineHeight: 1.35 }}>
+            {callout.reason.toUpperCase()}
+          </div>
+        )}
+      </div>
+    </motion.div>
   );
 }
 

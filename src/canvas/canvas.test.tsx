@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { KeystoneCanvas, collapseDelayFor } from "./KeystoneCanvas";
+import { KeystoneCanvas, collapseDelayFor, buildDelayFor } from "./KeystoneCanvas";
 import { pickLayoutMode } from "./layout";
 import { fixtureContextGraph } from "@/context";
+import type { Attack } from "@/engine";
+import type { ContextWeightAdjustment } from "@/context";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -94,5 +96,104 @@ describe("collapseDelayFor (W1-2 ripple stagger)", () => {
 
   it("matches the specced formula layer*0.18 + indexInLayer*0.06", () => {
     expect(collapseDelayFor({ isKeystone: false, layer: 2, indexInLayer: 3 })).toBeCloseTo(0.54);
+  });
+});
+
+describe("buildDelayFor (W1-6a assembly build-in stagger)", () => {
+  it("lands the foundation first (layer 0 index 0 = 0)", () => {
+    expect(buildDelayFor({ layer: 0, indexInLayer: 0 })).toBe(0);
+  });
+
+  it("raises the structure bottom-up (monotonic by layer)", () => {
+    const l0 = buildDelayFor({ layer: 0, indexInLayer: 0 });
+    const l1 = buildDelayFor({ layer: 1, indexInLayer: 0 });
+    const l2 = buildDelayFor({ layer: 2, indexInLayer: 0 });
+    expect(l1).toBeGreaterThan(l0);
+    expect(l2).toBeGreaterThan(l1);
+  });
+
+  it("increases monotonically by index within a layer", () => {
+    const i0 = buildDelayFor({ layer: 1, indexInLayer: 0 });
+    const i1 = buildDelayFor({ layer: 1, indexInLayer: 1 });
+    expect(i1).toBeGreaterThan(i0);
+  });
+});
+
+describe("causal callout on the crack (W1-5)", () => {
+  const rawAttacks: Attack[] = [
+    { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.43, rationale: "" },
+  ];
+  const reweighted: Attack[] = [
+    { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.645, rationale: "" },
+  ];
+  const adjustments: ContextWeightAdjustment[] = [
+    {
+      targetCategory: "execution",
+      direction: "increase",
+      magnitude: 1.0,
+      reason: "A major customer meeting tomorrow maximally raises near-term execution risk.",
+    },
+  ];
+
+  it("annotates the cracked keystone with the real context reason + severity delta", () => {
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set(["k_credible"])}
+        attacks={reweighted}
+        rawAttacks={rawAttacks}
+        contextAdjustments={adjustments}
+      />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain("CRACKED");
+    expect(text).toContain("EXECUTION SEVERITY 0.43→" + "0.65");
+    // Reason string comes from real pack data, not a hardcode.
+    expect(text.toUpperCase()).toContain("MEETING TOMORROW");
+  });
+
+  it("shows NO callout when the keystone holds", () => {
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        attacks={reweighted}
+        rawAttacks={rawAttacks}
+        contextAdjustments={adjustments}
+      />,
+    );
+    expect(container.querySelector("[data-testid='causal-callout']")).toBeNull();
+    expect(container.textContent ?? "").not.toContain("CRACKED");
+  });
+
+  it("falls back to a neutral THRESHOLD CROSSED label with no context adjustments", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set(["k_credible"])} />,
+    );
+    const text = container.textContent ?? "";
+    expect(text).toContain("THRESHOLD CROSSED");
+    expect(text).not.toContain("CRACKED");
+  });
+});
+
+describe("force arrows (W1-6b)", () => {
+  it("renders force arrows while load is applied and hides them otherwise", () => {
+    const applied = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} loadApplied />,
+    );
+    expect(applied.container.querySelector("[data-testid='force-arrows']")).not.toBeNull();
+    cleanup();
+
+    const idle = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        loadApplied={false}
+      />,
+    );
+    expect(idle.container.querySelector("[data-testid='force-arrows']")).toBeNull();
   });
 });

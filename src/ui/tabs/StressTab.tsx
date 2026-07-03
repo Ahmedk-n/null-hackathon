@@ -13,6 +13,10 @@ import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
 import { SectionHeader, Button } from "@/ui/primitives";
+import type { ContextWeightAdjustment } from "@/context";
+
+// Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
+const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
 
 const RAIL: React.CSSProperties = {
   width: 340,
@@ -224,6 +228,7 @@ export function StressTab({
   const pack = useKeystone((s) => s.decisionContextPack);
   const source = useKeystone((s) => s.contextSource);
   const applyContextWeights = useKeystone((s) => s.applyContextWeights);
+  const rawAttacks = useKeystone((s) => s.rawAttacks);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -278,6 +283,10 @@ export function StressTab({
             failures={failures}
             tilt={tilt}
             loadApplied={loadApplied}
+            attacks={attacks}
+            rawAttacks={rawAttacks}
+            contextAdjustments={pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS}
+            buildKey={baseGraph}
             onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           />
         ) : (
