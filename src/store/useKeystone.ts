@@ -1,7 +1,15 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
-import type { Attack, Graph } from "@/engine";
-import { applyAttacks, cloneGraph, detectFailures, integrity, keystone } from "@/engine";
+import type { Attack, Graph, ReinforcementPlan } from "@/engine";
+import {
+  applyAttacks,
+  cloneGraph,
+  detectFailures,
+  FAILURE_THRESHOLD,
+  integrity,
+  keystone,
+  minimalReinforcement,
+} from "@/engine";
 // Pure, key-free transform (data-in/data-out). Safe to bundle client-side. This is the ONLY
 // context import allowed in the store — never the compiler, the llm client, or the Anthropic SDK.
 import { reweightAttacksByContext } from "@/context/weights";
@@ -34,6 +42,10 @@ export interface KeystoneState {
   // (null = never re-run yet). Neither ever throws in the prod path.
   rerunConfirmed: boolean;
   rerunIdentical: boolean | null;
+  // V3-2 (additive): the minimum-reinforcement prescription for the current attacked
+  // structure. null until `reinforce()` fires; cleared by any action that rebuilds the
+  // working graph (so the DE-RISKING PLAN panel never shows a stale plan).
+  reinforcementPlan: ReinforcementPlan | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   setContext: (
@@ -50,6 +62,9 @@ export interface KeystoneState {
   // assert the verdict is byte-identical (visible determinism).
   rerun: () => void;
   clearRerunConfirmed: () => void;
+  // V3-2 (additive): run the minimum-reinforcement solver on the current attacked
+  // structure and apply the prescribed confidence restores to the working graph.
+  reinforce: () => void;
 }
 
 export function createKeystoneStore() {
@@ -68,8 +83,9 @@ export function createKeystoneStore() {
     tilt: true,
     rerunConfirmed: false,
     rerunIdentical: null,
+    reinforcementPlan: null,
     setGraph: (g) =>
-      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES }),
+      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null }),
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
       if (!wg) return;
@@ -78,7 +94,7 @@ export function createKeystoneStore() {
       if (node) node.confidence = Math.min(1, Math.max(0, value));
       // Re-derive failures only if we are in the post-load state; before load nothing is "failed".
       const failures = get().loadApplied ? detectFailures(next) : EMPTY_FAILURES;
-      set({ workingGraph: next, failures });
+      set({ workingGraph: next, failures, reinforcementPlan: null });
     },
     setContext: (companyContext, decisionContextPack, source) =>
       set({ companyContext, decisionContextPack, contextSource: source }),
@@ -94,7 +110,7 @@ export function createKeystoneStore() {
       // Always apply against a clean baseline clone so re-applying (e.g. the A/B
       // toggle) never double-attacks an already-stressed graph.
       const workingGraph = applyAttacks(cloneGraph(base), effective);
-      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph) });
+      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null });
     },
     // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
     // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
@@ -114,12 +130,15 @@ export function createKeystoneStore() {
         workingGraph,
         attacks: effective,
         failures: detectFailures(workingGraph),
+        // Toggling the attack basis re-derives the outcome from raw state, so any prior
+        // reinforcement no longer describes the graph on screen — clear it.
+        reinforcementPlan: null,
       });
     },
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES });
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),
@@ -157,9 +176,40 @@ export function createKeystoneStore() {
         failures: nextFailures,
         rerunIdentical: identical,
         rerunConfirmed: true,
+        // Re-run rebuilds the working graph from the raw attacks (the attacked verdict),
+        // discarding any applied reinforcement — drop the stale plan.
+        reinforcementPlan: null,
       });
     },
     clearRerunConfirmed: () => set({ rerunConfirmed: false }),
+    // V3-2 · MINIMUM-REINFORCEMENT. Recompute the effective attacks exactly as
+    // applyLoad does (respect applyContextWeights + the context pack), run the pure
+    // solver at the failure line (35 = FAILURE_THRESHOLD on the 0..100 integrity scale),
+    // then apply the prescribed confidence restores to a fresh clone of the ATTACKED
+    // graph. The engine — not the solver — recomputes integrity/failures from the result.
+    reinforce: () => {
+      const { baseGraph, rawAttacks, applyContextWeights, decisionContextPack } = get();
+      if (!baseGraph || rawAttacks.length === 0) return;
+      const effective =
+        applyContextWeights && decisionContextPack
+          ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
+          : rawAttacks;
+      const plan = minimalReinforcement(baseGraph, effective, FAILURE_THRESHOLD * 100);
+      // Rebuild the attacked graph, then heal the plan's assumptions back to base confidence.
+      const workingGraph = applyAttacks(cloneGraph(baseGraph), effective);
+      for (const id of plan.targetIds) {
+        const node = workingGraph.nodes.find((n) => n.id === id);
+        const baseNode = baseGraph.nodes.find((n) => n.id === id);
+        if (node && baseNode) node.confidence = baseNode.confidence;
+      }
+      set({
+        workingGraph,
+        attacks: effective,
+        loadApplied: true,
+        failures: detectFailures(workingGraph),
+        reinforcementPlan: plan,
+      });
+    },
   }));
 }
 

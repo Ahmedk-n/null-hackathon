@@ -12,8 +12,9 @@ import {
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
-import { SectionHeader, Button, EmptyCanvas } from "@/ui/primitives";
+import { SectionHeader, Button, EmptyCanvas, LedgerRow } from "@/ui/primitives";
 import type { ContextWeightAdjustment } from "@/context";
+import type { ReinforcementPlan } from "@/engine";
 
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
 const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
@@ -206,6 +207,77 @@ function RerunControl() {
   );
 }
 
+// V3-2 · DE-RISKING PLAN — the inverse money shot. The minimum-reinforcement solver
+// (pure engine, exhaustive 2^n search) prescribes the CHEAPEST set of assumptions to
+// prove so the structure survives. Rendered as a terminal ledger: one "PROVE · <label>"
+// row per targetId, an INTEGRITY before→after row, and a determinism caption. Hairlines,
+// zero radius, tabular numerals. Only mounts once `reinforce()` has produced a plan.
+function ReinforcementPanel({
+  plan,
+  baseGraph,
+}: {
+  plan: ReinforcementPlan;
+  baseGraph: Graph | null;
+}) {
+  const labelFor = (id: string) =>
+    baseGraph?.nodes.find((n) => n.id === id)?.label ?? id;
+  const before = plan.integrityBefore.toFixed(1);
+  const after = plan.integrityAfter.toFixed(1);
+  return (
+    <div data-testid="derisking-plan">
+      <SectionHeader>De-Risking Plan</SectionHeader>
+      {plan.reachable && plan.targetIds.length === 0 ? (
+        <div className="label" style={{ padding: "8px 0" }}>
+          Structure already survives — nothing to prove
+        </div>
+      ) : plan.reachable ? (
+        <>
+          {plan.targetIds.map((id) => (
+            <div
+              key={id}
+              data-testid="prove-row"
+              style={{
+                display: "flex",
+                gap: 6,
+                alignItems: "baseline",
+                padding: "6px 0",
+                borderBottom: "1px solid var(--hair)",
+              }}
+            >
+              <span className="label" style={{ color: "var(--ok)", flex: "0 0 auto" }}>
+                Prove ·
+              </span>
+              <span
+                className="mono"
+                style={{ fontSize: 11, color: "var(--ink)", textTransform: "uppercase" }}
+              >
+                {labelFor(id)}
+              </span>
+            </div>
+          ))}
+          <div style={{ marginTop: 6 }}>
+            <LedgerRow
+              label="Integrity"
+              value={`${before}% → ${after}%`}
+              accent={plan.integrityAfter >= 35 ? "var(--ok)" : "var(--bad)"}
+            />
+          </div>
+        </>
+      ) : (
+        <div className="label" style={{ padding: "8px 0", color: "var(--bad)" }}>
+          Unreachable — proving every assumption still fails ({after}%)
+        </div>
+      )}
+      <div
+        className="label"
+        style={{ marginTop: 8, fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em" }}
+      >
+        Minimal Set · Exhaustive 2ᴺ Search · Deterministic
+      </div>
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -229,6 +301,7 @@ export function StressTab({
   const source = useKeystone((s) => s.contextSource);
   const applyContextWeights = useKeystone((s) => s.applyContextWeights);
   const rawAttacks = useKeystone((s) => s.rawAttacks);
+  const reinforcementPlan = useKeystone((s) => s.reinforcementPlan);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -269,6 +342,11 @@ export function StressTab({
             <Button onClick={onReinforce}>Reinforce</Button>
           )}
         </div>
+
+        {/* V3-2 — minimum-reinforcement prescription (the inverse of sensitivity) */}
+        {reinforcementPlan && (
+          <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} />
+        )}
 
         {/* W2-2 — deterministic re-run beat */}
         <RerunControl />

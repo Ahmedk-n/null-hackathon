@@ -137,6 +137,55 @@ describe("StressTab (R4)", () => {
     );
   });
 
+  // ── V3-2 · DE-RISKING PLAN panel ──────────────────────────────────────
+  it("renders the DE-RISKING PLAN panel after reinforce with PROVE + integrity rows", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().setContext(
+      fixtureCompanyContext(),
+      fixtureDecisionContextPack(),
+      "fixture",
+    );
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+
+    render(
+      <StressTab
+        onApplyLoad={() => {}}
+        onReset={() => {}}
+        onReinforce={() => keystoneStore.getState().reinforce()}
+        loading={false}
+      />,
+    );
+
+    // No plan yet → no panel.
+    expect(screen.queryByTestId("derisking-plan")).toBeNull();
+
+    // Click REINFORCE → the store computes a plan and the panel appears.
+    fireEvent.click(screen.getByRole("button", { name: /reinforce/i }));
+
+    const panel = screen.getByTestId("derisking-plan");
+    expect(panel).toBeDefined();
+
+    // One PROVE row per targetId; the keystone label appears.
+    const proveRows = screen.getAllByTestId("prove-row");
+    expect(proveRows.length).toBeGreaterThanOrEqual(1);
+    const keystoneLabel = keystoneStore
+      .getState()
+      .baseGraph!.nodes.find((n) => n.id === "k_credible")!.label.toUpperCase();
+    expect(
+      proveRows.some((r) => (r.textContent ?? "").toUpperCase().includes(keystoneLabel)),
+    ).toBe(true);
+
+    // INTEGRITY before→after row + determinism caption.
+    expect(panel.textContent).toMatch(/INTEGRITY/i);
+    expect(panel.textContent).toMatch(/→/);
+    expect(panel.textContent).toMatch(/DETERMINISTIC/i);
+  });
+
+  it("does not render the REINFORCE button when no onReinforce prop is passed", () => {
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(screen.queryByRole("button", { name: /reinforce/i })).toBeNull();
+  });
+
   // ── W2-2 · deterministic re-run beat ──────────────────────────────────
   it("re-run leaves the verdict identical and flashes the determinism chip", () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());

@@ -145,6 +145,54 @@ describe("keystone store (context integration)", () => {
     expect(store.getState().rerunIdentical).toBe(true);
   });
 
+  // ── V3-2 · minimum-reinforcement ──────────────────────────────────────
+  it("reinforce lifts the grounded collapse back above the failure line", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+
+    // Grounded collapse: below the line, keystone failed.
+    expect(selectIntegrity(store.getState())).toBeLessThan(35);
+    const failedBefore = selectFailures(store.getState()).size;
+    expect(failedBefore).toBeGreaterThan(0);
+
+    store.getState().reinforce();
+
+    const plan = store.getState().reinforcementPlan;
+    expect(plan).not.toBeNull();
+    expect(plan!.targetIds.length).toBeGreaterThan(0);
+    expect(plan!.targetIds).toContain("k_credible");
+    // Working graph now crosses the threshold and failures shrink.
+    expect(selectIntegrity(store.getState())).toBeGreaterThanOrEqual(35);
+    expect(selectFailures(store.getState()).size).toBeLessThan(failedBefore);
+    expect(store.getState().loadApplied).toBe(true);
+  });
+
+  it("toggling the attack basis after reinforce clears the stale plan", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+    store.getState().reinforce();
+    expect(store.getState().reinforcementPlan).not.toBeNull();
+
+    // Flipping to raw re-derives from stored raw state — the plan no longer describes it.
+    store.getState().setApplyContextWeights(false);
+    expect(store.getState().reinforcementPlan).toBeNull();
+  });
+
+  it("reset clears the reinforcement plan", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+    store.getState().reinforce();
+    expect(store.getState().reinforcementPlan).not.toBeNull();
+    store.getState().reset();
+    expect(store.getState().reinforcementPlan).toBeNull();
+  });
+
   it("selection/tilt setters leave the failures snapshot referentially stable", () => {
     const store = createKeystoneStore();
     store.getState().setGraph(fixtureContextGraph());

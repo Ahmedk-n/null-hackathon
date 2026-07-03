@@ -159,6 +159,7 @@ export default function KeystoneApp({
           <StressTab
             onApplyLoad={applyLoad}
             onReset={() => keystoneStore.getState().reset()}
+            onReinforce={() => keystoneStore.getState().reinforce()}
             loading={loading}
           />
         )}
