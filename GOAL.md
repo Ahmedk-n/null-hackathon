@@ -85,6 +85,18 @@ Full plan: `docs/superpowers/plans/2026-07-03-keystone-redesign.md`.
 
 Human/rehearsal gates: T4 (0 console errors through full flow), T11 (agent findings ≥5 source-attributed facts each, with key), T12 (tab switch <100ms, smooth collapse).
 
+## v3 — Substance layer (2026-07-04; supersedes the "fixture-only chain" state)
+
+Full plan + status: `docs/superpowers/plans/2026-07-04-keystone-v3.md`. Delivered: live
+compile/extract/attacks for judge-typed decisions (behind the scenario-pinned fixtures — the
+rehearsed demo is unchanged), validation wall, minimum-reinforcement solver ("cheapest set of
+assumptions to prove" — deterministic, provably minimal), confidence provenance
+(GROUNDED/UNGROUNDED per assumption), and time-axis stress ("FAILS IN 8 DAYS", scrubbable).
+
+**Guardrail amendment:** `messages.parse` + `zodOutputFormat` do not exist in the installed
+`@anthropic-ai/sdk@0.68.0`; all live paths use `messages.create` + balanced-JSON extract +
+zod `safeParse` + retry-once → fixture (the pattern proven live by the business agent).
+
 ## Reference docs
 
 - Base build plan: `docs/superpowers/plans/2026-07-03-keystone.md` (Tasks 1–14, exact code)

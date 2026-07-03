@@ -1,7 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { Attack, Graph } from "@/engine";
 import type { CompanyContext, ContextInput, DecisionContextPack } from "@/context";
+import type { GatherFinding, GatherKind } from "@/agents/types";
 import {
   keystoneStore,
   useKeystone,
@@ -41,6 +42,10 @@ export default function KeystoneApp({
   const [stage, setStage] = useState<"idle" | "context" | "extract" | "attacks" | "done">("idle");
   // Bumped by the TopBar FIT action → drives KeystoneCanvas.fitView via GraphTab.
   const [fitSignal, setFitSignal] = useState(0);
+  // V3-8: facts lifted from finished gather runs (per kind). Extraction maps them into its
+  // optional `findings` so live extraction grounds assumption confidences in evidence (V3-6).
+  // A ref, not state — render never reads it; analyse() snapshots it at fetch time.
+  const gatherFactsRef = useRef<Partial<Record<GatherKind, GatherFinding[]>>>({});
 
   // CUSTOM sends NO scenario (live path fires when a key exists); A/B pin the fixture chain.
   const scenarioArg = mode === "custom" ? undefined : mode;
@@ -72,12 +77,17 @@ export default function KeystoneApp({
       // then a short beat before the graph assembles on the canvas second.
       keystoneStore.getState().setContext(companyContext, pack, source);
 
-      // Stage 2 — EXTRACT STRUCTURE.
+      // Stage 2 — EXTRACT STRUCTURE. Gathered facts ground the extraction's confidences:
+      // GatherFinding {label,value,source} → ExtractFinding {source, fact}. Empty → omitted.
+      const facts = Object.values(gatherFactsRef.current).flat();
+      const findings = facts.length
+        ? facts.map((f) => ({ source: f.source, fact: `${f.label}: ${f.value}` }))
+        : undefined;
       setStage("extract");
       const exRes = await fetch("/api/extract", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ decision: input.decisionText, pack, scenario: scenarioArg }),
+        body: JSON.stringify({ decision: input.decisionText, pack, scenario: scenarioArg, findings }),
       });
       const graph = (await exRes.json()) as Graph;
       await new Promise((resolve) => setTimeout(resolve, 800));
@@ -195,6 +205,9 @@ export default function KeystoneApp({
             onModeChange={setMode}
             onAnalyse={analyse}
             analysing={building}
+            onGatherFindings={(kind, facts) => {
+              gatherFactsRef.current[kind] = facts;
+            }}
           />
         )}
         {activeTab === "graph" && <GraphTab fitSignal={fitSignal} />}

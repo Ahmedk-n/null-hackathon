@@ -15,7 +15,7 @@
 import { useState } from "react";
 import type { ContextInput, ScenarioId } from "@/context";
 import { SCENARIOS } from "@/context/fixtures";
-import type { GatherKind } from "@/agents/types";
+import type { GatherFinding, GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
 
@@ -143,6 +143,7 @@ export function ContextTab({
   analysing,
   mode = "A",
   onModeChange,
+  onGatherFindings,
 }: {
   onAnalyse: (input: ContextInput) => void;
   analysing: boolean;
@@ -150,6 +151,8 @@ export function ContextTab({
   // can gate the scenario arg). Defaults to the pinned hero scenario.
   mode?: ContextMode;
   onModeChange?: (m: ContextMode) => void;
+  /** V3-8: lifts each finished gather's facts so analyse() can ground extraction (V3-6). */
+  onGatherFindings?: (kind: GatherKind, facts: GatherFinding[]) => void;
 }) {
   const [active, setActive] = useState("business");
 
@@ -197,7 +200,11 @@ export function ContextTab({
         <div style={COL}>
           {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
               direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
-          <AgentGather kind={kind} onSummary={(s) => manual.set(mergeSummary(manual.value, s))} />
+          <AgentGather
+            kind={kind}
+            onSummary={(s) => manual.set(mergeSummary(manual.value, s))}
+            onFindings={(facts) => onGatherFindings?.(kind, facts)}
+          />
         </div>
         <div style={COL}>
           <SectionHeader>Manual</SectionHeader>

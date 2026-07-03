@@ -4,7 +4,7 @@
 // and a FINDINGS ledger once the agent finishes. fetch-only via useAgentStream — this
 // file never imports @/agents/* server code, so the key never enters the bundle.
 import { useEffect, useRef, useState } from "react";
-import type { GatherKind, GatherSource } from "@/agents/types";
+import type { GatherFinding, GatherKind, GatherSource } from "@/agents/types";
 import { useAgentStream } from "@/lib/useAgentStream";
 import { Button, Field, LedgerRow, SectionHeader } from "@/ui/primitives";
 
@@ -46,9 +46,12 @@ function SourceChip({ source }: { source: "live" | "fixture" }) {
 export function AgentGather({
   kind,
   onSummary,
+  onFindings,
 }: {
   kind: GatherKind;
   onSummary: (summary: string) => void;
+  /** V3-8: lifts the gathered facts so live extraction can ground confidences (V3-6). */
+  onFindings?: (facts: GatherFinding[]) => void;
 }) {
   const { events, findings, running, run } = useAgentStream();
 
@@ -63,8 +66,13 @@ export function AgentGather({
   // callback in a ref so the effect fires purely on `findings` changing.
   const onSummaryRef = useRef(onSummary);
   onSummaryRef.current = onSummary;
+  const onFindingsRef = useRef(onFindings);
+  onFindingsRef.current = onFindings;
   useEffect(() => {
-    if (findings) onSummaryRef.current(findings.summary);
+    if (findings) {
+      onSummaryRef.current(findings.summary);
+      onFindingsRef.current?.(findings.facts);
+    }
   }, [findings]);
 
   function buildSource(): GatherSource {
