@@ -22,6 +22,7 @@
   --ok:            #3c7a3a;   /* integrity high / HOLDING */
   --warn:          #a9741a;   /* integrity mid */
   --bad:           #b23a2e;   /* integrity low / FAILED */
+  --bad-bg:        #f6ecea;   /* failed-node fill (desaturated red wash) */
 
   /* type — fonts loaded via next/font in src/app/layout.tsx (exposed as
      --font-inter / --font-jbmono on <html>), with system fallback stacks. */

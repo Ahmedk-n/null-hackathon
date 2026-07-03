@@ -12,7 +12,7 @@ import {
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
-import { SectionHeader, Button } from "@/ui/primitives";
+import { SectionHeader, Button, EmptyCanvas } from "@/ui/primitives";
 import type { ContextWeightAdjustment } from "@/context";
 
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
@@ -290,9 +290,7 @@ export function StressTab({
             onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           />
         ) : (
-          <div className="label" style={{ padding: "var(--pad)" }}>
-            No structure yet — analyse a decision first.
-          </div>
+          <EmptyCanvas />
         )}
         <div
           style={{

@@ -92,6 +92,7 @@ const TEMPORAL_FINDINGS: GatherFindings = {
     { label: "Meeting focus", value: "Reliability, auditability, implementation timeline", source: "notes" },
     { label: "Deadline", value: "Credible near-term technical plan by the meeting", source: "notes" },
     { label: "Urgency", value: "High (near-term pressure ~0.85)", source: "notes" },
+    { label: "Follow-up", value: "Security & reliability review scheduled next week", source: "notes" },
   ],
 };
 
@@ -105,6 +106,7 @@ const TEMPORAL_FIXTURE: KindFixture = {
     { type: "status", message: "Extracting deadlines and urgency…", ts: T0 },
     { type: "finding", finding: TEMPORAL_FINDINGS.facts[2], ts: T0 },
     { type: "finding", finding: TEMPORAL_FINDINGS.facts[3], ts: T0 },
+    { type: "finding", finding: TEMPORAL_FINDINGS.facts[4], ts: T0 },
     { type: "status", message: "Summarizing temporal context…", ts: T0 },
     { type: "done", findings: TEMPORAL_FINDINGS, source: "fixture", ts: T0 },
   ],

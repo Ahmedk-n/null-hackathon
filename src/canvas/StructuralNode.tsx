@@ -3,7 +3,7 @@ import { Handle, Position } from "@xyflow/react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import type { NodeType } from "@/engine";
-import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, BAD, PANEL, INK, MUTED } from "@/ui/tokens";
+import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, BAD, BAD_BG, PANEL, INK, MUTED } from "@/ui/tokens";
 
 /**
  * Causal callout attached to the keystone when it cracks (W1-5). Sourced from real
@@ -111,7 +111,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         height: 72,
         border: `1px solid ${accent}`,
         borderLeft: `3px solid ${accent}`,
-        background: data.isFailed ? "#f6ecea" : PANEL,
+        background: data.isFailed ? BAD_BG : PANEL,
         boxShadow: data.isFailed ? failedShadow : restingShadow,
         filter: hover && !data.isFailed ? "brightness(1.04)" : "none",
         padding: 8,

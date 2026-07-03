@@ -4,7 +4,7 @@ import type { Attack, Graph } from "@/engine";
 import { applyAttacks, cloneGraph, detectFailures, integrity, keystone } from "@/engine";
 // Pure, key-free transform (data-in/data-out). Safe to bundle client-side. This is the ONLY
 // context import allowed in the store — never the compiler, the llm client, or the Anthropic SDK.
-import { reweightAttacksByContext } from "@/context";
+import { reweightAttacksByContext } from "@/context/weights";
 import type { CompanyContext, DecisionContextPack } from "@/context";
 
 // Stable empty reference reused for the "no failures" case. Returning a fresh `new Set()` from a

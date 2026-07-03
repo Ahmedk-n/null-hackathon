@@ -295,3 +295,55 @@ export function Chip({
     </span>
   );
 }
+
+// ── EmptyCanvas ────────────────────────────────────────────────────────
+// Centered placeholder for a canvas area with no structure yet (W3-3): a faint
+// wireframe keystone arch drawn in hairline --muted strokes, with an "AWAITING
+// STRUCTURE" label beneath. Fills its container and centers both axes.
+export function EmptyCanvas({ label = "Awaiting Structure" }: { label?: string }) {
+  return (
+    <div
+      data-testid="empty-canvas"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 18,
+        width: "100%",
+        height: "100%",
+        userSelect: "none",
+      }}
+    >
+      {/* Wireframe keystone arch — voussoirs fanning around a highlighted keystone. */}
+      <svg
+        width={148}
+        height={104}
+        viewBox="0 0 148 104"
+        fill="none"
+        stroke="var(--muted)"
+        strokeWidth={1}
+        aria-hidden
+        style={{ opacity: 0.55 }}
+      >
+        {/* springing line + piers */}
+        <line x1={10} y1={92} x2={138} y2={92} />
+        <line x1={24} y1={92} x2={24} y2={64} />
+        <line x1={124} y1={92} x2={124} y2={64} />
+        {/* outer + inner arch curves */}
+        <path d="M24 64 A50 50 0 0 1 124 64" />
+        <path d="M40 64 A34 34 0 0 1 108 64" />
+        {/* voussoir joints radiating from the arch centre (74,64) */}
+        <line x1={24} y1={64} x2={40} y2={64} />
+        <line x1={124} y1={64} x2={108} y2={64} />
+        <line x1={34.5} y1={40.5} x2={46.9} y2={49.6} />
+        <line x1={113.5} y1={40.5} x2={101.1} y2={49.6} />
+        {/* keystone wedge at the crown, emphasized */}
+        <path d="M64 26 L84 26 L80 46 L68 46 Z" stroke="var(--muted)" strokeWidth={1.4} />
+      </svg>
+      <span className="label" style={{ letterSpacing: "0.16em" }}>
+        {label}
+      </span>
+    </div>
+  );
+}

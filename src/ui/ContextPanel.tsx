@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import type { ContextInput } from "@/context";
-import { HERO_CONTEXT_INPUT } from "@/context";
+import { HERO_CONTEXT_INPUT } from "@/context/fixtures";
 
 const fieldStyle: React.CSSProperties = {
   width: "100%",

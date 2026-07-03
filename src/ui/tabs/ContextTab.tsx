@@ -5,7 +5,7 @@
 // The four textareas compose the ContextInput handed to onAnalyse.
 import { useState } from "react";
 import type { ContextInput, ScenarioId } from "@/context";
-import { HERO_CONTEXT_INPUT, SCENARIOS } from "@/context";
+import { HERO_CONTEXT_INPUT, SCENARIOS } from "@/context/fixtures";
 import type { GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";

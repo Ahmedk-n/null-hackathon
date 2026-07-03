@@ -2,13 +2,14 @@
 import { useState } from "react";
 import type { Attack, Graph } from "@/engine";
 import type { CompanyContext, ContextInput, DecisionContextPack, ScenarioId } from "@/context";
-import { SCENARIOS } from "@/context";
+import { SCENARIOS } from "@/context/fixtures";
 import {
   keystoneStore,
   useKeystone,
   selectIntegrity,
   selectKeystoneId,
 } from "@/store/useKeystone";
+import { pickLayoutMode } from "@/canvas/layout";
 import { ContextTab } from "@/ui/tabs/ContextTab";
 import { GraphTab } from "@/ui/tabs/GraphTab";
 import { StressTab } from "@/ui/tabs/StressTab";
@@ -91,9 +92,19 @@ export default function KeystoneApp({
     }
   }
 
-  // Bottom status strip: live reads of engine/store outputs.
+  // Bottom status strip: live reads of engine/store outputs. LINKS = total edges
+  // (child→parent) across the graph; MODE = the adaptive layout band the node count
+  // selects (same pure classifier the canvas geometry uses).
+  const linkCount = workingGraph
+    ? workingGraph.nodes.reduce(
+        (acc, n) => acc + n.groups.reduce((a, g) => a + g.childIds.length, 0),
+        0,
+      )
+    : null;
   const statusItems = [
     { key: "Nodes", value: workingGraph ? workingGraph.nodes.length : "—" },
+    { key: "Links", value: linkCount ?? "—" },
+    { key: "Mode", value: workingGraph ? pickLayoutMode(workingGraph.nodes.length) : "—" },
     { key: "Keystone", value: keystoneId ?? "—" },
     {
       key: "Integrity",

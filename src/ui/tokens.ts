@@ -11,6 +11,7 @@ export const DECREASE = "#7a786f";
 export const OK = "#3c7a3a";
 export const WARN = "#a9741a";
 export const BAD = "#b23a2e";
+export const BAD_BG = "#f6ecea"; // failed-node fill (--bad-bg)
 
 export const HAIR = "#d8d5cc";
 export const HAIR_STRONG = "#b7b3a7";

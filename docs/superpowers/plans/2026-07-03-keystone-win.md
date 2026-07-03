@@ -71,12 +71,12 @@
 
 ## Wave 3 — Chrome polish (cheap, batch into one agent)
 
-- [ ] W3-1 CAD grid: `Background variant=Lines` gap 26 + coarse 130 (`KeystoneCanvas.tsx:121`).
-- [ ] W3-2 Status strip: add `LINKS n` + `MODE layered-2-5d` (from `pickLayoutMode`) per plan §2 mock (`KeystoneApp.tsx:90-109`).
-- [ ] W3-3 Centered empty states with wireframe keystone placeholder (`GraphTab.tsx:83`, `StressTab.tsx:128`).
-- [ ] W3-4 Tilt vs React Flow pointers: `panOnDrag={!tilt}` `nodesDraggable={!tilt}` (or transform `.react-flow__viewport` only).
-- [ ] W3-5 Band-1 flat mode actually flat (perspective off ≤8 nodes) — wire `pickLayoutMode` to geometry.
-- [ ] W3-6 Tokenize `#f6ecea` failed-node bg; W3-7 `extractFindings` enforce ≥5 facts (T11); W3-8 add `@/context`/`@/agents` barrels to boundary FORBIDDEN lists (audit R5).
+- [x] W3-1 CAD grid: stacked `Background variant=Lines` — fine gap 26 (`HAIR`) + coarse gap 130 (`HAIR_STRONG`) for ruled graph paper (`KeystoneCanvas.tsx`).
+- [x] W3-2 Status strip: added `LINKS n` (edge count) + `MODE <pickLayoutMode>` to the bottom strip; shell.test extended (footer matches /links/i + /mode/i).
+- [x] W3-3 Centered empty states: shared `EmptyCanvas` primitive (wireframe keystone arch, hairline `--muted`, "AWAITING STRUCTURE") wired into GraphTab + StressTab canvas areas.
+- [x] W3-4 Tilt vs React Flow pointers: `panOnDrag={!effectiveTilt}` `nodesDraggable={!effectiveTilt}` (disabled only while the isometric tilt is active).
+- [x] W3-5 Band-1 flat: `pickLayoutMode` drives canvas geometry — simple-2d (≤8 nodes) renders perspective:none + no tilt, TILT toggle muted/disabled in GraphTab. T10 9-node contract unchanged; complementary flat-case assertions added (scenario B, 7 nodes).
+- [x] W3-6 Tokenized `#f6ecea` → `--bad-bg` (theme.css) / `BAD_BG` (tokens.ts), used in StructuralNode. W3-7 `extractFindings` rejects <5 facts (`MIN_FACTS`); temporal fixture bumped 4→5 facts; schemas.test.ts added, fixtures.test raised to ≥5. W3-8 boundary tests: `@/context`+`@/agents` barrels added as forbidden **value** imports (type-only allowed via regex clause); client/store value-imports retargeted to deep pure paths (`@/context/fixtures`, `@/context/weights`).
 
 ---
 

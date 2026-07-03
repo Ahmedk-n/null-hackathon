@@ -66,9 +66,16 @@ export function collectText(content: unknown): string {
   return out.join("\n");
 }
 
+/** Minimum source-attributed facts a live parse must carry to be worth rendering.
+ *  Below this the ledger looks sparse (T11), so we reject → the caller retries or
+ *  falls back to a fixture (every fixture ships ≥ MIN_FACTS). */
+export const MIN_FACTS = 5;
+
 /**
  * Extract the first balanced JSON object from a free-text model reply and validate
- * it against GatherFindingsSchema. Returns null on any failure (never throws).
+ * it against GatherFindingsSchema. Returns null on any failure (never throws) — and
+ * also rejects (returns null) a parse with fewer than MIN_FACTS facts, so a thin live
+ * reply falls through to the retry/fixture path rather than rendering a sparse ledger.
  */
 export function extractFindings(text: string): GatherFindings | null {
   const start = text.indexOf("{");
@@ -77,7 +84,9 @@ export function extractFindings(text: string): GatherFindings | null {
   try {
     const parsed: unknown = JSON.parse(text.slice(start, end + 1));
     const res = GatherFindingsSchema.safeParse(parsed);
-    return res.success ? res.data : null;
+    if (!res.success) return null;
+    if (res.data.facts.length < MIN_FACTS) return null;
+    return res.data;
   } catch {
     return null;
   }

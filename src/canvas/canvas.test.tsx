@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { KeystoneCanvas, collapseDelayFor, buildDelayFor } from "./KeystoneCanvas";
 import { pickLayoutMode } from "./layout";
-import { fixtureContextGraph } from "@/context";
+import { fixtureContextGraph, fixtureContextGraphB } from "@/context";
 import type { Attack } from "@/engine";
 import type { ContextWeightAdjustment } from "@/context";
 
@@ -68,6 +68,26 @@ describe("KeystoneCanvas (T10 adaptive dimensionality)", () => {
     );
     const flatLayer = off.container.querySelector<HTMLElement>("[data-canvas-tilt]");
     expect(flatLayer!.style.transform).toBe("none");
+  });
+});
+
+describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
+  const flatGraph = fixtureContextGraphB();
+
+  it("selects the simple-2d band for the 7-node scenario B graph", () => {
+    expect(flatGraph.nodes.length).toBeLessThanOrEqual(8);
+    expect(pickLayoutMode(flatGraph.nodes.length)).toBe("simple-2d");
+  });
+
+  it("renders truly flat — perspective off, no tilt transform — even with tilt on", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={flatGraph} keystoneId="k_sre" failures={new Set()} tilt />,
+    );
+    const wrap = container.querySelector<HTMLElement>("[data-canvas-perspective]");
+    expect(wrap!.style.perspective).toBe("none");
+    const tiltLayer = container.querySelector<HTMLElement>("[data-canvas-tilt]");
+    // Band 1 forces the board flat regardless of the tilt prop.
+    expect(tiltLayer!.style.transform).toBe("none");
   });
 });
 

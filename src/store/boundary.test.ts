@@ -14,6 +14,25 @@ const FORBIDDEN = [
   "process.env.ANTHROPIC_API_KEY",
 ];
 
+// Barrels that re-export server-only code (compile / agent dispatchers). A *value*
+// import of these drags that code into the client bundle; a type-only import does
+// not. So these are forbidden as value imports but allowed as `import type` (deep
+// pure paths like `@/context/weights` remain the right way to pull real functions).
+const FORBIDDEN_VALUE_IMPORTS = ["@/context", "@/agents"];
+
+// True iff `src` has a value (non-type-only) import from exactly `module`. The clause
+// forbids `;` so a single match can't span two statements, and the trailing quote
+// pins the exact module (so `@/context/weights` etc. are NOT matched).
+function hasValueImport(src: string, module: string): boolean {
+  const esc = module.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`import\\s+([^;]*?)\\bfrom\\s*["']${esc}["']`, "g");
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(src)) !== null) {
+    if (!/^\s*type\b/.test(m[1])) return true; // statement-level `import type` is allowed
+  }
+  return false;
+}
+
 function walk(dir: string): string[] {
   const out: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -53,7 +72,10 @@ describe("client/key-safety boundary (§9)", () => {
     const rel = file.slice(SRC_ROOT.length + 1);
     it(`${rel} imports no server-only / key-reading module`, () => {
       const src = readFileSync(file, "utf8");
-      const hits = FORBIDDEN.filter((s) => src.includes(s));
+      const hits = [
+        ...FORBIDDEN.filter((s) => src.includes(s)),
+        ...FORBIDDEN_VALUE_IMPORTS.filter((m) => hasValueImport(src, m)),
+      ];
       expect(hits, `${rel} must not reference ${hits.join(", ")}`).toEqual([]);
     });
   }

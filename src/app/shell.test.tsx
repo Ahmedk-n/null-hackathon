@@ -37,6 +37,14 @@ describe("Keystone shell (T9 design conformance)", () => {
     // Numerals carry the .mono class (tabular-nums styling) — StatusStrip guarantees ≥1.
     expect(container.querySelectorAll(".mono").length).toBeGreaterThanOrEqual(1);
 
+    // W3-2 — the status strip surfaces LINKS (edge count) and MODE (layout band)
+    // alongside NODES / KEYSTONE / INTEGRITY / SOURCE.
+    const footer = container.querySelector("footer");
+    expect(footer).not.toBeNull();
+    const footerText = footer!.textContent ?? "";
+    expect(footerText).toMatch(/links/i);
+    expect(footerText).toMatch(/mode/i);
+
     // manual: verify border-radius:0 in browser (jsdom does not load external CSS
     // so computed border-radius is not assertable here).
   });

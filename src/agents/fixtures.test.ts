@@ -7,7 +7,7 @@ const KINDS: GatherKind[] = ["technical", "business", "temporal"];
 
 describe("agent fixtures", () => {
   for (const kind of KINDS) {
-    it(`${kind}: done.findings validates, has >=3 findings, non-empty summary`, () => {
+    it(`${kind}: done.findings validates, has >=5 findings, non-empty summary`, () => {
       const fx = FIXTURES[kind];
       const done = fx.events.find((e) => e.type === "done");
       expect(done).toBeTruthy();
@@ -16,12 +16,14 @@ describe("agent fixtures", () => {
       expect(() => GatherFindingsSchema.parse(done.findings)).not.toThrow();
       expect(done.source).toBe("fixture");
       expect(done.findings.kind).toBe(kind);
-      expect(done.findings.facts.length).toBeGreaterThanOrEqual(3);
+      // ≥5 so the fixture fallback always satisfies the extractFindings MIN_FACTS
+      // guard (W3-7 / T11) — a fallback must never render a sparse ledger.
+      expect(done.findings.facts.length).toBeGreaterThanOrEqual(5);
       expect(done.findings.summary.length).toBeGreaterThan(0);
 
       // The terminal event resolves to the same findings the fixture exposes.
       expect(done.findings).toBe(fx.findings);
-      expect(fx.findings.facts.length).toBeGreaterThanOrEqual(3);
+      expect(fx.findings.facts.length).toBeGreaterThanOrEqual(5);
 
       // Every finding carries provenance.
       for (const f of fx.findings.facts) {

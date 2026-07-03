@@ -12,7 +12,7 @@ import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { SelectionPanel } from "@/ui/SelectionPanel";
-import { LedgerRow, SectionHeader, Field } from "@/ui/primitives";
+import { LedgerRow, SectionHeader, Field, EmptyCanvas } from "@/ui/primitives";
 import type { ContextWeightAdjustment } from "@/context";
 
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
@@ -92,11 +92,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   }, [graph, search, failedOnly, minConf, failures]);
 
   if (!graph || !stats) {
-    return (
-      <div className="label" style={{ padding: "var(--pad)" }}>
-        No structure yet — analyse a decision first.
-      </div>
-    );
+    return <EmptyCanvas />;
   }
 
   return (
@@ -166,17 +162,33 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
 
         <div>
           <SectionHeader>Tilt</SectionHeader>
-          <label
-            style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}
-          >
-            <input
-              type="checkbox"
-              className="ledger-check"
-              checked={tilt}
-              onChange={(e) => keystoneStore.getState().setTilt(e.target.checked)}
-            />
-            <span className="label">3D Tilt (isometric board)</span>
-          </label>
+          {/* W3-5 — Band 1 (simple-2d) renders flat, so the tilt has no effect; mute
+              + disable the toggle to make the flat band read as intentional. */}
+          {(() => {
+            const flat = stats.mode === "simple-2d";
+            return (
+              <label
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  cursor: flat ? "default" : "pointer",
+                  opacity: flat ? 0.5 : 1,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  className="ledger-check"
+                  checked={tilt && !flat}
+                  disabled={flat}
+                  onChange={(e) => keystoneStore.getState().setTilt(e.target.checked)}
+                />
+                <span className="label">
+                  {flat ? "3D Tilt (flat band — 2D)" : "3D Tilt (isometric board)"}
+                </span>
+              </label>
+            );
+          })()}
         </div>
 
         <div>

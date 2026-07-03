@@ -2,6 +2,7 @@
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   useReactFlow,
   type Edge,
   type Node,
@@ -12,10 +13,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "motion/react";
 import type { Graph, Attack } from "@/engine";
 // Pure, key-free classifier (data-in/data-out) — same boundary the store already crosses.
-import { normaliseCategory } from "@/context";
+import { normaliseCategory } from "@/context/weights";
 import type { ContextWeightAdjustment } from "@/context";
-import { KEYSTONE, HAIR_STRONG, BG, BAD } from "@/ui/tokens";
-import { layoutPositions } from "./layout";
+import { KEYSTONE, HAIR, HAIR_STRONG, BG, BAD } from "@/ui/tokens";
+import { layoutPositions, pickLayoutMode } from "./layout";
 import { StructuralNode, type StructuralNodeData, type CausalCallout } from "./StructuralNode";
 
 const nodeTypes = { structural: StructuralNode };
@@ -148,6 +149,13 @@ export function KeystoneCanvas({
 }) {
   const effectiveLoadApplied = loadApplied ?? failures.size > 0;
 
+  // W3-5 — adaptive band drives the geometry. Band 1 (simple-2d, ≤8 nodes) renders
+  // truly FLAT: perspective off, no isometric tilt, and React Flow's pointer math is
+  // left untouched (pan/drag stay live). Band 2+ keeps the CAD perspective + tilt that
+  // the T10 contract asserts on the 9-node hero graph.
+  const flat = pickLayoutMode(graph.nodes.length) === "simple-2d";
+  const effectiveTilt = tilt && !flat;
+
   // W1-6a — play the assembly build-in only the first time we see this graph identity.
   const buildIdentity: object = buildKey ?? graph;
   const animateEntrance = !BUILT_IN_GRAPHS.has(buildIdentity);
@@ -259,12 +267,19 @@ export function KeystoneCanvas({
       data-canvas-perspective
       initial={false}
       animate={
-        shaking
-          ? { perspective: ["1400px", "1200px", "1400px"] }
-          : { perspective: "1400px" }
+        flat
+          ? { perspective: "none" }
+          : shaking
+            ? { perspective: ["1400px", "1200px", "1400px"] }
+            : { perspective: "1400px" }
       }
       transition={{ duration: 0.4, ease: "easeOut" }}
-      style={{ width: "100%", height: "100%", perspective: "1400px", background: BG }}
+      style={{
+        width: "100%",
+        height: "100%",
+        perspective: flat ? "none" : "1400px",
+        background: BG,
+      }}
     >
       {/* Shake wrapper (W1-4): jitters the whole board on failure WITHOUT touching
           the tilt transform the T10 test asserts (that lives on data-canvas-tilt). */}
@@ -286,7 +301,7 @@ export function KeystoneCanvas({
             width: "100%",
             height: "100%",
             transformStyle: "preserve-3d",
-            transform: tilt ? "rotateX(14deg) rotateZ(-2deg)" : "none",
+            transform: effectiveTilt ? "rotateX(14deg) rotateZ(-2deg)" : "none",
             transition: "transform 0.4s ease",
           }}
         >
@@ -296,9 +311,20 @@ export function KeystoneCanvas({
             nodeTypes={nodeTypes}
             onNodeClick={onNodeClick}
             fitView
+            // A tilted (transformed) ancestor breaks React Flow's pointer math, so pan
+            // and node-drag are disabled whenever the isometric tilt is active (W3-4).
+            panOnDrag={!effectiveTilt}
+            nodesDraggable={!effectiveTilt}
             proOptions={{ hideAttribution: true }}
           >
-            <Background color={HAIR_STRONG} gap={26} />
+            {/* W3-1 — ruled CAD graph paper: fine minor grid + a coarser major grid. */}
+            <Background id="grid-fine" variant={BackgroundVariant.Lines} gap={26} color={HAIR} />
+            <Background
+              id="grid-coarse"
+              variant={BackgroundVariant.Lines}
+              gap={130}
+              color={HAIR_STRONG}
+            />
             <FitController fitSignal={fitSignal} />
           </ReactFlow>
           <ForceArrows arrows={forceArrows} />
