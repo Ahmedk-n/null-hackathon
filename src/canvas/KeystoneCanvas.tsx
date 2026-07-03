@@ -19,7 +19,7 @@ export function KeystoneCanvas({
 }: {
   graph: Graph;
   keystoneId: string | null;
-  failures: Set<string>;
+  failures: ReadonlySet<string>;
 }) {
   const { nodes, edges } = useMemo(() => {
     const pos = layoutPositions(graph);

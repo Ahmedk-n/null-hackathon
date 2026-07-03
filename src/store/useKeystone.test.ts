@@ -40,6 +40,22 @@ describe("keystone store (context fixtures)", () => {
     expect(store.getState().loadApplied).toBe(false);
     expect(selectIntegrity(store.getState())).toBeGreaterThan(55);
   });
+
+  // Regression: selectFailures MUST return a referentially stable snapshot across repeated calls
+  // on unchanged state. Returning a fresh Set each call breaks React 19's useSyncExternalStore
+  // (infinite re-render / "Maximum update depth exceeded" + hydration mismatch).
+  it("selectFailures is referentially stable across renders", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    // Pre-load: stable empty reference reused every call.
+    expect(selectFailures(store.getState())).toBe(selectFailures(store.getState()));
+    store.getState().applyLoad(fixtureContextAttacks());
+    // Post-load: same populated reference on repeated selects (no per-call allocation).
+    const a = selectFailures(store.getState());
+    const b = selectFailures(store.getState());
+    expect(a).toBe(b);
+    expect(a.has("k_credible")).toBe(true);
+  });
 });
 
 describe("keystone store (context integration)", () => {
