@@ -97,6 +97,26 @@ assumptions to prove" — deterministic, provably minimal), confidence provenanc
 `@anthropic-ai/sdk@0.68.0`; all live paths use `messages.create` + balanced-JSON extract +
 zod `safeParse` + retry-once → fixture (the pattern proven live by the business agent).
 
+## v5 — Landing + product layer (2026-07-04, from grilling; loop until all green)
+
+Full plan + domain model: `docs/superpowers/plans/2026-07-04-keystone-v5-product.md`.
+Priority (cut line): **Landing > Memo > Editing > Library.**
+
+Success criteria (machine gates; loop exits when ALL green):
+- **V5-G1** Landing at `/` (manifesto, live mini-collapse hero loop, HOW IT WORKS, vocabulary
+  ledger, honest-architecture panel, ENTER STUDIO); studio at `/studio`; T9 chrome contract
+  holds on /studio; e2e retargeted and passing.
+- **V5-G2** PRINT MEMO → `/studio/memo` engineering drawing sheet (title block, sensitivity
+  table, de-risking plan, constraint + evidence registers) render-tested populated + empty.
+- **V5-G3** Inspector-panel graph editing (rename / delete / add assumption / AND↔OR / confidence)
+  with validation-wall rejection, stress-verdict reset on structural edits, MODIFIED — UNVERIFIED
+  provenance; solver re-verdicts live. All action tests green.
+- **V5-G4** Decision library: auto-save on Analyse (localStorage v1, cap 20), reopen/duplicate/
+  delete in studio, recent-5 ledger on landing; round-trip + corruption tests green; T8
+  no-client-wall-clock guard stays green.
+- **V5-G5** Full gates: vitest 100%, tsc clean, NEXT_DIST_DIR=.next-gate build exit 0,
+  `npm run e2e` REHEARSAL PASS (landing → studio → A/B/R legs).
+
 ## Reference docs
 
 - Base build plan: `docs/superpowers/plans/2026-07-03-keystone.md` (Tasks 1–14, exact code)
