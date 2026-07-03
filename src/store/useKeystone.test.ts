@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 import { createKeystoneStore, selectIntegrity, selectKeystoneId, selectFailures } from "./useKeystone";
-import { fixtureContextGraph, fixtureContextAttacks } from "@/context";
+import {
+  fixtureContextGraph,
+  fixtureContextAttacks,
+  fixtureCompanyContext,
+  fixtureDecisionContextPack,
+} from "@/context";
 
 describe("keystone store (context fixtures)", () => {
   it("computes integrity from the working graph", () => {
@@ -34,5 +39,46 @@ describe("keystone store (context fixtures)", () => {
     store.getState().reset();
     expect(store.getState().loadApplied).toBe(false);
     expect(selectIntegrity(store.getState())).toBeGreaterThan(55);
+  });
+});
+
+describe("keystone store (context integration)", () => {
+  it("setContext stores companyContext, pack, and source", () => {
+    const store = createKeystoneStore();
+    const pack = fixtureDecisionContextPack();
+    store.getState().setContext(fixtureCompanyContext(), pack, "fixture");
+    expect(store.getState().companyContext).not.toBeNull();
+    expect(store.getState().decisionContextPack).toBe(pack);
+    expect(store.getState().contextSource).toBe("fixture");
+  });
+
+  it("applyLoad reweights severities via context but the engine still picks k_credible", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+
+    store.getState().applyLoad(fixtureContextAttacks());
+
+    // Reweight is applied: the execution-increase (magnitude 0.8) pushes atk_k above its raw 0.8.
+    const stored = store.getState().attacks.find((a) => a.id === "atk_k");
+    const raw = fixtureContextAttacks().find((a) => a.id === "atk_k");
+    expect(stored?.severity).toBeGreaterThan(raw?.severity ?? 0);
+
+    // The engine — not the LLM/context — still decides the keystone and the failures.
+    expect(selectKeystoneId(store.getState())).toBe("k_credible");
+    expect(selectFailures(store.getState()).has("k_credible")).toBe(true);
+    expect(selectIntegrity(store.getState())).toBeLessThan(10);
+  });
+
+  it("applyContextWeights=false leaves severities untouched", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.setState({ applyContextWeights: false });
+
+    store.getState().applyLoad(fixtureContextAttacks());
+    const stored = store.getState().attacks.find((a) => a.id === "atk_k");
+    const raw = fixtureContextAttacks().find((a) => a.id === "atk_k");
+    expect(stored?.severity).toBe(raw?.severity);
   });
 });
