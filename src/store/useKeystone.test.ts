@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { createKeystoneStore, selectIntegrity, selectKeystoneId, selectFailures } from "./useKeystone";
+import { integrity, keystone } from "@/engine";
 import {
   fixtureContextGraph,
   fixtureContextAttacks,
@@ -113,6 +114,35 @@ describe("keystone store (context integration)", () => {
     expect(store.getState().tilt).toBe(false);
     store.getState().setTilt(true);
     expect(store.getState().tilt).toBe(true);
+  });
+
+  // ── W2-2 · deterministic re-run beat ───────────────────────────────────
+  it("rerun leaves integrity/keystone/failures byte-identical and confirms determinism", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+
+    const beforeIntegrity = integrity(store.getState().workingGraph!);
+    const beforeKeystone = keystone(store.getState().workingGraph!)?.id ?? null;
+    const beforeFailures = [...selectFailures(store.getState())].sort();
+    expect(store.getState().rerunConfirmed).toBe(false);
+    expect(store.getState().rerunIdentical).toBeNull();
+
+    store.getState().rerun();
+
+    // Verdict is byte-identical after recomputing from the stored raw inputs.
+    expect(integrity(store.getState().workingGraph!)).toBe(beforeIntegrity);
+    expect(keystone(store.getState().workingGraph!)?.id ?? null).toBe(beforeKeystone);
+    expect([...selectFailures(store.getState())].sort()).toEqual(beforeFailures);
+    // Determinism verdict + confirmation flag are set.
+    expect(store.getState().rerunIdentical).toBe(true);
+    expect(store.getState().rerunConfirmed).toBe(true);
+
+    // The chip flag can be cleared (component drives this via setTimeout).
+    store.getState().clearRerunConfirmed();
+    expect(store.getState().rerunConfirmed).toBe(false);
+    expect(store.getState().rerunIdentical).toBe(true);
   });
 
   it("selection/tilt setters leave the failures snapshot referentially stable", () => {

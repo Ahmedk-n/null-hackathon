@@ -1,6 +1,7 @@
 "use client";
-import { useMemo } from "react";
-import type { Attack } from "@/engine";
+import { useEffect, useMemo } from "react";
+import type { Attack, Graph } from "@/engine";
+import { rankLoadBearing } from "@/engine";
 import {
   keystoneStore,
   useKeystone,
@@ -120,6 +121,87 @@ function AttackRow({ attack }: { attack: Attack }) {
   );
 }
 
+// W2-1 · KNOCK-OUT SENSITIVITY — the engine's verdict, made visible. For every
+// assumption, `rankLoadBearing` re-runs the pure solver with that assumption knocked
+// to zero and reports the drop in structural integrity. On the hero structure the
+// keystone (`k_credible`) craters integrity ~60pts while the next assumption barely
+// moves it ~2pts — that dominance IS why the keystone is the keystone. Rendered as a
+// terminal ledger bar chart: uppercase label, mono impact ("−60.0"), hairline bar
+// scaled to the max impact, keystone row accented --bad. Data path: pure engine
+// function on the clean base graph (no key, deterministic).
+function SensitivityBars({ graph, keystoneId }: { graph: Graph | null; keystoneId: string | null }) {
+  const ranking = useMemo(() => (graph ? rankLoadBearing(graph) : []), [graph]);
+  if (ranking.length === 0) return null;
+  const max = Math.max(...ranking.map((r) => Math.abs(r.impact)), 1e-6);
+  return (
+    <div>
+      <SectionHeader>Knock-out Sensitivity</SectionHeader>
+      {ranking.map((r, i) => {
+        const isKeystone = i === 0 || r.id === keystoneId;
+        const accent = isKeystone ? "var(--bad)" : "var(--ink-2)";
+        const pct = Math.min(100, Math.max(0, (Math.abs(r.impact) / max) * 100));
+        return (
+          <div
+            key={r.id}
+            data-testid="sensitivity-row"
+            data-keystone={isKeystone ? "true" : undefined}
+            style={{ padding: "6px 0", borderBottom: "1px solid var(--hair)" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+              <span className="label" style={isKeystone ? { color: "var(--bad)" } : undefined}>
+                {r.label}
+              </span>
+              <span className="mono" style={{ fontSize: 12, color: accent, flex: "0 0 auto" }}>
+                {"−" + Math.abs(r.impact).toFixed(1)}
+              </span>
+            </div>
+            <div style={{ marginTop: 4, height: 2, background: "var(--panel-2)" }}>
+              <div style={{ height: "100%", width: `${pct}%`, background: accent }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// W2-2 · DETERMINISTIC RE-RUN — re-executes the engine pipeline on the current
+// graph/attacks and flashes a confirmation chip when the verdict is byte-identical.
+// The chip auto-clears after ~2s via setTimeout (no wall-clock reads — this is a
+// transient UI flag, not a timestamp).
+function RerunControl() {
+  const confirmed = useKeystone((s) => s.rerunConfirmed);
+  const identical = useKeystone((s) => s.rerunIdentical);
+  const loadApplied = useKeystone((s) => s.loadApplied);
+
+  useEffect(() => {
+    if (!confirmed) return;
+    const t = setTimeout(() => keystoneStore.getState().clearRerunConfirmed(), 2000);
+    return () => clearTimeout(t);
+  }, [confirmed]);
+
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+      <Button onClick={() => keystoneStore.getState().rerun()} disabled={!loadApplied}>
+        Re-run Analysis
+      </Button>
+      {confirmed && (
+        <span
+          data-testid="rerun-chip"
+          className="chip mono"
+          style={{
+            color: identical === false ? "var(--warn)" : "var(--ok)",
+            borderColor: identical === false ? "var(--warn)" : "var(--ok)",
+            transition: "opacity 0.3s ease",
+          }}
+        >
+          {identical === false ? "DRIFT DETECTED" : "IDENTICAL ✓ DETERMINISTIC"}
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -132,6 +214,7 @@ export function StressTab({
   loading: boolean;
 }) {
   const graph = useKeystone((s) => s.workingGraph);
+  const baseGraph = useKeystone((s) => s.baseGraph);
   const attacks = useKeystone((s) => s.attacks);
   const loadApplied = useKeystone((s) => s.loadApplied);
   const keystoneId = useKeystone(selectKeystoneId);
@@ -163,6 +246,9 @@ export function StressTab({
           )}
         </div>
 
+        {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone) */}
+        <SensitivityBars graph={baseGraph ?? graph} keystoneId={keystoneId} />
+
         <ContextToggle
           grounded={applyContextWeights}
           disabled={loading}
@@ -178,6 +264,9 @@ export function StressTab({
             <Button onClick={onReinforce}>Reinforce</Button>
           )}
         </div>
+
+        {/* W2-2 — deterministic re-run beat */}
+        <RerunControl />
       </div>
 
       {/* CENTER — 3D adaptive canvas + integrity gauge overlay */}

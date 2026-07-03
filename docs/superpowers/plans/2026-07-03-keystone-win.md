@@ -64,8 +64,8 @@
 
 ## Wave 2 — Sell complexity + rigor
 
-- [ ] **W2-1 Sensitivity bars:** render knock-out ranking (~60pts vs ~2pts) as a ledger bar chart (`src/engine/sensitivity.ts` → SelectionPanel or StressTab) — judges SEE why the keystone is the keystone.
-- [ ] **W2-2 Deterministic re-run beat:** "RE-RUN" control producing byte-identical integrity/keystone (visible determinism).
+- [x] **W2-1 Sensitivity bars:** KNOCK-OUT SENSITIVITY ledger in STRESS rail — rankLoadBearing on clean baseGraph, keystone row --bad accented, hairline bars, tabular numerals.
+- [x] **W2-2 Deterministic re-run beat:** RE-RUN ANALYSIS button re-executes pipeline from stored raw inputs, compares verdict, flashes "IDENTICAL ✓ DETERMINISTIC" chip (~2s); DRIFT DETECTED fallback. Store additions additive only.
 - [ ] **W2-3 Second scenario that HOLDS:** one contrasting pre-filled decision where the structure survives (proves discrimination, not canned collapse). No new fixture in `llm/fixture.ts` base path — add alongside context fixtures.
 - [ ] **W2-4 One truly-live axis in demo:** verify `web_search_20260209`/`web_fetch_20260209` tool ids against the live API (audit R2 — may silently always fixture); if dead, fix ids. Technical agent repo-clone streaming into FINDINGS is the flex beat.
 

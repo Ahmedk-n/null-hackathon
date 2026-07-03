@@ -112,4 +112,52 @@ describe("StressTab (R4)", () => {
     expect(integrity(keystoneStore.getState().workingGraph!)).toBeLessThan(10);
     expect(keystoneStore.getState().failures.has("k_credible")).toBe(true);
   });
+
+  // ── W2-1 · knock-out sensitivity bars ─────────────────────────────────
+  it("renders knock-out sensitivity rows sorted by impact with the keystone first + accented", () => {
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    const rows = screen.getAllByTestId("sensitivity-row");
+    expect(rows.length).toBeGreaterThanOrEqual(2);
+
+    // Impact values are mono, formatted as "−NN.N", sorted descending by magnitude.
+    const impacts = rows.map((row) => {
+      const mono = row.querySelector(".mono")!;
+      return Math.abs(Number((mono.textContent ?? "").replace("−", "")));
+    });
+    for (let i = 1; i < impacts.length; i++) {
+      expect(impacts[i - 1]).toBeGreaterThanOrEqual(impacts[i]);
+    }
+
+    // The keystone dominates (~60pts vs ~2pts next) and is the accented first row.
+    expect(impacts[0]).toBeGreaterThan(impacts[1] + 10);
+    expect(rows[0].getAttribute("data-keystone")).toBe("true");
+    expect(rows[0].querySelector(".label")!.textContent).toBe(
+      keystoneStore.getState().baseGraph!.nodes.find((n) => n.id === "k_credible")!.label,
+    );
+  });
+
+  // ── W2-2 · deterministic re-run beat ──────────────────────────────────
+  it("re-run leaves the verdict identical and flashes the determinism chip", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().setContext(
+      fixtureCompanyContext(),
+      fixtureDecisionContextPack(),
+      "fixture",
+    );
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    const before = integrity(keystoneStore.getState().workingGraph!);
+    const beforeFailures = [...keystoneStore.getState().failures].sort();
+
+    fireEvent.click(screen.getByRole("button", { name: /re-run analysis/i }));
+
+    expect(integrity(keystoneStore.getState().workingGraph!)).toBe(before);
+    expect([...keystoneStore.getState().failures].sort()).toEqual(beforeFailures);
+    expect(keystoneStore.getState().rerunIdentical).toBe(true);
+    expect(keystoneStore.getState().rerunConfirmed).toBe(true);
+    expect(screen.getByTestId("rerun-chip").textContent).toMatch(/IDENTICAL/i);
+  });
 });

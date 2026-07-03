@@ -29,6 +29,11 @@ export interface KeystoneState {
   // R2 (additive): GRAPH-tab node selection + 3D board tilt.
   selectedNodeId: string | null;
   tilt: boolean;
+  // W2-2 (additive): deterministic re-run beat. `rerunConfirmed` drives the transient
+  // "IDENTICAL ✓ DETERMINISTIC" chip; `rerunIdentical` is the dev-level equality verdict
+  // (null = never re-run yet). Neither ever throws in the prod path.
+  rerunConfirmed: boolean;
+  rerunIdentical: boolean | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   setContext: (
@@ -41,6 +46,10 @@ export interface KeystoneState {
   reset: () => void;
   setSelectedNode: (id: string | null) => void;
   setTilt: (tilt: boolean) => void;
+  // W2-2 (additive): recompute the whole pipeline from the stored raw inputs and
+  // assert the verdict is byte-identical (visible determinism).
+  rerun: () => void;
+  clearRerunConfirmed: () => void;
 }
 
 export function createKeystoneStore() {
@@ -57,6 +66,8 @@ export function createKeystoneStore() {
     applyContextWeights: true,
     selectedNodeId: null,
     tilt: true,
+    rerunConfirmed: false,
+    rerunIdentical: null,
     setGraph: (g) =>
       set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES }),
     setConfidence: (id, value) => {
@@ -112,6 +123,43 @@ export function createKeystoneStore() {
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),
+    // W2-2: re-execute the engine pipeline from the *stored raw inputs* (baseGraph +
+    // rawAttacks + context flag/pack) and prove the verdict is byte-identical. The engine
+    // is pure, so this recomputation is deterministic; we compare integrity/keystone/failures
+    // and expose a boolean (dev-level assertion — never throws in the prod path).
+    rerun: () => {
+      const { baseGraph, workingGraph, rawAttacks, applyContextWeights, decisionContextPack, failures } = get();
+      if (!baseGraph || !workingGraph) {
+        set({ rerunConfirmed: true, rerunIdentical: null });
+        return;
+      }
+      // Capture the current verdict before recomputing.
+      const prevIntegrity = integrity(workingGraph);
+      const prevKeystone = keystone(workingGraph)?.id ?? null;
+      const prevFailures = failures;
+      // Re-run the exact pipeline applyLoad uses, from the raw attacks.
+      const effective =
+        applyContextWeights && decisionContextPack
+          ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
+          : rawAttacks;
+      const nextGraph = applyAttacks(cloneGraph(baseGraph), effective);
+      const nextFailures = detectFailures(nextGraph);
+      const nextIntegrity = integrity(nextGraph);
+      const nextKeystone = keystone(nextGraph)?.id ?? null;
+      const identical =
+        prevIntegrity === nextIntegrity &&
+        prevKeystone === nextKeystone &&
+        prevFailures.size === nextFailures.size &&
+        [...prevFailures].every((id) => nextFailures.has(id));
+      set({
+        workingGraph: nextGraph,
+        attacks: effective,
+        failures: nextFailures,
+        rerunIdentical: identical,
+        rerunConfirmed: true,
+      });
+    },
+    clearRerunConfirmed: () => set({ rerunConfirmed: false }),
   }));
 }
 
