@@ -1,3 +1,5 @@
+import KeystoneApp from "./KeystoneApp";
+
 export default function Page() {
-  return <main style={{ padding: 24 }}>Keystone</main>;
+  return <KeystoneApp />;
 }
