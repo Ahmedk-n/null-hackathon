@@ -1,4 +1,5 @@
 import type { Attack, Graph } from "@/engine";
+import { graphReferenceIssues } from "@/engine";
 import type { DecisionContextPack } from "@/context/types";
 import { fixtureContextAttacks, fixtureContextGraph } from "@/context/fixtures";
 import { AttacksSchema, GraphSchema, type AttacksOutput } from "./schemas";
@@ -72,14 +73,20 @@ export async function extractStructure(
   const user = pack ? `Decision: ${decisionText}\n\n${renderPack(pack)}` : decisionText;
 
   return withRetryFallback(
-    () =>
-      structuredCall<Graph>({
+    async () => {
+      const graph = await structuredCall<Graph>({
         system,
         user,
         schema: GraphSchema,
         toolName: "emit_graph",
         toolDescription: "Emit the decision dependency graph.",
-      }),
+      });
+      // Reject referentially-broken graphs (dangling childIds, missing thesis) so
+      // they fall back to a fixture instead of reaching the engine as garbage.
+      const issues = graphReferenceIssues(graph);
+      if (issues.length > 0) throw new Error(`malformed graph: ${issues.join("; ")}`);
+      return graph;
+    },
     fallback,
   );
 }

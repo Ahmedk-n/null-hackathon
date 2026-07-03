@@ -28,6 +28,8 @@ rankLoadBearing(graph: Graph): Keystone[]               // desc by impact, tie-b
 keystone(graph: Graph): Keystone | null
 cloneGraph(graph: Graph): Graph
 topoOrder(graph: Graph): string[]                       // throws on cycle
+graphReferenceIssues(graph: Graph): string[]            // dangling childIds / missing thesis / dup ids / empty
+isGraphWellFormed(graph: Graph): boolean
 ```
 > **Contract note:** `keystone()`/`rankLoadBearing()` return `{ id, label, impact }` (base-plan shape), **not** `{ assumptionId, impact }`. Use `keystone(g)?.id` for the keystone node id.
 
