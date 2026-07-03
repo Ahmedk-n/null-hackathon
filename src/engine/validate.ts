@@ -1,4 +1,4 @@
-import type { Graph } from "./types";
+import type { Attack, Graph } from "./types";
 
 /**
  * Referential well-formedness checks for a graph. Pure. Used at the LLM
@@ -31,4 +31,19 @@ export function graphReferenceIssues(graph: Graph): string[] {
 /** True when every childId and the thesisId resolve to a real, unique node. */
 export function isGraphWellFormed(graph: Graph): boolean {
   return graphReferenceIssues(graph).length === 0;
+}
+
+/**
+ * Referential check for attacks: every `targetId` must resolve to a node in the
+ * graph. Used at the LLM boundary (generateAttacks) so a model that invents a
+ * `targetId` falls back to fixture attacks instead of silently no-op'ing.
+ * (`applyAttacks` already ignores unknown targets — this is defense in depth.)
+ */
+export function attacksReferenceIssues(attacks: Attack[], graph: Graph): string[] {
+  const ids = new Set(graph.nodes.map((n) => n.id));
+  const issues: string[] = [];
+  for (const a of attacks) {
+    if (!ids.has(a.targetId)) issues.push(`attack ${a.id} targets missing node: ${a.targetId}`);
+  }
+  return issues;
 }

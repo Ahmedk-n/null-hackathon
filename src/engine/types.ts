@@ -35,6 +35,12 @@ export interface Graph {
 
 export interface Attack {
   id: string;
+  /**
+   * Node this attack targets. Intended to be an ASSUMPTION node id (attacks
+   * stress leaf assumptions); `applyAttacks` will apply to any existing node and
+   * treats an unknown id as a safe no-op. `attacksReferenceIssues` enforces
+   * existence at the LLM boundary.
+   */
   targetId: string;
   /** Free-form load category (e.g. "execution risk"). NOT an enum by design. */
   category: string;

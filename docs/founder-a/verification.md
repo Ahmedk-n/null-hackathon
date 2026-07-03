@@ -7,7 +7,7 @@ Branch: `founder-a/context-core`. Environment: Node v22.23.0, npm 10.9.8, macOS.
 | Command | Purpose | Result |
 |---|---|---|
 | `npm install` | install deps | ✅ ok (added `zod-to-json-schema` — see below) |
-| `npx vitest run` (`npm test`) | full unit suite | ✅ **94 passed / 94** (13 files) |
+| `npx vitest run` (`npm test`) | full unit suite | ✅ **99 passed / 99** (13 files; +5 from maximal-verification improvements) |
 | `npx tsc --noEmit` (`npm run typecheck`) | strict typecheck | ✅ exit 0 |
 | `npm run build` (`next build`) | production build | ✅ exit 0 (compiled + static pages generated) |
 

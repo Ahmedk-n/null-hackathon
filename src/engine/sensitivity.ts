@@ -16,7 +16,8 @@ export function cloneGraph(graph: Graph): Graph {
  * integrity(that assumption knocked to confidence 0).
  *
  * Sorted by impact descending. Ties broken by id ascending so the ordering is
- * fully deterministic regardless of node insertion order.
+ * fully deterministic regardless of node insertion order — i.e. `keystone(g)?.id`
+ * is STABLE across reruns (important: Founder B keys UI highlighting off it).
  */
 export function rankLoadBearing(graph: Graph): Keystone[] {
   const baseline = integrity(graph);

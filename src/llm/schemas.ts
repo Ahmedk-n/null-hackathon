@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+/*
+ * SCHEMA POLICY: `confidence` and `severity` use bare `z.number()` (no
+ * `.min(0).max(1)`) by design. We TOLERATE slightly out-of-range model output
+ * and let the engine clamp it (`clamp01` in propagation.ts / load.ts) rather
+ * than reject an otherwise-good graph/attack set and lose it to the fixture.
+ * This mirrors the context layer's `postClamp` tolerance policy.
+ */
+
 const DepGroupSchema = z.object({
   kind: z.enum(["AND", "OR"]),
   childIds: z.array(z.string()),

@@ -30,6 +30,7 @@ cloneGraph(graph: Graph): Graph
 topoOrder(graph: Graph): string[]                       // throws on cycle
 graphReferenceIssues(graph: Graph): string[]            // dangling childIds / missing thesis / dup ids / empty
 isGraphWellFormed(graph: Graph): boolean
+attacksReferenceIssues(attacks: Attack[], graph: Graph): string[]   // attacks whose targetId is not a real node
 ```
 > **Contract note:** `keystone()`/`rankLoadBearing()` return `{ id, label, impact }` (base-plan shape), **not** `{ assumptionId, impact }`. Use `keystone(g)?.id` for the keystone node id.
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
-import type { Graph } from "./types";
-import { graphReferenceIssues, isGraphWellFormed } from "./validate";
+import type { Attack, Graph } from "./types";
+import { attacksReferenceIssues, graphReferenceIssues, isGraphWellFormed } from "./validate";
 
 function wellFormed(): Graph {
   return {
@@ -40,5 +40,20 @@ describe("graphReferenceIssues", () => {
 
   it("flags an empty graph", () => {
     expect(graphReferenceIssues({ thesisId: "T", nodes: [] }).length).toBeGreaterThan(0);
+  });
+});
+
+describe("attacksReferenceIssues", () => {
+  const g = wellFormed();
+  const atk = (targetId: string): Attack => ({ id: `x_${targetId}`, targetId, category: "m", severity: 0.5, rationale: "" });
+
+  it("returns [] when every attack targets an existing node", () => {
+    expect(attacksReferenceIssues([atk("a"), atk("T")], g)).toEqual([]);
+  });
+
+  it("flags an attack that targets a missing node", () => {
+    const issues = attacksReferenceIssues([atk("ghost")], g);
+    expect(issues.length).toBe(1);
+    expect(issues[0]).toContain("ghost");
   });
 });

@@ -39,6 +39,21 @@ describe("applyAttacks", () => {
     applyAttacks(g, [{ id: "x", targetId: "a1", category: "m", severity: 0.9, rationale: "" }]);
     expect(g.nodes.find((n) => n.id === "a1")!.confidence).toBe(0.8);
   });
+
+  it("clamps out-of-range attack severity", () => {
+    // severity < 0 -> clamped to 0 -> confidence unchanged
+    const neg = applyAttacks(graph(), [{ id: "x", targetId: "a1", category: "m", severity: -0.5, rationale: "" }]);
+    expect(neg.nodes.find((n) => n.id === "a1")!.confidence).toBe(0.8);
+    // severity > 1 -> clamped to 1 -> confidence driven to 0
+    const over = applyAttacks(graph(), [{ id: "y", targetId: "a1", category: "m", severity: 1.5, rationale: "" }]);
+    expect(over.nodes.find((n) => n.id === "a1")!.confidence).toBe(0);
+  });
+
+  it("does not mutate the input attacks array", () => {
+    const attacks: Attack[] = [{ id: "x", targetId: "a1", category: "m", severity: 0.5, rationale: "" }];
+    applyAttacks(graph(), attacks);
+    expect(attacks[0].severity).toBe(0.5);
+  });
 });
 
 describe("detectFailures", () => {

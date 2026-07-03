@@ -13,10 +13,21 @@ describe("compileContext (no key -> fixture fallback)", () => {
     expect(() => ContextCompileSchema.parse(result)).not.toThrow();
   });
 
-  it("includes temporal facts and non-empty weight adjustments", async () => {
+  it("surfaces decision-relevant temporal facts and near-term weight increases", async () => {
     const { decisionContextPack } = await compileContext(HERO_CONTEXT_INPUT);
-    expect(decisionContextPack.relevantTemporalFacts.length).toBeGreaterThan(0);
-    expect(decisionContextPack.contextWeightAdjustments.length).toBeGreaterThan(0);
+    // temporal facts must actually convey the near-term pressure, not just be non-empty
+    expect(decisionContextPack.relevantTemporalFacts.join(" ").toLowerCase()).toMatch(
+      /meeting|tomorrow|reliability|timeline/,
+    );
+    // and the context must raise weight on at least one near-term category
+    const increased = new Set(
+      decisionContextPack.contextWeightAdjustments
+        .filter((w) => w.direction === "increase")
+        .map((w) => w.targetCategory),
+    );
+    expect(
+      ["execution", "reliability", "auditability", "timeline"].some((c) => increased.has(c as never)),
+    ).toBe(true);
   });
 
   it("passes the decision text through to the pack", async () => {

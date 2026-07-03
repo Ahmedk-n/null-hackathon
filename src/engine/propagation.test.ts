@@ -51,8 +51,8 @@ describe("topoOrder", () => {
       ],
     };
     expect(() => topoOrder(g)).not.toThrow();
-    // ghost has no support -> AND product with a missing member is 0
-    expect(computeSupport(g).get("T")).toBeCloseTo(0);
+    // ghost has no support -> AND product with a missing member is exactly 0
+    expect(computeSupport(g).get("T")).toBe(0);
   });
 });
 
@@ -102,6 +102,19 @@ describe("computeSupport", () => {
       nodes: [{ id: "T", type: "thesis", label: "d", confidence: 5, groups: [] }],
     };
     expect(computeSupport(g).get("T")).toBe(1);
+  });
+
+  it("clamps an out-of-range leaf assumption confidence", () => {
+    const g: Graph = {
+      thesisId: "T",
+      nodes: [
+        { id: "T", type: "thesis", label: "d", confidence: 1, groups: [{ kind: "AND", childIds: ["a"] }] },
+        { id: "a", type: "assumption", label: "a", confidence: 1.5, groups: [] },
+      ],
+    };
+    const s = computeSupport(g);
+    expect(s.get("a")).toBe(1); // 1.5 clamped to 1
+    expect(s.get("T")).toBe(1);
   });
 });
 
