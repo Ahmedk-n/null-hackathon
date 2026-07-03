@@ -32,12 +32,12 @@ export default function KeystoneApp({
   const [activeTab, setActiveTab] = useState("context");
   const [building, setBuilding] = useState(false);
   const [loading, setLoading] = useState(false);
-  // Which mode the CONTEXT tab is driving. A (default) = the pinned hero migrate decision that
-  // collapses; B = the pinned reinforce decision that holds; "custom" = the JUDGE mode — drop the
-  // scenario pin so the live chain fires server-side (fixture fallback when no key). Held here
-  // (not the store, which a concurrent agent owns) so the SAME mode plumbs through
-  // context → extract → attacks. See src/ui/tabs/ContextTab.tsx.
-  const [mode, setMode] = useState<ContextMode>("A");
+  // Which mode the CONTEXT tab is driving. R (default) = the REAL sample — Excalidraw, generated
+  // live from the actual repo/site and pinned; A = the hero migrate decision that collapses;
+  // B = the reinforce decision that holds; "custom" = the JUDGE mode — drop the scenario pin so
+  // the live chain fires server-side (fixture fallback when no key). Held here so the SAME mode
+  // plumbs through context → extract → attacks. See src/ui/tabs/ContextTab.tsx.
+  const [mode, setMode] = useState<ContextMode>("R");
   // Per-stage progress through the compile/extract/attacks chain, surfaced in the StatusStrip
   // using the plan's terminal vocabulary so a live run reads honestly, quietly.
   const [stage, setStage] = useState<"idle" | "context" | "extract" | "attacks" | "done">("idle");

@@ -96,9 +96,11 @@ async function main() {
       await page.goto(BASE_URL, { waitUntil: "networkidle", timeout: 60000 });
     });
 
-    await step("A: CONTEXT tab visible", async () => {
+    await step("A: CONTEXT tab visible (default mode is R — the REAL sample)", async () => {
       await waitTabActive("context");
-      // Mode defaults to A (pinned). Confirm the mode chip reads PINNED · SCENARIO A.
+      // V4: the default mode is R (REAL — Excalidraw). Confirm, then pin A for this leg.
+      await page.waitForSelector('[data-testid="mode-chip"][data-mode="R"]', { timeout: 10000 });
+      await page.click('[data-scenario="A"]');
       await page.waitForSelector('[data-testid="mode-chip"][data-mode="A"]', { timeout: 10000 });
     });
 
@@ -262,6 +264,55 @@ async function main() {
       if (integrityB === null) throw new Error("could not read scenario-B integrity readout");
       if (integrityB < 35)
         throw new Error(`scenario B did NOT hold — integrity ${integrityB}% < 35% (expected hold)`);
+    });
+
+    // ── SCENARIO R — the REAL sample (Excalidraw), the default demo ─────────
+    console.log("\n[SCENARIO R · REAL — Excalidraw]");
+
+    await step("R: select mode R", async () => {
+      await page.click('[data-tab="context"]');
+      await waitTabActive("context");
+      await page.click('[data-scenario="R"]');
+      await page.waitForSelector('[data-testid="mode-chip"][data-mode="R"]', { timeout: 10000 });
+    });
+
+    await step("R: click Analyse", async () => {
+      await clickText("ANALYSE").click();
+    });
+
+    await step(
+      "R: GRAPH tab active + canvas nodes render",
+      async () => {
+        await waitTabActive("graph");
+        await page.waitForFunction(
+          () => document.querySelectorAll(".react-flow__node").length > 0,
+          undefined,
+          { timeout: 15000 },
+        );
+      },
+      { tabSwitch: true },
+    );
+
+    let integrityR = null;
+    await step("R: STRESS → Apply Load (grounded) → keystone cracks", async () => {
+      await page.click('[data-tab="stress"]');
+      await waitTabActive("stress");
+      await page.waitForFunction(
+        () => document.querySelectorAll(".react-flow__node").length > 0,
+        undefined,
+        { timeout: 15000 },
+      );
+      await clickText("Apply Load").click();
+      await page.waitForSelector('button:has-text("Reinforce")', { timeout: 15000 });
+      await page.waitForTimeout(300);
+      integrityR = await readIntegrity();
+    });
+
+    await step("R: verify grounded collapse (integrity < 35)", async () => {
+      console.log(`      scenario R integrity: ${integrityR}%`);
+      if (integrityR === null) throw new Error("could not read scenario-R integrity readout");
+      if (integrityR >= 35)
+        throw new Error(`scenario R did NOT collapse — integrity ${integrityR}% >= 35% (expected crack)`);
     });
   } catch (err) {
     record("error", `SCRIPT DRIVE FAILURE: ${err.message}`);
