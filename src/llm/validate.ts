@@ -1,0 +1,172 @@
+// Validation wall at the LLM boundary. Arbitrary live-LLM graphs/attacks are shape-checked
+// upstream (schemas.ts) but can still crash the PURE engine: propagation.topoOrder throws on
+// cycles and nodeById throws on dangling refs. This module REPAIRS what it safely can and
+// REJECTS (→ null) what it cannot, so nothing malformed ever reaches the engine.
+//
+// Boundary: llm → engine is allowed, but we import engine TYPES only (never engine internals
+// like topoOrder). The acyclicity/reachability checks are self-contained here. normaliseCategory
+// is a pure context function (context is pure, no engine dependency the wrong way).
+import type { Attack, DepGroup, Graph, GraphNode } from "@/engine";
+import { normaliseCategory } from "@/context/weights";
+
+/** Local, total clamp (NaN → 0). Kept self-contained so validate.ts imports no engine functions. */
+function clamp01(n: number): number {
+  if (Number.isNaN(n)) return 0;
+  return Math.min(1, Math.max(0, n));
+}
+
+const NODE_MIN = 5;
+const NODE_MAX = 12; // pickLayoutMode: >25 band is UNBUILT; 12 keeps Band 1 (≤8) / Band 2 (≤25).
+const SEVERITY_CAP = 0.6; // raw attacks are capped; context reweighting must be what tips structure.
+
+/** Deep copy so the input Graph is never mutated. */
+function cloneGraph(g: Graph): Graph {
+  return {
+    thesisId: g.thesisId,
+    nodes: g.nodes.map((n) => ({
+      id: n.id,
+      type: n.type,
+      label: n.label,
+      confidence: n.confidence,
+      groups: n.groups.map((gr) => ({ kind: gr.kind, childIds: [...gr.childIds] })),
+    })),
+  };
+}
+
+/** Self-contained cycle check (DFS with a recursion stack). Mirrors what engine topoOrder visits. */
+function hasCycle(nodes: GraphNode[]): boolean {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  // 0 = unvisited, 1 = on stack (grey), 2 = done (black)
+  const state = new Map<string, 0 | 1 | 2>();
+
+  const visit = (id: string): boolean => {
+    const node = byId.get(id);
+    if (!node) return false; // dangling refs are removed before this runs
+    state.set(id, 1);
+    for (const group of node.groups) {
+      for (const childId of group.childIds) {
+        const s = state.get(childId);
+        if (s === 1) return true; // back edge → cycle
+        if (s === undefined && visit(childId)) return true;
+      }
+    }
+    state.set(id, 2);
+    return false;
+  };
+
+  for (const node of nodes) {
+    if (state.get(node.id) === undefined && visit(node.id)) return true;
+  }
+  return false;
+}
+
+/** Ids reachable from the thesis by walking dependency groups (child edges). */
+function reachableFrom(nodes: GraphNode[], rootId: string): Set<string> {
+  const byId = new Map(nodes.map((n) => [n.id, n]));
+  const seen = new Set<string>();
+  const stack = [rootId];
+  while (stack.length > 0) {
+    const id = stack.pop() as string;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const node = byId.get(id);
+    if (!node) continue;
+    for (const group of node.groups) {
+      for (const childId of group.childIds) {
+        if (!seen.has(childId)) stack.push(childId);
+      }
+    }
+  }
+  return seen;
+}
+
+/**
+ * Validate + repair a live-LLM graph so the pure engine can never crash on it.
+ *
+ * Repair-vs-reject policy:
+ *  - confidences outside [0,1] (or NaN)  → REPAIR (clamp).
+ *  - orphan childIds (ref to unknown id) → REPAIR (drop the childId); groups left empty → REPAIR (drop group).
+ *  - thesis: not exactly one thesis node, or thesisId not pointing at it → REJECT (null).
+ *  - thesis ends up with no dependency groups → REJECT (null).
+ *  - nodes unreachable from the thesis → REPAIR (drop them).
+ *  - any cycle → REJECT (null).
+ *  - final node count outside 5..12 → REJECT (null).
+ *
+ * Returns a repaired DEEP COPY, or null when unrepairable. Never mutates the input.
+ */
+export function validateGraph(g: Graph): Graph | null {
+  const graph = cloneGraph(g);
+
+  // Clamp confidences (repair).
+  for (const node of graph.nodes) node.confidence = clamp01(node.confidence);
+
+  // Exactly one thesis, and thesisId must point at it.
+  const theses = graph.nodes.filter((n) => n.type === "thesis");
+  if (theses.length !== 1) return null;
+  const thesis = theses[0];
+  if (graph.thesisId !== thesis.id) return null;
+
+  // Drop orphan childIds, then drop groups left empty (repair).
+  const knownIds = new Set(graph.nodes.map((n) => n.id));
+  for (const node of graph.nodes) {
+    node.groups = node.groups
+      .map((gr): DepGroup => ({ kind: gr.kind, childIds: gr.childIds.filter((c) => knownIds.has(c)) }))
+      .filter((gr) => gr.childIds.length > 0);
+  }
+
+  // If the thesis lost all its groups, nothing hangs off it → unrepairable.
+  if (thesis.groups.length === 0) return null;
+
+  // Drop nodes unreachable from the thesis (repair). Dropped nodes can never be a child of a
+  // reachable node (else they'd be reachable), so this introduces no new orphan refs.
+  const reachable = reachableFrom(graph.nodes, graph.thesisId);
+  graph.nodes = graph.nodes.filter((n) => reachable.has(n.id));
+
+  // Acyclicity on the surviving graph (this is exactly what the engine will topo-sort).
+  if (hasCycle(graph.nodes)) return null;
+
+  // Node-count band (checked AFTER dropping unreachable nodes).
+  if (graph.nodes.length < NODE_MIN || graph.nodes.length > NODE_MAX) return null;
+
+  return graph;
+}
+
+/**
+ * Validate + repair live-LLM attacks against an already-validated graph.
+ *
+ * Repair-vs-reject policy:
+ *  - targetId not an assumption node in the graph → REPAIR (drop the attack).
+ *  - severity outside [0,1] / NaN               → REPAIR (clamp); then raw capped at ≤0.6.
+ *  - more than one attack per targetId          → REPAIR (keep the highest severity).
+ *  - nothing survives                           → REJECT (null).
+ *  - no surviving attack has a category that normaliseCategory maps to a WeightCategory
+ *    (reweighting would be a no-op) → REJECT (null).
+ *
+ * Returns repaired COPIES (never mutates the input attacks).
+ */
+export function validateAttacks(graph: Graph, attacks: Attack[]): Attack[] | null {
+  const assumptionIds = new Set(
+    graph.nodes.filter((n) => n.type === "assumption").map((n) => n.id),
+  );
+
+  // Drop attacks that don't target an assumption; clamp+cap severity on the survivors (copies).
+  const cleaned = attacks
+    .filter((a) => assumptionIds.has(a.targetId))
+    .map((a) => ({ ...a, severity: Math.min(SEVERITY_CAP, clamp01(a.severity)) }));
+
+  // At most one attack per target — keep the strongest.
+  const strongestByTarget = new Map<string, Attack>();
+  for (const a of cleaned) {
+    const existing = strongestByTarget.get(a.targetId);
+    if (!existing || a.severity > existing.severity) strongestByTarget.set(a.targetId, a);
+  }
+  const result = [...strongestByTarget.values()];
+
+  if (result.length === 0) return null;
+
+  // At least one category must be reweightable, else applying context is a no-op.
+  const anyNormalisable = result.some((a) => normaliseCategory(a.category) !== null);
+  if (!anyNormalisable) return null;
+
+  return result;
+}
