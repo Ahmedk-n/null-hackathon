@@ -41,7 +41,7 @@
 ## Wave 1 — The money shot (collapse spectacle; parallelizable after W0)
 
 ### W1-1 · Gauge craters instead of snapping
-- [ ] `src/ui/IntegrityGauge.tsx`: `useMotionValue` + `animate()` count-down synced to ring (0.6s, ease `[0.22,1,0.36,1]`); color-flash to `--bad` + 2–3px shake crossing the failure band; add status word `HOLDING/STRESSED/FAILED` under the %.
+- [x] `src/ui/IntegrityGauge.tsx`: useMotionValue count-down + ring + color all synced at 0.9s ease `[0.22,1,0.36,1]`; once-per-crossing shake into FAILED; status word HOLDING/STRESSED/FAILED (bands unified at ≥35/10–35/<10 to match the narrative — deviation noted, nothing asserted old thresholds). 4 new tests.
 
 ### W1-2 · Ripple collapse, not tiered thuds
 - [ ] `src/canvas/KeystoneCanvas.tsx:21` + `StructuralNode.tsx:67`: per-node stagger `layer*0.18 + indexInLayer*0.06` (computed in the existing `useMemo`, passed as `collapseDelay`); keystone fails FIRST and hardest; replace `easeInOut` with accelerating fall (`[0.7,0,0.84,0]` or spring stiffness 180 / damping 12).
