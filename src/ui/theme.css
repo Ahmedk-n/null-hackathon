@@ -23,9 +23,10 @@
   --warn:          #a9741a;   /* integrity mid */
   --bad:           #b23a2e;   /* integrity low / FAILED */
 
-  /* type */
-  --sans: "Inter", "Söhne", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --mono: "JetBrains Mono", "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  /* type — fonts loaded via next/font in src/app/layout.tsx (exposed as
+     --font-inter / --font-jbmono on <html>), with system fallback stacks. */
+  --sans: var(--font-inter), "Söhne", -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --mono: var(--font-jbmono), "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /* rhythm */
   --row-h: 34px;  --gap: 14px;  --pad: 14px;  --radius: 0;  /* sharp corners */
