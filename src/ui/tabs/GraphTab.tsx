@@ -8,6 +8,7 @@ import {
   selectFailures,
 } from "@/store/useKeystone";
 import { pickLayoutMode } from "@/canvas/layout";
+import { analysisDepth, presentStrata } from "@/canvas/depth";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
@@ -39,6 +40,124 @@ const RIGHT: React.CSSProperties = {
   background: "var(--panel)",
 };
 
+// V4-1 — PLAN ⟷ SECTION segmented control (replaces the old TILT checkbox). SECTION is
+// the perspective strata view; PLAN is a top-down flat inspection. Terminal/ledger
+// styling: uppercase tracked .mono labels, hairline frame, zero radius.
+function DepthViewToggle({
+  section,
+  flat,
+  onChange,
+}: {
+  section: boolean;
+  flat: boolean;
+  onChange: (section: boolean) => void;
+}) {
+  const seg = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: "7px 8px",
+    fontFamily: "var(--mono)",
+    fontSize: 10,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    textAlign: "center",
+    cursor: flat ? "default" : "pointer",
+    border: "none",
+    borderRadius: 0,
+    background: active ? "var(--ink)" : "transparent",
+    color: active ? "var(--bg)" : "var(--muted)",
+    opacity: flat ? 0.5 : 1,
+  });
+  return (
+    <div>
+      <div
+        data-testid="depth-view-toggle"
+        style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
+      >
+        <button
+          type="button"
+          aria-pressed={!section}
+          disabled={flat}
+          onClick={() => onChange(false)}
+          style={seg(!section)}
+        >
+          Plan
+        </button>
+        <button
+          type="button"
+          aria-pressed={section}
+          disabled={flat}
+          onClick={() => onChange(true)}
+          style={seg(section)}
+        >
+          Section
+        </button>
+      </div>
+      {flat && (
+        <div className="label" style={{ marginTop: 4, fontSize: 10, color: "var(--muted)" }}>
+          Band 1 · flat plan only
+        </div>
+      )}
+    </div>
+  );
+}
+
+// V4-1 — stratum focus buttons: ALL · L0 · L1 · L2 · L3 (only the strata present).
+// Selecting a level dims the other strata on the canvas and nudges the camera toward it.
+function StratumFocus({
+  strata,
+  focusLayer,
+  disabled,
+  onFocus,
+}: {
+  strata: { level: number; key: string }[];
+  focusLayer: number | null;
+  disabled: boolean;
+  onFocus: (level: number | null) => void;
+}) {
+  const chip = (active: boolean): React.CSSProperties => ({
+    padding: "3px 8px",
+    fontFamily: "var(--mono)",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    cursor: disabled ? "default" : "pointer",
+    border: `1px solid ${active ? "var(--ink)" : "var(--hair-strong)"}`,
+    borderRadius: 0,
+    background: active ? "var(--ink)" : "transparent",
+    color: active ? "var(--bg)" : "var(--muted)",
+    opacity: disabled ? 0.45 : 1,
+  });
+  return (
+    <div style={{ marginTop: 6 }}>
+      <span className="label" style={{ display: "block", marginBottom: 4 }}>
+        Focus Stratum
+      </span>
+      <div data-testid="stratum-focus" style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+        <button
+          type="button"
+          disabled={disabled}
+          aria-pressed={focusLayer === null}
+          onClick={() => onFocus(null)}
+          style={chip(focusLayer === null)}
+        >
+          All
+        </button>
+        {strata.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            disabled={disabled}
+            aria-pressed={focusLayer === s.level}
+            onClick={() => onFocus(focusLayer === s.level ? null : s.level)}
+            style={chip(focusLayer === s.level)}
+          >
+            {`L${s.level}`}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const graph = useKeystone((s) => s.workingGraph);
   const keystoneId = useKeystone(selectKeystoneId);
@@ -58,6 +177,12 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const [search, setSearch] = useState("");
   const [failedOnly, setFailedOnly] = useState(false);
   const [minConf, setMinConf] = useState(0);
+  // V4-1 — stratum focus (L0..L3), local to the GRAPH inspection surface. null = ALL.
+  const [focusLayer, setFocusLayer] = useState<number | null>(null);
+
+  // V4-1 — DEPTH metric + the strata actually present (drives the focus buttons).
+  const depth = useMemo(() => (graph ? analysisDepth(graph) : null), [graph]);
+  const strata = useMemo(() => (graph ? presentStrata(graph) : []), [graph]);
 
   const stats = useMemo(() => {
     if (!graph) return null;
@@ -160,33 +285,47 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           <LedgerRow label="Matches" value={`${matches.length} / ${stats.nodeCount}`} />
         </div>
 
+        {/* V4-1 — DEPTH VIEW: PLAN (top-down flat) ⟷ SECTION (perspective strata), plus
+            stratum focus (L0..L3) that dims the other strata and nudges the camera. The
+            Z-axis now ENCODES reasoning depth, not decoration. Band 1 (simple-2d) renders
+            PLAN-only, so SECTION + focus are muted there. */}
         <div>
-          <SectionHeader>Tilt</SectionHeader>
-          {/* W3-5 — Band 1 (simple-2d) renders flat, so the tilt has no effect; mute
-              + disable the toggle to make the flat band read as intentional. */}
+          <SectionHeader>Depth View</SectionHeader>
           {(() => {
             const flat = stats.mode === "simple-2d";
             return (
-              <label
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  cursor: flat ? "default" : "pointer",
-                  opacity: flat ? 0.5 : 1,
-                }}
-              >
-                <input
-                  type="checkbox"
-                  className="ledger-check"
-                  checked={tilt && !flat}
-                  disabled={flat}
-                  onChange={(e) => keystoneStore.getState().setTilt(e.target.checked)}
+              <>
+                <DepthViewToggle
+                  section={tilt && !flat}
+                  flat={flat}
+                  onChange={(s) => {
+                    keystoneStore.getState().setTilt(s);
+                    // Leaving SECTION clears focus so nodes never stay stuck-dimmed while
+                    // the (now disabled) focus buttons can't reset it.
+                    if (!s) setFocusLayer(null);
+                  }}
                 />
-                <span className="label">
-                  {flat ? "3D Tilt (flat band — 2D)" : "3D Tilt (isometric board)"}
-                </span>
-              </label>
+                <StratumFocus
+                  strata={strata}
+                  focusLayer={focusLayer}
+                  disabled={flat || !tilt}
+                  onFocus={setFocusLayer}
+                />
+                {depth && (
+                  <>
+                    <LedgerRow label="Depth" value={`${depth.strata}/4 strata`} />
+                    <LedgerRow
+                      label="Grounded"
+                      value={`${depth.grounded}/${depth.assumptions}`}
+                      accent={
+                        depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
+                          ? "var(--ok)"
+                          : "var(--warn)"
+                      }
+                    />
+                  </>
+                )}
+              </>
             );
           })()}
         </div>
@@ -212,6 +351,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           keystoneId={keystoneId}
           failures={failures}
           tilt={tilt}
+          focusLayer={focusLayer}
           loadApplied={loadApplied}
           attacks={attacks}
           rawAttacks={rawAttacks}

@@ -10,6 +10,7 @@ import {
   selectFailures,
 } from "@/store/useKeystone";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
+import { analysisDepth } from "@/canvas/depth";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
 import { SectionHeader, Button, EmptyCanvas, LedgerRow } from "@/ui/primitives";
@@ -360,10 +361,33 @@ export function StressTab({
     [attacks],
   );
 
+  // V4-1 — DEPTH readout (compact) from the clean base structure.
+  const depth = useMemo(() => {
+    const g = baseGraph ?? graph;
+    return g ? analysisDepth(g) : null;
+  }, [baseGraph, graph]);
+
   return (
     <div style={{ display: "flex", height: "100%" }}>
       {/* LEFT — ATTACK LEDGER + actions */}
       <div style={RAIL}>
+        {/* V4-1 — DEPTH: dimensionality of the analysis (strata + evidence coverage). */}
+        {depth && (
+          <div data-testid="stress-depth">
+            <SectionHeader>Depth</SectionHeader>
+            <LedgerRow label="Strata" value={`${depth.strata}/4`} />
+            <LedgerRow
+              label="Grounded"
+              value={`${depth.grounded}/${depth.assumptions}`}
+              accent={
+                depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
+                  ? "var(--ok)"
+                  : "var(--warn)"
+              }
+            />
+          </div>
+        )}
+
         <div>
           <SectionHeader>Attack Ledger</SectionHeader>
           {sorted.length === 0 ? (

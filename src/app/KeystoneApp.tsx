@@ -10,6 +10,7 @@ import {
   selectKeystoneId,
 } from "@/store/useKeystone";
 import { pickLayoutMode } from "@/canvas/layout";
+import { analysisDepth } from "@/canvas/depth";
 import { ContextTab, type ContextMode } from "@/ui/tabs/ContextTab";
 import { GraphTab } from "@/ui/tabs/GraphTab";
 import { StressTab } from "@/ui/tabs/StressTab";
@@ -159,6 +160,9 @@ export default function KeystoneApp({
     done: "READY",
   };
   const running = building || loading;
+  // V4-1 — DEPTH: the dimensionality of the analysis (strata present + evidence
+  // coverage). A judge reads "reasoned n/4 strata deep, m/k assumptions grounded."
+  const depth = workingGraph ? analysisDepth(workingGraph) : null;
   // CUSTOM-mode chain provenance, now that EVERY stage reports a truthful source (context via body,
   // extract/attacks via the additive x-keystone-source header). We grade only the stages that have
   // executed this run: ALL live → LIVE CHAIN (--ok); some live, some fixture → PARTIAL naming the
@@ -189,6 +193,16 @@ export default function KeystoneApp({
     { key: "Nodes", value: workingGraph ? workingGraph.nodes.length : "—" },
     { key: "Links", value: linkCount ?? "—" },
     { key: "Mode", value: workingGraph ? pickLayoutMode(workingGraph.nodes.length) : "—" },
+    { key: "Depth", value: depth ? `${depth.strata}/4` : "—" },
+    {
+      key: "Grounded",
+      value: depth ? `${depth.grounded}/${depth.assumptions}` : "—",
+      accent: !depth
+        ? undefined
+        : depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
+          ? "var(--ok)"
+          : "var(--warn)",
+    },
     { key: "Keystone", value: keystoneId ?? "—" },
     {
       key: "Integrity",

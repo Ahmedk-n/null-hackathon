@@ -40,34 +40,61 @@ afterEach(cleanup);
 
 const graph = fixtureContextGraph();
 
-describe("KeystoneCanvas (T10 adaptive dimensionality)", () => {
+// V4-1 RETARGET — the old T10 asserted TILT as decoration (a rotate transform toggled
+// by a checkbox). The founder's correction makes Z ENCODE reasoning depth, so TILT is
+// superseded by the DEPTH VIEW contract: PLAN (top-down flat, NO perspective) ⟷ SECTION
+// (perspective strata). We deliberately re-point these assertions to the new control:
+// perspective present in SECTION and absent in PLAN, the L0..L3 stratum chrome rendered,
+// and evidence plates drawn for grounded assumptions. See plan Deviations.
+describe("KeystoneCanvas (V4-1 depth view — supersedes T10 tilt)", () => {
   it("selects the 2.5D band for the 9-node fixture graph", () => {
     expect(graph.nodes.length).toBe(9);
     expect(pickLayoutMode(graph.nodes.length)).toBe("layered-2-5d");
   });
 
-  it("wraps the viewport in a perspective container", () => {
+  it("SECTION view carries the perspective + isometric strata transform", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} tilt />,
+    );
+    const wrap = container.querySelector<HTMLElement>("[data-canvas-perspective]");
+    expect(wrap!.style.perspective).toBe("1400px");
+    const tiltedLayer = container.querySelector<HTMLElement>("[data-canvas-tilt]");
+    expect(tiltedLayer!.style.transform).toContain("rotate");
+  });
+
+  it("PLAN view removes the perspective and flattens the board (top-down)", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} tilt={false} />,
+    );
+    const wrap = container.querySelector<HTMLElement>("[data-canvas-perspective]");
+    expect(wrap!.style.perspective).toBe("none");
+    const flatLayer = container.querySelector<HTMLElement>("[data-canvas-tilt]");
+    expect(flatLayer!.style.transform).toBe("none");
+  });
+
+  it("renders the L0..L3 stratum chrome labels", () => {
     const { container } = render(
       <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
     );
-    const wrap = container.querySelector<HTMLElement>("[data-canvas-perspective]");
-    expect(wrap).not.toBeNull();
-    expect(wrap!.style.perspective).toBe("1400px");
+    const chrome = container.querySelector<HTMLElement>("[data-testid='stratum-chrome']");
+    expect(chrome).not.toBeNull();
+    const text = chrome!.textContent ?? "";
+    expect(text).toContain("L0 THESIS");
+    expect(text).toContain("L1 CLAIMS");
+    expect(text).toContain("L2 ASSUMPTIONS");
+    // Hero A carries evidence → the fourth (evidence) stratum is present.
+    expect(text).toContain("L3 EVIDENCE");
   });
 
-  it("applies the CAD tilt when tilt is on and flattens it when off", () => {
-    const on = render(
-      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} tilt />,
+  it("renders an evidence plate for each grounded assumption, and none for ungrounded", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
     );
-    const tiltedLayer = on.container.querySelector<HTMLElement>("[data-canvas-tilt]");
-    expect(tiltedLayer!.style.transform).toContain("rotate");
-    cleanup();
-
-    const off = render(
-      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} tilt={false} />,
-    );
-    const flatLayer = off.container.querySelector<HTMLElement>("[data-canvas-tilt]");
-    expect(flatLayer!.style.transform).toBe("none");
+    // Hero A: k_credible, a_obs, a_audit, a_bound are grounded; a_load is ungrounded.
+    const plates = container.querySelectorAll("[data-testid='evidence-plate']");
+    expect(plates.length).toBe(4);
+    const ungrounded = container.querySelectorAll("[data-testid='ungrounded-drop']");
+    expect(ungrounded.length).toBe(1);
   });
 });
 
@@ -88,6 +115,16 @@ describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
     const tiltLayer = container.querySelector<HTMLElement>("[data-canvas-tilt]");
     // Band 1 forces the board flat regardless of the tilt prop.
     expect(tiltLayer!.style.transform).toBe("none");
+  });
+
+  it("still shows stratum chrome + evidence plates in the flat PLAN layout (V4-1 §6)", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={flatGraph} keystoneId="k_sre" failures={new Set()} tilt />,
+    );
+    const chrome = container.querySelector<HTMLElement>("[data-testid='stratum-chrome']");
+    expect(chrome!.textContent ?? "").toContain("L0 THESIS");
+    // Scenario B grounds only its keystone (k_sre); the rest float.
+    expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(1);
   });
 });
 

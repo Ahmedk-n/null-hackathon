@@ -15,15 +15,27 @@ import type { Graph, Attack } from "@/engine";
 // Pure, key-free classifier (data-in/data-out) — same boundary the store already crosses.
 import { normaliseCategory } from "@/context/weights";
 import type { ContextWeightAdjustment } from "@/context";
-import { KEYSTONE, HAIR, HAIR_STRONG, BG, BAD } from "@/ui/tokens";
+import { KEYSTONE, HAIR, HAIR_STRONG, BG, BAD, MUTED } from "@/ui/tokens";
 import { layoutPositions, pickLayoutMode } from "./layout";
+import {
+  LAYER_Z,
+  EVIDENCE_LEVEL,
+  KEYSTONE_Z_BUMP,
+  STRATUM_LEVEL,
+  presentStrata,
+  type StratumMeta,
+} from "./depth";
 import { StructuralNode, type StructuralNodeData, type CausalCallout } from "./StructuralNode";
 
 const nodeTypes = { structural: StructuralNode };
 
-// Layer index + resting elevation per structural role (plan §4).
+// Collapse/assembly stagger index per role — the FOUNDATION (assumptions) ripples
+// first (bottom-up, GOAL criterion 5); distinct from the stratum ELEVATION in ./depth.
 const LAYER_INDEX = { assumption: 0, claim: 1, thesis: 2 } as const;
-const LAYER_Z = { assumption: 0, claim: 28, thesis: 56 } as const;
+
+// Evidence plates drop LAST on collapse — a fixed delay past every node's stagger so
+// the ground truth is the final thing to fall out from under the structure.
+const EVIDENCE_DROP_DELAY = 0.68;
 
 /**
  * Per-node ripple-collapse delay (W1-2). The keystone is the trigger — it fails
@@ -119,6 +131,7 @@ export function KeystoneCanvas({
   keystoneId,
   failures,
   tilt = true,
+  focusLayer = null,
   loadApplied,
   attacks = NO_ATTACKS,
   rawAttacks = NO_ATTACKS,
@@ -130,7 +143,13 @@ export function KeystoneCanvas({
   graph: Graph;
   keystoneId: string | null;
   failures: ReadonlySet<string>;
+  /**
+   * V4-1 · DEPTH VIEW. `tilt` is now the SECTION toggle: true = the perspective strata
+   * view (SECTION), false = top-down flat (PLAN, no perspective). `focusLayer` (L0..L3)
+   * dims the other strata and nudges the camera toward the focused level; null = ALL.
+   */
   tilt?: boolean;
+  focusLayer?: number | null;
   /**
    * Whether load is currently applied — drives the keystone tension telegraph
    * (W1-7) and the force arrows (W1-6b). Falls back to "any node failed" when the
@@ -150,11 +169,12 @@ export function KeystoneCanvas({
   const effectiveLoadApplied = loadApplied ?? failures.size > 0;
 
   // W3-5 — adaptive band drives the geometry. Band 1 (simple-2d, ≤8 nodes) renders
-  // truly FLAT: perspective off, no isometric tilt, and React Flow's pointer math is
-  // left untouched (pan/drag stay live). Band 2+ keeps the CAD perspective + tilt that
-  // the T10 contract asserts on the 9-node hero graph.
+  // truly FLAT (PLAN): perspective off, no isometric tilt, React Flow's pointer math
+  // untouched (pan/drag stay live). Band 2+ honours the DEPTH VIEW toggle — SECTION
+  // (tilt=true) gives the perspective strata view the T10 contract asserts; PLAN
+  // (tilt=false) is a top-down flat inspection with no perspective.
   const flat = pickLayoutMode(graph.nodes.length) === "simple-2d";
-  const effectiveTilt = tilt && !flat;
+  const section = tilt && !flat;
 
   // W1-6a — play the assembly build-in only the first time we see this graph identity.
   const buildIdentity: object = buildKey ?? graph;
@@ -181,6 +201,11 @@ export function KeystoneCanvas({
       const layer = LAYER_INDEX[n.type];
       const indexInLayer = layerCounts[layer] ?? 0;
       layerCounts[layer] = indexInLayer + 1;
+      // V4-1 — stratum focus: dim every node not on the focused level. When EVIDENCE
+      // (L3) is focused, all nodes dim and only the plates stay lit.
+      const stratumLevel = STRATUM_LEVEL[n.type];
+      const dimmed = focusLayer != null && focusLayer !== stratumLevel;
+      const plateDimmed = focusLayer != null && focusLayer !== EVIDENCE_LEVEL;
       return {
         id: n.id,
         type: "structural",
@@ -197,7 +222,11 @@ export function KeystoneCanvas({
           animateEntrance,
           causalCallout: isKeystone ? callout : null,
           layer,
-          translateZ: LAYER_Z[n.type] + (isKeystone ? 18 : 0),
+          translateZ: LAYER_Z[n.type] + (isKeystone ? KEYSTONE_Z_BUMP : 0),
+          evidence: n.evidence,
+          evidenceDropDelay: EVIDENCE_DROP_DELAY,
+          dimmed,
+          plateDimmed,
         },
       };
     });
@@ -229,7 +258,12 @@ export function KeystoneCanvas({
     attacks,
     rawAttacks,
     contextAdjustments,
+    focusLayer,
   ]);
+
+  // V4-1 — the strata present in this graph (drives the stratum chrome). Evidence
+  // stratum appears only when a node carries evidence.
+  const strata = useMemo(() => presentStrata(graph), [graph]);
 
   // W1-6b — force arrows. Deterministic x-positions derived from the top-layer
   // (thesis) node coordinates, spread across the load-bearing apex; only while load
@@ -267,7 +301,7 @@ export function KeystoneCanvas({
       data-canvas-perspective
       initial={false}
       animate={
-        flat
+        !section
           ? { perspective: "none" }
           : shaking
             ? { perspective: ["1400px", "1200px", "1400px"] }
@@ -277,7 +311,7 @@ export function KeystoneCanvas({
       style={{
         width: "100%",
         height: "100%",
-        perspective: flat ? "none" : "1400px",
+        perspective: section ? "1400px" : "none",
         background: BG,
       }}
     >
@@ -301,7 +335,13 @@ export function KeystoneCanvas({
             width: "100%",
             height: "100%",
             transformStyle: "preserve-3d",
-            transform: effectiveTilt ? "rotateX(14deg) rotateZ(-2deg)" : "none",
+            // SECTION view: the isometric strata rotation, plus a subtle camera nudge
+            // toward the focused stratum (L0 top → L3 bottom). PLAN view is flat (none).
+            transform: section
+              ? `rotateX(14deg) rotateZ(-2deg)${
+                  focusLayer != null ? ` translateY(${(1.5 - focusLayer) * 26}px)` : ""
+                }`
+              : "none",
             transition: "transform 0.4s ease",
           }}
         >
@@ -312,9 +352,9 @@ export function KeystoneCanvas({
             onNodeClick={onNodeClick}
             fitView
             // A tilted (transformed) ancestor breaks React Flow's pointer math, so pan
-            // and node-drag are disabled whenever the isometric tilt is active (W3-4).
-            panOnDrag={!effectiveTilt}
-            nodesDraggable={!effectiveTilt}
+            // and node-drag are disabled whenever the SECTION view is active (W3-4).
+            panOnDrag={!section}
+            nodesDraggable={!section}
             proOptions={{ hideAttribution: true }}
           >
             {/* W3-1 — ruled CAD graph paper: fine minor grid + a coarser major grid. */}
@@ -327,10 +367,75 @@ export function KeystoneCanvas({
             />
             <FitController fitSignal={fitSignal} />
           </ReactFlow>
+          {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
+          <StratumChrome strata={strata} focusLayer={focusLayer} />
           <ForceArrows arrows={forceArrows} />
         </div>
       </motion.div>
     </motion.div>
+  );
+}
+
+// V4-1 — STRATUM CHROME. Faint CAD plane rules + uppercase .mono L0..L3 labels drawn
+// in the canvas margin, one per stratum present, ordered top → bottom (thesis highest,
+// evidence lowest). Progressive fog: each deeper stratum dims, so descending reads as
+// drilling into the reasoning. The focused stratum brightens; others recede. Hairlines,
+// zero radius, pointer-events off so it never intercepts canvas interaction.
+function StratumChrome({
+  strata,
+  focusLayer,
+}: {
+  strata: readonly StratumMeta[];
+  focusLayer: number | null;
+}) {
+  return (
+    <div
+      data-testid="stratum-chrome"
+      aria-hidden
+      style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}
+    >
+      {strata.map((s) => {
+        const topPct = 8 + s.level * 27.3;
+        const focused = focusLayer === s.level;
+        // Fog deepens with the stratum level; the focused stratum is pulled back to full.
+        const fog = focused ? 1 : Math.max(0.28, 1 - s.level * 0.2);
+        return (
+          <div
+            key={s.key}
+            data-stratum={s.key}
+            style={{ position: "absolute", left: 0, right: 0, top: `${topPct}%` }}
+          >
+            <div
+              style={{
+                position: "absolute",
+                left: 0,
+                right: 0,
+                top: 0,
+                height: 1,
+                background: HAIR_STRONG,
+                opacity: fog * 0.55,
+              }}
+            />
+            <span
+              className="mono"
+              style={{
+                position: "absolute",
+                left: 10,
+                top: -6,
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: "0.18em",
+                color: focused ? BAD : MUTED,
+                opacity: fog,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {s.label}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

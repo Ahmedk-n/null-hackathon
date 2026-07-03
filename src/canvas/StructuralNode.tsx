@@ -2,8 +2,21 @@
 import { Handle, Position } from "@xyflow/react";
 import { motion } from "motion/react";
 import { useState } from "react";
-import type { NodeType } from "@/engine";
-import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, BAD, BAD_BG, PANEL, INK, MUTED } from "@/ui/tokens";
+import type { NodeType, NodeEvidence } from "@/engine";
+import {
+  THESIS,
+  CLAIM,
+  ASSUMPTION,
+  KEYSTONE,
+  BAD,
+  BAD_BG,
+  PANEL,
+  INK,
+  INK_2,
+  MUTED,
+  HAIR_STRONG,
+} from "@/ui/tokens";
+import { LAYER_Z as STRATUM_Z, EVIDENCE_Z, KEYSTONE_Z_BUMP } from "./depth";
 
 /**
  * Causal callout attached to the keystone when it cracks (W1-5). Sourced from real
@@ -36,15 +49,29 @@ export interface StructuralNodeData {
   layer?: number;
   /** Resting elevation in px (layer Z + keystone bump) — passed from the canvas. */
   translateZ?: number;
+  /**
+   * V4-1 · confidence provenance for the evidence stratum. An assumption with an
+   * evidence object renders a source-plate BELOW it in the L3 stratum; an assumption
+   * whose evidence is `null` is ungrounded and visibly FLOATS (a dashed drop-line to
+   * nothing + an UNGROUNDED hover hint). Thesis/claims carry no evidence.
+   */
+  evidence?: NodeEvidence | null;
+  /** V4-1 · delay (s) for the evidence plate's collapse — plates fall LAST. */
+  evidenceDropDelay?: number;
+  /** V4-1 · stratum focus dimming: fade this node when another stratum is focused. */
+  dimmed?: boolean;
+  /** V4-1 · fade this node's evidence plate when a non-evidence stratum is focused. */
+  plateDimmed?: boolean;
   [key: string]: unknown;
 }
 
 // Light-ledger accents per structural role (plan §1.1). Keystone overrides to red.
 const ACCENT: Record<NodeType, string> = { thesis: THESIS, claim: CLAIM, assumption: ASSUMPTION };
 
-// Elevation by layer (plan §4): assumptions are the foundation (z=0), claims mid,
-// thesis raised. The canvas passes this via data.translateZ; kept here as a fallback.
-const LAYER_Z: Record<NodeType, number> = { assumption: 0, claim: 28, thesis: 56 };
+// V4-1 — Z ENCODES reasoning depth (shared single source in ./depth): thesis highest,
+// descending claims → assumptions → evidence. The canvas passes each node's resting
+// elevation via data.translateZ; this stays as a fallback.
+const LAYER_Z = STRATUM_Z;
 
 // Accelerating "masonry" fall (W1-2): nodes speed up as they drop, unlike easeInOut.
 const FALL_EASE = [0.7, 0, 0.84, 0] as const;
@@ -53,7 +80,12 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const [hover, setHover] = useState(false);
 
   const accent = data.isKeystone ? KEYSTONE : ACCENT[data.type];
-  const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? 18 : 0);
+  const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? KEYSTONE_Z_BUMP : 0);
+  // V4-1 — stratum focus dims the strata you're not inspecting.
+  const dimmed = data.dimmed ?? false;
+  const restOpacity = dimmed ? 0.24 : 1;
+  // The evidence plate sits on the L3 plane regardless of this node's own elevation.
+  const plateZDelta = EVIDENCE_Z - restingZ;
 
   const showCracks = data.isFailed || data.isKeystone;
   // A failed keystone shatters hardest.
@@ -95,7 +127,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
               y: 18,
               z: -70,
             }
-          : { opacity: 1, rotateX: 0, rotateY: 0, rotate: 0, y: 0, z: liveZ, scale: 1 }
+          : { opacity: restOpacity, rotateX: 0, rotateY: 0, rotate: 0, y: 0, z: liveZ, scale: 1 }
       }
       transition={
         data.isFailed
@@ -161,6 +193,23 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       {/* W1-5 — causal callout: fades in AFTER the crack draws (~0.5s past collapse). */}
       {data.isKeystone && data.isFailed && data.causalCallout && (
         <CausalCalloutTag callout={data.causalCallout} appearDelay={collapseDelay + 0.5} />
+      )}
+
+      {/* V4-1 — evidence stratum (L3). A grounded assumption drops a source-plate onto
+          the evidence plane below it; an ungrounded assumption floats over nothing. */}
+      {data.type === "assumption" && data.evidence != null && (
+        <EvidencePlate
+          evidence={data.evidence}
+          zDelta={plateZDelta}
+          isFailed={data.isFailed}
+          entrance={entrance}
+          buildDelay={buildDelay}
+          dropDelay={data.evidenceDropDelay ?? collapseDelay + 0.6}
+          dimmed={data.plateDimmed ?? false}
+        />
+      )}
+      {data.type === "assumption" && data.evidence === null && !data.isFailed && (
+        <UngroundedDrop hover={hover} dimmed={data.plateDimmed ?? false} />
       )}
 
       <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
@@ -299,6 +348,134 @@ function CausalCalloutTag({
         )}
       </div>
     </motion.div>
+  );
+}
+
+// V4-1 — EVIDENCE PLATE (L3 stratum). A small CAD source-plate that sits on the
+// evidence plane BELOW its assumption (translateZ pushes it down into L3), joined by a
+// hairline vertical drop-line. Shows the truncated fact + the .mono provenance source
+// (a file path, url, or "notes"). On collapse the plate drops away LAST (dropDelay is
+// larger than any node's) — the ground truth falling out from under the structure.
+function EvidencePlate({
+  evidence,
+  zDelta,
+  isFailed,
+  entrance,
+  buildDelay,
+  dropDelay,
+  dimmed,
+}: {
+  evidence: NodeEvidence;
+  zDelta: number;
+  isFailed: boolean;
+  entrance: boolean;
+  buildDelay: number;
+  dropDelay: number;
+  dimmed: boolean;
+}) {
+  const fact = evidence.fact.length > 72 ? evidence.fact.slice(0, 69) + "…" : evidence.fact;
+  return (
+    <div
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        top: 72,
+        transform: `translateZ(${zDelta}px)`,
+        transformStyle: "preserve-3d",
+        pointerEvents: "none",
+      }}
+    >
+      {/* hairline vertical drop-line from the node's foot to the plate */}
+      <div
+        style={{
+          position: "absolute",
+          left: "50%",
+          top: 0,
+          width: 1,
+          height: 16,
+          background: HAIR_STRONG,
+          transform: "translateX(-0.5px)",
+        }}
+      />
+      <motion.div
+        data-testid="evidence-plate"
+        initial={entrance ? { opacity: 0, y: -6 } : false}
+        animate={isFailed ? { opacity: 0, y: 30 } : { opacity: dimmed ? 0.28 : 1, y: 0 }}
+        transition={
+          isFailed
+            ? { duration: 0.5, delay: dropDelay, ease: FALL_EASE }
+            : entrance
+              ? { duration: 0.45, delay: buildDelay + 0.25, ease: [0.22, 1, 0.36, 1] }
+              : { duration: 0.3 }
+        }
+        style={{
+          position: "absolute",
+          left: 14,
+          right: 14,
+          top: 16,
+          border: `1px solid ${HAIR_STRONG}`,
+          borderLeft: `2px solid ${ASSUMPTION}`,
+          background: PANEL,
+          padding: "3px 6px",
+          borderRadius: 0,
+        }}
+      >
+        <div
+          className="mono"
+          style={{
+            fontSize: 8,
+            letterSpacing: "0.08em",
+            color: MUTED,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
+          {evidence.source}
+        </div>
+        <div style={{ fontSize: 9, color: INK_2, lineHeight: 1.3, marginTop: 1 }}>{fact}</div>
+      </motion.div>
+    </div>
+  );
+}
+
+// V4-1 — an ungrounded assumption (evidence === null) has NO plate. It hangs a faint
+// DASHED drop-line into the void — the visible tell of an unsupported belief — and
+// surfaces an UNGROUNDED hint on hover. The absence is the feature.
+function UngroundedDrop({ hover, dimmed }: { hover: boolean; dimmed: boolean }) {
+  return (
+    <div
+      data-testid="ungrounded-drop"
+      style={{
+        position: "absolute",
+        left: "50%",
+        top: 72,
+        transform: "translateX(-50%)",
+        pointerEvents: "none",
+        opacity: dimmed ? 0.3 : 0.85,
+      }}
+    >
+      <svg width={2} height={30} viewBox="0 0 2 30" style={{ overflow: "visible", display: "block" }}>
+        <line x1={1} y1={0} x2={1} y2={30} stroke={HAIR_STRONG} strokeWidth={1} strokeDasharray="2 3" />
+      </svg>
+      {hover && (
+        <span
+          className="mono"
+          style={{
+            position: "absolute",
+            left: 6,
+            top: 20,
+            fontSize: 8,
+            letterSpacing: "0.14em",
+            color: MUTED,
+            whiteSpace: "nowrap",
+          }}
+        >
+          UNGROUNDED
+        </span>
+      )}
+    </div>
   );
 }
 

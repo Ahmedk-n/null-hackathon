@@ -18,9 +18,9 @@
 | **Ideas have constraints** | **constraints as geometry: context constraints rendered as boundary planes the structure sits inside; a violated constraint is a visible collision** | ❌ → V4-2 |
 | **Taste has geometry** (the manifesto's deepest line) | **depth strata: the SHAPE of the graph is a judgment-quality readout — evidence-grounded strata vs floating assumptions; DEPTH metric** | ❌ → V4-1 |
 
-## V4-1 · Z = reasoning depth (replaces tilt-as-decoration)
+## V4-1 · Z = reasoning depth (replaces tilt-as-decoration) ✅ (260/260, e2e PASS; details in Deviations)
 
-- [ ] **Depth strata**: each layer gets a REAL, legible Z elevation (thesis highest, descending: claims → assumptions → evidence). Add the EVIDENCE stratum: nodes' `evidence` facts render as a 4th layer of small source-plates BELOW the assumptions they ground, connected by hairline drop-lines. Ungrounded assumptions have no plate — they visibly FLOAT (the absence is the point: unsupported belief).
+- [x] **Depth strata**: each layer gets a REAL, legible Z elevation (thesis highest, descending: claims → assumptions → evidence). Add the EVIDENCE stratum: nodes' `evidence` facts render as a 4th layer of small source-plates BELOW the assumptions they ground, connected by hairline drop-lines. Ungrounded assumptions have no plate — they visibly FLOAT (the absence is the point: unsupported belief).
 - [ ] **Layer chrome**: faint stratum planes/labels at each level (`L0 THESIS / L1 CLAIMS / L2 ASSUMPTIONS / L3 EVIDENCE`), fog/dim increasing with depth so descending feels like drilling into the reasoning.
 - [ ] **DEPTH as a metric**: status strip + STRESS rail gain `DEPTH: n/4 STRATA · GROUNDED m/k` — the dimensionality of the analysis, computed (layers present + evidence coverage). A judge sees "this decision was reasoned 4 strata deep, 6/8 assumptions grounded."
 - [ ] **Camera = inspection, not tilt**: rename/replace TILT with a DEPTH view control: PLAN (top-down flat) ⟷ SECTION (the current perspective, now with real strata) and a descend/orbit that steps focus L0→L3 (keyboard or buttons), dimming other strata. Keep T10 test contracts by retargeting them to the new control (update tests deliberately — this supersedes the tilt spec).
@@ -53,4 +53,21 @@ Fixtures win under `scenario`; offline demo fully works keyless; engine pure; ne
 
 ## Deviations
 
-(append here)
+- **V4-1 · TILT spec superseded.** The old T10 canvas contract ("TILT toggles the rotate
+  transform") encoded tilt-as-decoration and is deliberately RETARGETED to the DEPTH VIEW
+  contract: perspective present in SECTION, absent in PLAN (top-down flat); L0..L3 stratum
+  chrome rendered; evidence plates drawn for grounded assumptions (hero A = 4 plates, 1
+  ungrounded float); `analysisDepth` values asserted. The `tilt` store boolean is REUSED
+  (section = tilt true) rather than renamed; `focusLayer` (L0..L3 stratum focus) is additive
+  LOCAL state in `GraphTab` (not the store, which a concurrent agent owns) — it is an
+  inspection control that belongs to the GRAPH surface, not global app state.
+- **e2e unchanged.** The rehearsal script never referenced the TILT checkbox, so replacing it
+  with the PLAN/SECTION + Focus control required no selector changes; `npm run e2e` still
+  passes (0 console errors) against the new chrome.
+- **Elevations/fog/focus params:** thesis Z=84, claim Z=48, assumption Z=12, evidence Z=−30
+  (keystone +18 bump); stratum-chrome fog opacity = max(0.28, 1 − level·0.2) (focused → 1.0);
+  focus camera nudge = translateY((1.5 − focusLayer)·26px), SECTION only; evidence plates
+  collapse LAST at a fixed 0.68s delay (past every node's ripple stagger).
+- **Band 1 (simple-2d, ≤8 nodes)** renders PLAN-only (perspective/tilt forced off) but STILL
+  draws the stratum chrome + evidence plates, so scenario B shows its single grounded
+  keystone plate and the L0..L3 labels in flat mode (V4-1 §6 satisfied, not deferred).
