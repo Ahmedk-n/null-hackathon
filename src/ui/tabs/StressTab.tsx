@@ -188,6 +188,7 @@ export function StressTab({
             keystoneId={keystoneId}
             failures={failures}
             tilt={tilt}
+            loadApplied={loadApplied}
             onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           />
         ) : (

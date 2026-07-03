@@ -8,7 +8,8 @@ import {
   type NodeMouseHandler,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { motion } from "motion/react";
 import type { Graph } from "@/engine";
 import { KEYSTONE, HAIR_STRONG, BG } from "@/ui/tokens";
 import { layoutPositions } from "./layout";
@@ -16,13 +17,24 @@ import { StructuralNode, type StructuralNodeData } from "./StructuralNode";
 
 const nodeTypes = { structural: StructuralNode };
 
-// Staggered bottom-up collapse (§4): the foundation cracks first, then claims
-// tilt, then the thesis buckles — assumption 0s → claim 0.25s → thesis 0.5s.
-const COLLAPSE_DELAY = { assumption: 0, claim: 0.25, thesis: 0.5 } as const;
-
 // Layer index + resting elevation per structural role (plan §4).
 const LAYER_INDEX = { assumption: 0, claim: 1, thesis: 2 } as const;
 const LAYER_Z = { assumption: 0, claim: 28, thesis: 56 } as const;
+
+/**
+ * Per-node ripple-collapse delay (W1-2). The keystone is the trigger — it fails
+ * FIRST (delay 0) and hardest; the collapse then ripples outward staggered by
+ * layer (bottom-up, GOAL criterion 5) and by index within each layer. Exported
+ * so the stagger contract is unit-testable (keystone=0, monotonic by layer/index).
+ */
+export function collapseDelayFor(args: {
+  isKeystone: boolean;
+  layer: number;
+  indexInLayer: number;
+}): number {
+  if (args.isKeystone) return 0;
+  return args.layer * 0.18 + args.indexInLayer * 0.06;
+}
 
 // Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action).
 // Lives inside <ReactFlow> so useReactFlow() resolves the flow instance context.
@@ -40,6 +52,7 @@ export function KeystoneCanvas({
   keystoneId,
   failures,
   tilt = true,
+  loadApplied,
   onSelect,
   fitSignal,
 }: {
@@ -47,13 +60,25 @@ export function KeystoneCanvas({
   keystoneId: string | null;
   failures: ReadonlySet<string>;
   tilt?: boolean;
+  /**
+   * Whether load is currently applied — drives the keystone tension telegraph
+   * (W1-7). Falls back to "any node failed" when the caller doesn't thread it.
+   */
+  loadApplied?: boolean;
   onSelect?: (id: string) => void;
   fitSignal?: number;
 }) {
+  const effectiveLoadApplied = loadApplied ?? failures.size > 0;
+
   const { nodes, edges } = useMemo(() => {
     const pos = layoutPositions(graph);
+    // Per-layer running counter → deterministic indexInLayer for the ripple.
+    const layerCounts: Record<number, number> = {};
     const rfNodes: Node<StructuralNodeData>[] = graph.nodes.map((n) => {
       const isKeystone = n.id === keystoneId;
+      const layer = LAYER_INDEX[n.type];
+      const indexInLayer = layerCounts[layer] ?? 0;
+      layerCounts[layer] = indexInLayer + 1;
       return {
         id: n.id,
         type: "structural",
@@ -64,8 +89,9 @@ export function KeystoneCanvas({
           confidence: n.confidence,
           isKeystone,
           isFailed: failures.has(n.id),
-          collapseDelay: COLLAPSE_DELAY[n.type],
-          layer: LAYER_INDEX[n.type],
+          loadApplied: effectiveLoadApplied,
+          collapseDelay: collapseDelayFor({ isKeystone, layer, indexInLayer }),
+          layer,
           translateZ: LAYER_Z[n.type] + (isKeystone ? 18 : 0),
         },
       };
@@ -89,39 +115,69 @@ export function KeystoneCanvas({
       }
     }
     return { nodes: rfNodes, edges: rfEdges };
-  }, [graph, keystoneId, failures]);
+  }, [graph, keystoneId, failures, effectiveLoadApplied]);
 
   const onNodeClick: NodeMouseHandler = (_e, node) => onSelect?.(node.id);
 
+  // W1-4 — camera shake + push-in. Fire ONCE on the empty→non-empty failure edge.
+  const [shaking, setShaking] = useState(false);
+  const prevFailed = useRef(0);
+  useEffect(() => {
+    const now = failures.size;
+    if (prevFailed.current === 0 && now > 0) setShaking(true);
+    prevFailed.current = now;
+  }, [failures]);
+
   return (
-    // Outer perspective container (§4). The inner layer carries the CAD tilt so the
-    // whole board reads as an isometric assembly; TILT off flattens it to `none`.
-    <div
+    // Outer perspective container (§4). Push-in nudges the perspective on collapse;
+    // it always returns to 1400px so the T10 contract stays green.
+    <motion.div
       data-canvas-perspective
+      initial={false}
+      animate={
+        shaking
+          ? { perspective: ["1400px", "1200px", "1400px"] }
+          : { perspective: "1400px" }
+      }
+      transition={{ duration: 0.4, ease: "easeOut" }}
       style={{ width: "100%", height: "100%", perspective: "1400px", background: BG }}
     >
-      <div
-        data-canvas-tilt
-        style={{
-          width: "100%",
-          height: "100%",
-          transformStyle: "preserve-3d",
-          transform: tilt ? "rotateX(14deg) rotateZ(-2deg)" : "none",
-          transition: "transform 0.4s ease",
-        }}
+      {/* Shake wrapper (W1-4): jitters the whole board on failure WITHOUT touching
+          the tilt transform the T10 test asserts (that lives on data-canvas-tilt). */}
+      <motion.div
+        initial={false}
+        animate={
+          shaking
+            ? { x: [0, -6, 5, -3, 2, 0], rotateZ: [0, -0.6, 0.5, -0.3, 0.2, 0] }
+            : { x: 0, rotateZ: 0 }
+        }
+        transition={{ duration: 0.4, ease: "easeInOut" }}
+        onAnimationComplete={() => setShaking(false)}
+        style={{ width: "100%", height: "100%" }}
       >
-        <ReactFlow
-          nodes={nodes}
-          edges={edges}
-          nodeTypes={nodeTypes}
-          onNodeClick={onNodeClick}
-          fitView
-          proOptions={{ hideAttribution: true }}
+        <div
+          data-canvas-tilt
+          style={{
+            width: "100%",
+            height: "100%",
+            transformStyle: "preserve-3d",
+            transform: tilt ? "rotateX(14deg) rotateZ(-2deg)" : "none",
+            transition: "transform 0.4s ease",
+          }}
         >
-          <Background color={HAIR_STRONG} gap={26} />
-          <FitController fitSignal={fitSignal} />
-        </ReactFlow>
-      </div>
-    </div>
+          <ReactFlow
+            nodes={nodes}
+            edges={edges}
+            nodeTypes={nodeTypes}
+            onNodeClick={onNodeClick}
+            fitView
+            proOptions={{ hideAttribution: true }}
+          >
+            <Background color={HAIR_STRONG} gap={26} />
+            <FitController fitSignal={fitSignal} />
+          </ReactFlow>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 }

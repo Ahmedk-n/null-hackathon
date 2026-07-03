@@ -44,13 +44,13 @@
 - [x] `src/ui/IntegrityGauge.tsx`: useMotionValue count-down + ring + color all synced at 0.9s ease `[0.22,1,0.36,1]`; once-per-crossing shake into FAILED; status word HOLDING/STRESSED/FAILED (bands unified at ≥35/10–35/<10 to match the narrative — deviation noted, nothing asserted old thresholds). 4 new tests.
 
 ### W1-2 · Ripple collapse, not tiered thuds
-- [ ] `src/canvas/KeystoneCanvas.tsx:21` + `StructuralNode.tsx:67`: per-node stagger `layer*0.18 + indexInLayer*0.06` (computed in the existing `useMemo`, passed as `collapseDelay`); keystone fails FIRST and hardest; replace `easeInOut` with accelerating fall (`[0.7,0,0.84,0]` or spring stiffness 180 / damping 12).
+- [x] Exported pure `collapseDelayFor` — keystone 0 (fails first), else `layer*0.18 + indexInLayer*0.06`; accelerating masonry fall `[0.7,0,0.84,0]` 0.55s. 4 unit tests.
 
 ### W1-3 · Cracks that propagate + debris
-- [ ] `StructuralNode.tsx:117` CrackOverlay: animate `strokeDashoffset` full→0 (~0.3s, staggered) so cracks draw themselves; 4–6 shard `motion.div`s fling from the keystone on failure.
+- [x] motion.polyline strokeDashoffset 1→0 self-drawing cracks (0.3s, 0.1s stagger, offset by node collapseDelay); 6 deterministic KEYSTONE_SHARDS debris (precomputed angle table, no Math.random).
 
 ### W1-4 · Camera shake + push-in on Apply Load
-- [ ] Wrap `data-canvas-tilt` in `motion.div`; on failures non-empty: keyframe shake (`x:[0,-6,5,-3,2,0]` + rotateZ jitter, 0.4s) and perspective push 1400→1200→1400.
+- [x] Shake wrapper OUTSIDE data-canvas-tilt (T10 transform untouched): x/rotateZ keyframes 0.4s on empty→non-empty failure edge; perspective 1400→1200→1400 push, rest value preserved for T10.
 
 ### W1-5 · Causal callout on the crack
 - [ ] When `k_credible` fails, annotate the node: *"CRACKED: meeting tomorrow raised execution severity 0.8→1.0"* — join context→consequence ON the graph, not in a side panel. Source strings from `pack.contextWeightAdjustments` reasons.
@@ -60,7 +60,7 @@
 - [ ] On Apply Load: red force arrows (SVG overlay) drive down into thesis/failed nodes.
 
 ### W1-7 · Keystone tension telegraph
-- [ ] `StructuralNode.tsx:41`: static red glow → breathing 1.2s pulse while `loadApplied && !isFailed`, single bright flare at failure.
+- [x] KeystoneGlow overlay: breathing 1.2s pulse while `loadApplied && !isFailed`, 30px flare 0.25s at failure, calm rim otherwise; `loadApplied` threaded through node data and passed from StressTab (orchestrator wired the call site).
 
 ## Wave 2 — Sell complexity + rigor
 

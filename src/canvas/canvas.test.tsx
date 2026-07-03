@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { render, cleanup } from "@testing-library/react";
-import { KeystoneCanvas } from "./KeystoneCanvas";
+import { KeystoneCanvas, collapseDelayFor } from "./KeystoneCanvas";
 import { pickLayoutMode } from "./layout";
 import { fixtureContextGraph } from "@/context";
 
@@ -66,5 +66,33 @@ describe("KeystoneCanvas (T10 adaptive dimensionality)", () => {
     );
     const flatLayer = off.container.querySelector<HTMLElement>("[data-canvas-tilt]");
     expect(flatLayer!.style.transform).toBe("none");
+  });
+});
+
+describe("collapseDelayFor (W1-2 ripple stagger)", () => {
+  it("fires the keystone FIRST (delay 0) regardless of its layer/index", () => {
+    expect(collapseDelayFor({ isKeystone: true, layer: 2, indexInLayer: 3 })).toBe(0);
+    expect(collapseDelayFor({ isKeystone: true, layer: 0, indexInLayer: 0 })).toBe(0);
+  });
+
+  it("increases monotonically by layer (bottom-up, GOAL criterion 5)", () => {
+    const l0 = collapseDelayFor({ isKeystone: false, layer: 0, indexInLayer: 0 });
+    const l1 = collapseDelayFor({ isKeystone: false, layer: 1, indexInLayer: 0 });
+    const l2 = collapseDelayFor({ isKeystone: false, layer: 2, indexInLayer: 0 });
+    expect(l0).toBe(0);
+    expect(l1).toBeGreaterThan(l0);
+    expect(l2).toBeGreaterThan(l1);
+  });
+
+  it("increases monotonically by index within a layer", () => {
+    const i0 = collapseDelayFor({ isKeystone: false, layer: 1, indexInLayer: 0 });
+    const i1 = collapseDelayFor({ isKeystone: false, layer: 1, indexInLayer: 1 });
+    const i2 = collapseDelayFor({ isKeystone: false, layer: 1, indexInLayer: 2 });
+    expect(i1).toBeGreaterThan(i0);
+    expect(i2).toBeGreaterThan(i1);
+  });
+
+  it("matches the specced formula layer*0.18 + indexInLayer*0.06", () => {
+    expect(collapseDelayFor({ isKeystone: false, layer: 2, indexInLayer: 3 })).toBeCloseTo(0.54);
   });
 });
