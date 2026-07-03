@@ -1,14 +1,38 @@
 "use client";
 // Tab 1 — CONTEXT (plan §2.1). Inner sub-tabs BUSINESS · TECHNICAL · TEMPORAL · DECISION.
 // Each of the first three = LEFT <AgentGather/> + RIGHT a MANUAL textarea (seeded from
-// HERO_CONTEXT_INPUT, appended when the agent emits a summary). DECISION = one textarea.
+// the active scenario, appended when the agent emits a summary). DECISION = one textarea.
 // The four textareas compose the ContextInput handed to onAnalyse.
+//
+// V3-5 — JUDGE MODE. The MODE segmented control has three positions:
+//   A / B  → PINNED scenarios that seed the textareas and route the whole fixture chain
+//            (context → extract → attacks) byte-deterministically (the rehearsed demo).
+//   CUSTOM → the live path: textareas clear and analyse() drops the `scenario` arg so the
+//            server fires the real Claude chain when a key exists (fixture fallback otherwise).
+// Editing ANY textarea while pinned to A/B auto-flips the mode to CUSTOM — the seeded text
+// stays as the user's starting point, only the scenario pin drops. This is the keystroke that
+// used to reveal the demo was on rails; now it just works.
 import { useState } from "react";
 import type { ContextInput, ScenarioId } from "@/context";
-import { HERO_CONTEXT_INPUT, SCENARIOS } from "@/context/fixtures";
+import { SCENARIOS } from "@/context/fixtures";
 import type { GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
+
+// The CONTEXT tab's operating mode: a pinned demo scenario, or the live custom path.
+export type ContextMode = ScenarioId | "custom";
+
+const EMPTY_INPUT: ContextInput = {
+  businessContextText: "",
+  technicalContextText: "",
+  temporalContextText: "",
+  decisionText: "",
+};
+
+// The seed for a given mode — pinned scenarios pull their pre-filled input; CUSTOM starts blank.
+function seedFor(mode: ContextMode): ContextInput {
+  return mode === "custom" ? EMPTY_INPUT : SCENARIOS[mode].input;
+}
 
 const SUB_TABS = [
   { id: "business", label: "BUSINESS" },
@@ -28,18 +52,21 @@ function mergeSummary(prev: string, summary: string): string {
 const COL: React.CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--gap)" };
 const PANE: React.CSSProperties = { display: "flex", gap: "var(--pad)", alignItems: "flex-start" };
 
-// SCENARIO selector — a terminal segmented control (NOT the Tabs primitive, so it
-// carries no `data-tab`). Picking B re-seeds the textareas and routes the whole
-// fixture chain (context → extract → attacks) to the reinforce decision that HOLDS.
-function ScenarioSelect({
-  scenario,
-  onChange,
+// MODE selector — a terminal segmented control (NOT the Tabs primitive, so it carries no
+// `data-tab`). A/B re-seed the textareas + pin the fixture chain; CUSTOM clears + goes live.
+function ModeSelect({
+  mode,
+  onSelect,
 }: {
-  scenario: ScenarioId;
-  onChange: (s: ScenarioId) => void;
+  mode: ContextMode;
+  onSelect: (m: ContextMode) => void;
 }) {
-  const ids: ScenarioId[] = ["A", "B"];
-  const seg = (active: boolean): React.CSSProperties => ({
+  const segs: { id: ContextMode; label: string }[] = [
+    { id: "A", label: SCENARIOS.A.label },
+    { id: "B", label: SCENARIOS.B.label },
+    { id: "custom", label: "C — Custom (Live)" },
+  ];
+  const segStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
     padding: "8px 10px",
     fontFamily: "var(--mono)",
@@ -56,51 +83,106 @@ function ScenarioSelect({
   return (
     <div>
       <span className="label" style={{ display: "block", marginBottom: 5 }}>
-        Scenario
+        Mode
       </span>
       <div
         data-testid="scenario-select"
         style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
       >
-        {ids.map((id) => (
+        {segs.map((s) => (
           <button
-            key={id}
+            key={s.id}
             type="button"
-            data-scenario={id}
-            aria-pressed={scenario === id}
-            onClick={() => onChange(id)}
-            style={seg(scenario === id)}
+            data-scenario={s.id}
+            aria-pressed={mode === s.id}
+            onClick={() => onSelect(s.id)}
+            style={segStyle(mode === s.id)}
           >
-            {SCENARIOS[id].label}
+            {s.label}
           </button>
         ))}
       </div>
+      <ModeChip mode={mode} />
     </div>
+  );
+}
+
+// The visible truth-in-labelling chip. Pinned A/B read neutral; CUSTOM reads --ok because it is
+// the live path. The client can't know whether a key exists (that's server-side), so CUSTOM is
+// labelled honestly as "CUSTOM · LIVE" and the per-stage Source status tells the real outcome.
+function ModeChip({ mode }: { mode: ContextMode }) {
+  const custom = mode === "custom";
+  const color = custom ? "var(--ok)" : "var(--muted)";
+  const text = custom ? "CUSTOM · LIVE" : `PINNED · SCENARIO ${mode}`;
+  return (
+    <span
+      className="mono"
+      data-testid="mode-chip"
+      data-mode={mode}
+      style={{
+        display: "inline-block",
+        marginTop: 8,
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        padding: "2px 8px",
+        border: `1px solid ${color}`,
+        borderRadius: 0,
+        color,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {text}
+    </span>
   );
 }
 
 export function ContextTab({
   onAnalyse,
   analysing,
-  scenario = "A",
-  onScenarioChange,
-  seed = HERO_CONTEXT_INPUT,
+  mode = "A",
+  onModeChange,
 }: {
   onAnalyse: (input: ContextInput) => void;
   analysing: boolean;
-  scenario?: ScenarioId;
-  onScenarioChange?: (s: ScenarioId) => void;
-  seed?: ContextInput;
+  // Controlled by the parent (KeystoneApp holds the single source of truth so analyse()
+  // can gate the scenario arg). Defaults to the pinned hero scenario.
+  mode?: ContextMode;
+  onModeChange?: (m: ContextMode) => void;
 }) {
   const [active, setActive] = useState("business");
 
-  // Seeded from the active scenario's pre-filled input. The parent remounts this tab
-  // (key={scenario}) when the scenario flips, so these initializers re-run with the
-  // new seed — no effect needed, no stale text.
-  const [businessContextText, setBusiness] = useState(seed.businessContextText);
-  const [technicalContextText, setTechnical] = useState(seed.technicalContextText);
-  const [temporalContextText, setTemporal] = useState(seed.temporalContextText);
-  const [decisionText, setDecision] = useState(seed.decisionText);
+  // Textareas seed from the initial mode. Re-seeding on an explicit mode click happens in
+  // `selectMode` (not via remount), so an edit-driven flip to CUSTOM preserves the user's text.
+  const initial = seedFor(mode);
+  const [businessContextText, setBusiness] = useState(initial.businessContextText);
+  const [technicalContextText, setTechnical] = useState(initial.technicalContextText);
+  const [temporalContextText, setTemporal] = useState(initial.temporalContextText);
+  const [decisionText, setDecision] = useState(initial.decisionText);
+
+  // Explicit segment click: re-seed the textareas from that mode's input (A/B pinned text,
+  // CUSTOM blank) and report the mode up.
+  function selectMode(next: ContextMode) {
+    const s = seedFor(next);
+    setBusiness(s.businessContextText);
+    setTechnical(s.technicalContextText);
+    setTemporal(s.temporalContextText);
+    setDecision(s.decisionText);
+    onModeChange?.(next);
+  }
+
+  // Any direct user edit while PINNED drops the scenario pin → CUSTOM. The text is left exactly
+  // as typed (no re-seed), so their edit becomes the live custom starting point.
+  function noteEdit() {
+    if (onModeChange && mode !== "custom") onModeChange("custom");
+  }
+  function editing(set: (v: string) => void): (v: string) => void {
+    return (v) => {
+      set(v);
+      noteEdit();
+    };
+  }
 
   const MANUAL: Record<GatherKind, { value: string; set: (v: string) => void }> = {
     business: { value: businessContextText, set: setBusiness },
@@ -113,6 +195,8 @@ export function ContextTab({
     return (
       <div style={PANE}>
         <div style={COL}>
+          {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
+              direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
           <AgentGather kind={kind} onSummary={(s) => manual.set(mergeSummary(manual.value, s))} />
         </div>
         <div style={COL}>
@@ -120,7 +204,7 @@ export function ContextTab({
           <Field
             label={`${kind} context`}
             value={manual.value}
-            onChange={manual.set}
+            onChange={editing(manual.set)}
             rows={12}
             placeholder="layer your own context on top of the agent summary…"
             mono={false}
@@ -142,9 +226,7 @@ export function ContextTab({
         background: "var(--panel)",
       }}
     >
-      {onScenarioChange && (
-        <ScenarioSelect scenario={scenario} onChange={onScenarioChange} />
-      )}
+      {onModeChange && <ModeSelect mode={mode} onSelect={selectMode} />}
 
       <Tabs tabs={SUB_TABS} active={active} onChange={setActive} />
 
@@ -158,7 +240,7 @@ export function ContextTab({
             <Field
               label="Decision"
               value={decisionText}
-              onChange={setDecision}
+              onChange={editing(setDecision)}
               rows={4}
               placeholder="What decision are you weighing?"
               mono={false}
