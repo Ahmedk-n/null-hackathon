@@ -22,7 +22,7 @@
 
 ## Wave 1 (parallel, disjoint files)
 
-### V5-1 · Landing page at /, studio at /studio  ← never cut
+### V5-1 · Landing page at /, studio at /studio ✅ (all 7 sections; hero = purpose-built 12s tick-loop, real engine numbers 62→6→51, no store/motion/RF; RecentDecisions seam typed for V5-4; e2e landing leg added, studio legs retargeted; shell.test unchanged — it renders KeystoneApp directly; 301/301, e2e PASS)
 - [ ] `src/app/page.tsx` becomes the landing (server component shell + client hero); app moves to `src/app/studio/page.tsx` (same props: startedAt ISO from server, decision).
 - [ ] Sections, terminal/CAD aesthetic throughout (hairlines, zero radius, mono, paper):
   1. **Nameplate**: ▣ KEYSTONE — STRUCTURAL ANALYSIS FOR DECISIONS + track quote ("Can we design thoughts the way engineers design machines?…" full manifesto lines as a ledger).

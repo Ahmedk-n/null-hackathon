@@ -89,11 +89,35 @@ async function main() {
     });
 
   try {
+    // ── LANDING — the concept page at / ───────────────────────────────────────
+    console.log("\n[LANDING · /]");
+
+    await step("LANDING: load / — manifesto + ENTER STUDIO", async () => {
+      await page.goto(BASE_URL + "/", { waitUntil: "networkidle", timeout: 60000 });
+      // The manifesto text renders.
+      await page.waitForFunction(
+        () => /Can we design thoughts the way engineers design machines/i.test(document.body.innerText || ""),
+        undefined,
+        { timeout: 15000 },
+      );
+      // The live mini-collapse hero mounts.
+      await page.waitForSelector('[data-testid="mini-collapse-hero"]', { timeout: 10000 });
+      // The ENTER STUDIO link exists and points at /studio.
+      const enter = page.getByRole("link", { name: /enter studio/i }).first();
+      if ((await enter.count()) === 0) throw new Error("ENTER STUDIO link not found on landing");
+    });
+
+    await step("LANDING: click ENTER STUDIO → land on /studio", async () => {
+      await page.getByRole("link", { name: /enter studio/i }).first().click();
+      await page.waitForURL(/\/studio(\?|$)/, { timeout: 15000 });
+      await waitTabActive("context");
+    });
+
     // ── SCENARIO A — the rehearsed, pinned demo ──────────────────────────────
     console.log("\n[SCENARIO A · rehearsed / pinned]");
 
-    await step("A: load /", async () => {
-      await page.goto(BASE_URL, { waitUntil: "networkidle", timeout: 60000 });
+    await step("A: load /studio", async () => {
+      await page.goto(BASE_URL + "/studio", { waitUntil: "networkidle", timeout: 60000 });
     });
 
     await step("A: CONTEXT tab visible (default mode is R — the REAL sample)", async () => {
