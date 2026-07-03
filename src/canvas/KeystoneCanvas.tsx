@@ -14,6 +14,8 @@ import { motion } from "motion/react";
 import type { Graph, Attack } from "@/engine";
 // Pure, key-free classifier (data-in/data-out) — same boundary the store already crosses.
 import { normaliseCategory } from "@/context/weights";
+// V4-2 — constraint planes (ideas have constraints). Deep import respects the barrel guard.
+import { planeStrikes, type ConstraintPlane, type PlaneStrike } from "@/context/constraints";
 import type { ContextWeightAdjustment } from "@/context";
 import { KEYSTONE, HAIR, HAIR_STRONG, BG, BAD, MUTED } from "@/ui/tokens";
 import { layoutPositions, pickLayoutMode } from "./layout";
@@ -114,6 +116,7 @@ const BUILT_IN_GRAPHS = new WeakSet<object>();
 
 const NO_ATTACKS: readonly Attack[] = [];
 const NO_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
+const NO_PLANES: readonly ConstraintPlane[] = [];
 
 // Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action).
 // Lives inside <ReactFlow> so useReactFlow() resolves the flow instance context.
@@ -136,6 +139,7 @@ export function KeystoneCanvas({
   attacks = NO_ATTACKS,
   rawAttacks = NO_ATTACKS,
   contextAdjustments = NO_ADJUSTMENTS,
+  constraintPlanes = NO_PLANES,
   buildKey,
   onSelect,
   fitSignal,
@@ -161,6 +165,13 @@ export function KeystoneCanvas({
   attacks?: readonly Attack[];
   rawAttacks?: readonly Attack[];
   contextAdjustments?: readonly ContextWeightAdjustment[];
+  /**
+   * V4-2 · CONSTRAINTS AS GEOMETRY. The pack's constraints, rendered as named CAD
+   * boundary planes in the right margin. When load is applied, an attack whose
+   * category maps to a plane's categories STRIKES it — the plane flashes --bad,
+   * draws a strike-line to the attacked node, and settles to a VIOLATED tally.
+   */
+  constraintPlanes?: readonly ConstraintPlane[];
   /** Stable identity for the assembly build-in (W1-6a); pass the base graph object. */
   buildKey?: object | null;
   onSelect?: (id: string) => void;
@@ -264,6 +275,32 @@ export function KeystoneCanvas({
   // V4-1 — the strata present in this graph (drives the stratum chrome). Evidence
   // stratum appears only when a node carries evidence.
   const strata = useMemo(() => presentStrata(graph), [graph]);
+
+  // V4-2 — collision derivation: which planes an attack category strikes. Pure/
+  // deterministic (planeStrikes); only READS as violated once load is applied so the
+  // planes reset to their calm --muted state when the load is cleared.
+  const strikes = useMemo(
+    () => planeStrikes(constraintPlanes, attacks),
+    [constraintPlanes, attacks],
+  );
+
+  // Normalised (0..1) layout positions per node — the strike-line endpoints. Same
+  // approximation the force arrows use (raw layout coords under the SECTION transform).
+  const targetPoints = useMemo(() => {
+    const pos = layoutPositions(graph);
+    const xs = graph.nodes.map((n) => pos.get(n.id)?.x ?? 0);
+    const ys = graph.nodes.map((n) => pos.get(n.id)?.y ?? 0);
+    const minX = Math.min(...xs);
+    const minY = Math.min(...ys);
+    const spanX = Math.max(...xs) - minX || 1;
+    const spanY = Math.max(...ys) - minY || 1;
+    const map: Record<string, { x: number; y: number }> = {};
+    for (const n of graph.nodes) {
+      const p = pos.get(n.id) ?? { x: 0, y: 0 };
+      map[n.id] = { x: (p.x - minX) / spanX, y: (p.y - minY) / spanY };
+    }
+    return map;
+  }, [graph]);
 
   // W1-6b — force arrows. Deterministic x-positions derived from the top-layer
   // (thesis) node coordinates, spread across the load-bearing apex; only while load
@@ -369,6 +406,13 @@ export function KeystoneCanvas({
           </ReactFlow>
           {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
           <StratumChrome strata={strata} focusLayer={focusLayer} />
+          {/* V4-2 — constraint boundary planes (right margin; opposite the L0..L3 labels). */}
+          <ConstraintFrame
+            planes={constraintPlanes}
+            strikes={strikes}
+            active={effectiveLoadApplied}
+            targetPoints={targetPoints}
+          />
           <ForceArrows arrows={forceArrows} />
         </div>
       </motion.div>
@@ -433,6 +477,154 @@ function StratumChrome({
               {s.label}
             </span>
           </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// V4-2 — CONSTRAINT FRAME. "Ideas have constraints" as visible geometry: each relevant
+// constraint is a named CAD boundary plane — a hairline vertical rule stacked in the
+// RIGHT margin (opposite the L0..L3 stratum labels, so the two never collide), zero
+// radius, --muted, with its terse uppercase .mono label running down the rule. When
+// load is applied and an attack's category maps to a plane's categories, that plane
+// STRIKES: it flashes/settles to a persistent --bad VIOLATED state with a strike tally
+// (×n), and draws a brief strike-line (animated strokeDashoffset, like the cracks) from
+// the plane edge to the attacked node. Deterministic (strikes derive from planeStrikes,
+// no randomness); pointer-events off so it never intercepts canvas interaction.
+function ConstraintFrame({
+  planes,
+  strikes,
+  active,
+  targetPoints,
+}: {
+  planes: readonly ConstraintPlane[];
+  strikes: readonly PlaneStrike[];
+  active: boolean;
+  targetPoints: Record<string, { x: number; y: number }>;
+}) {
+  if (planes.length === 0) return null;
+  const strikeFor = (id: string) => strikes.find((s) => s.planeId === id);
+  return (
+    <div
+      data-testid="constraint-planes"
+      aria-hidden
+      style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}
+    >
+      {/* Section header datum in the top-right — reads the frame as CAD boundary planes. */}
+      <span
+        className="mono"
+        style={{
+          position: "absolute",
+          top: "1%",
+          right: 8,
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: "0.16em",
+          color: MUTED,
+        }}
+      >
+        CONSTRAINTS
+      </span>
+      {/* Strike-lines: one animated hairline per struck plane, from its rule edge to the
+          first attacked node. viewBox 0..100 maps to canvas %, non-scaling hairline. */}
+      <svg
+        width="100%"
+        height="100%"
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: 0, overflow: "visible" }}
+      >
+        {planes.map((p, i) => {
+          const strike = strikeFor(p.id);
+          if (!active || !strike?.struck) return null;
+          const targetId = strike.targetIds[0];
+          const tp = targetId ? targetPoints[targetId] : undefined;
+          if (!tp) return null;
+          const ruleX = 100 - (5 + i * 6);
+          return (
+            <motion.line
+              key={p.id}
+              data-testid="constraint-strike-line"
+              x1={ruleX}
+              y1={tp.y * 100}
+              x2={tp.x * 100}
+              y2={tp.y * 100}
+              stroke={BAD}
+              strokeWidth={0.5}
+              vectorEffect="non-scaling-stroke"
+              pathLength={1}
+              strokeDasharray={1}
+              initial={{ strokeDashoffset: 1, opacity: 0 }}
+              animate={{ strokeDashoffset: 0, opacity: 0.85 }}
+              transition={{ duration: 0.45, delay: 0.1 + i * 0.08, ease: "easeOut" }}
+            />
+          );
+        })}
+      </svg>
+      {planes.map((p, i) => {
+        const strike = strikeFor(p.id);
+        const violated = active && !!strike?.struck;
+        const color = violated ? BAD : MUTED;
+        return (
+          <motion.div
+            key={p.id}
+            data-constraint-plane={p.id}
+            data-violated={violated ? "true" : undefined}
+            initial={false}
+            animate={violated ? { opacity: [0.3, 1, 0.85] } : { opacity: 1 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            style={{ position: "absolute", top: "6%", bottom: "6%", right: `${5 + i * 6}%` }}
+          >
+            {/* the boundary rule — 1px hairline, zero radius */}
+            <div
+              style={{
+                position: "absolute",
+                top: 0,
+                bottom: 0,
+                right: 0,
+                width: 1,
+                background: violated ? BAD : HAIR_STRONG,
+                opacity: violated ? 0.9 : 0.55,
+              }}
+            />
+            {/* label runs DOWN the rule (vertical), terse uppercase .mono */}
+            <span
+              className="mono"
+              style={{
+                position: "absolute",
+                top: 4,
+                right: 4,
+                writingMode: "vertical-rl",
+                fontSize: 9,
+                fontWeight: 600,
+                letterSpacing: "0.14em",
+                color,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {p.label}
+            </span>
+            {/* persistent VIOLATED tally at the foot of a struck rule */}
+            {violated && (
+              <span
+                className="mono"
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 4,
+                  writingMode: "vertical-rl",
+                  fontSize: 9,
+                  fontWeight: 700,
+                  letterSpacing: "0.14em",
+                  color: BAD,
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {`VIOLATED ×${strike!.tally}`}
+              </span>
+            )}
+          </motion.div>
         );
       })}
     </div>

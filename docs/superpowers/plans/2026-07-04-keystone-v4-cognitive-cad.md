@@ -27,9 +27,9 @@
 - [ ] Collapse still ripples THROUGH strata (evidence plates shatter last / drop out) — keep all v2 collapse work, re-anchored to real elevations.
 - Files: src/canvas/** (KeystoneCanvas, StructuralNode, layout.ts), src/ui/tabs/GraphTab.tsx + StressTab.tsx (control + metric), src/app/KeystoneApp.tsx (status strip), tests.
 
-## V4-2 · Constraints as geometry
+## V4-2 · Constraints as geometry ✅ (pure constraintPlanes/planeStrikes; CAD datum frames in the right margin — TIME/BUDGET/TEAM/TECH/MARKET/REG tokens, vertical .mono labels; on load a matching attack flashes the plane --bad, draws a strike-line to the node, settles to VIOLATED ×n; 12 new tests; e2e PASS)
 
-- [ ] The pack's constraints (`relevantConstraints`) render as named boundary planes/frames around the structure (e.g. `RUNWAY ≤ 7 MO`, `SLA 99.9%`) — hairline, labeled, CAD-drawing style.
+- [x] The pack's constraints (`relevantConstraints`) render as named boundary planes/frames around the structure (e.g. `RUNWAY ≤ 7 MO`, `SLA 99.9%`) — hairline, labeled, CAD-drawing style.
 - [ ] On Apply Load, an attack whose category maps to a constraint VISIBLY strikes its plane (flash/strike-line into the target node) — "the idea collided with its constraint."
 - [ ] Pure derivation from the pack; no engine changes; offline-safe.
 - Files: src/canvas/**, small pure helper in src/context/, tests.

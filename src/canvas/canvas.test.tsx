@@ -6,6 +6,7 @@ import { pickLayoutMode } from "./layout";
 import { fixtureContextGraph, fixtureContextGraphB } from "@/context";
 import type { Attack } from "@/engine";
 import type { ContextWeightAdjustment } from "@/context";
+import type { ConstraintPlane } from "@/context/constraints";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -232,6 +233,85 @@ describe("causal callout on the crack (W1-5)", () => {
     const text = container.textContent ?? "";
     expect(text).toContain("THRESHOLD CROSSED");
     expect(text).not.toContain("CRACKED");
+  });
+});
+
+describe("constraint planes (V4-2 — ideas have constraints)", () => {
+  const planes: ConstraintPlane[] = [
+    { id: "con_time", label: "TIME · CREDIBLE PLAN NEEDED…", categories: ["timeline", "execution"] },
+    { id: "con_reg", label: "REG · REGULATED FINTECH BUY…", categories: ["auditability", "reliability"] },
+  ];
+
+  it("renders a labeled boundary plane per constraint when the pack has constraints", () => {
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        constraintPlanes={planes}
+      />,
+    );
+    const frame = container.querySelector("[data-testid='constraint-planes']");
+    expect(frame).not.toBeNull();
+    expect(container.querySelector("[data-constraint-plane='con_time']")).not.toBeNull();
+    expect(container.querySelector("[data-constraint-plane='con_reg']")).not.toBeNull();
+    const text = frame!.textContent ?? "";
+    expect(text).toContain("TIME · CREDIBLE PLAN NEEDED…");
+    expect(text).toContain("REG · REGULATED FINTECH BUY…");
+  });
+
+  it("renders NO constraint frame when there are no planes", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
+    );
+    expect(container.querySelector("[data-testid='constraint-planes']")).toBeNull();
+  });
+
+  it("marks a plane VIOLATED with a strike tally + strike-line when a matching attack lands under load", () => {
+    const attacks: Attack[] = [
+      { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.65, rationale: "" },
+      { id: "atk_bound", targetId: "a_bound", category: "second-order", severity: 0.2, rationale: "" },
+      { id: "atk_audit", targetId: "a_audit", category: "auditability", severity: 0.1, rationale: "" },
+    ];
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        loadApplied
+        attacks={attacks}
+        constraintPlanes={planes}
+      />,
+    );
+    const time = container.querySelector<HTMLElement>("[data-constraint-plane='con_time']");
+    const reg = container.querySelector<HTMLElement>("[data-constraint-plane='con_reg']");
+    // execution + second-order(→execution) both strike the TIME plane → ×2 VIOLATED.
+    expect(time!.getAttribute("data-violated")).toBe("true");
+    expect(time!.textContent ?? "").toContain("VIOLATED ×2");
+    // auditability strikes the REG plane → ×1 VIOLATED.
+    expect(reg!.getAttribute("data-violated")).toBe("true");
+    expect(reg!.textContent ?? "").toContain("VIOLATED ×1");
+    // brief strike-lines are drawn from the struck planes to the attacked nodes.
+    expect(container.querySelectorAll("[data-testid='constraint-strike-line']").length).toBeGreaterThan(0);
+  });
+
+  it("shows planes calm (not violated) before load is applied", () => {
+    const attacks: Attack[] = [
+      { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.65, rationale: "" },
+    ];
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        loadApplied={false}
+        attacks={attacks}
+        constraintPlanes={planes}
+      />,
+    );
+    const time = container.querySelector<HTMLElement>("[data-constraint-plane='con_time']");
+    expect(time!.getAttribute("data-violated")).toBeNull();
+    expect(container.querySelector("[data-testid='constraint-strike-line']")).toBeNull();
   });
 });
 

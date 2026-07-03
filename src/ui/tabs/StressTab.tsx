@@ -11,6 +11,8 @@ import {
 } from "@/store/useKeystone";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { analysisDepth } from "@/canvas/depth";
+// V4-2 — constraint planes: pure derivation from the pack (deep import; barrel guard).
+import { constraintPlanes } from "@/context/constraints";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
 import { SectionHeader, Button, EmptyCanvas, LedgerRow } from "@/ui/primitives";
@@ -361,6 +363,9 @@ export function StressTab({
     [attacks],
   );
 
+  // V4-2 — constraint planes for the canvas (strikes derive from the current attacks).
+  const planes = useMemo(() => constraintPlanes(pack), [pack]);
+
   // V4-1 — DEPTH readout (compact) from the clean base structure.
   const depth = useMemo(() => {
     const g = baseGraph ?? graph;
@@ -442,6 +447,7 @@ export function StressTab({
             attacks={attacks}
             rawAttacks={rawAttacks}
             contextAdjustments={pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS}
+            constraintPlanes={planes}
             buildKey={baseGraph}
             onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           />

@@ -9,6 +9,8 @@ import {
 } from "@/store/useKeystone";
 import { pickLayoutMode } from "@/canvas/layout";
 import { analysisDepth, presentStrata } from "@/canvas/depth";
+// V4-2 — constraint planes: pure derivation from the pack (deep import; barrel guard).
+import { constraintPlanes } from "@/context/constraints";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
@@ -173,6 +175,8 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const baseGraph = useKeystone((s) => s.baseGraph);
   const pack = useKeystone((s) => s.decisionContextPack);
   const contextAdjustments = pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS;
+  // V4-2 — the pack's constraints as boundary planes (mirrors contextAdjustments' flow).
+  const planes = useMemo(() => constraintPlanes(pack), [pack]);
 
   const [search, setSearch] = useState("");
   const [failedOnly, setFailedOnly] = useState(false);
@@ -356,6 +360,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           attacks={attacks}
           rawAttacks={rawAttacks}
           contextAdjustments={contextAdjustments}
+          constraintPlanes={planes}
           buildKey={baseGraph}
           onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           fitSignal={fitSignal}
