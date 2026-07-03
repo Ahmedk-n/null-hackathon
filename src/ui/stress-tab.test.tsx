@@ -1,9 +1,15 @@
 // @vitest-environment jsdom
 import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen } from "@testing-library/react";
+import { render, cleanup, screen, fireEvent } from "@testing-library/react";
 import { StressTab } from "./tabs/StressTab";
 import { keystoneStore } from "@/store/useKeystone";
-import { fixtureContextGraph, fixtureContextAttacks } from "@/context";
+import { integrity } from "@/engine";
+import {
+  fixtureContextGraph,
+  fixtureContextAttacks,
+  fixtureCompanyContext,
+  fixtureDecisionContextPack,
+} from "@/context";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -64,13 +70,46 @@ describe("StressTab (R4)", () => {
     );
     // IntegrityGauge renders its label + a numeric percentage.
     expect(screen.getByText(/structural integrity/i)).toBeDefined();
-    const integrity = keystoneStore.getState().workingGraph
+    const value = keystoneStore.getState().workingGraph
       ? Math.round(
           Array.from(container.querySelectorAll("text"))
             .map((t) => Number(t.textContent))
             .find((n) => !Number.isNaN(n)) ?? -1,
         )
       : -1;
-    expect(integrity).toBeGreaterThanOrEqual(0);
+    expect(value).toBeGreaterThanOrEqual(0);
+  });
+
+  // ── The A/B toggle: IGNORE CONTEXT ⟷ GROUND IN CONTEXT ────────────────
+  it("renders the IGNORE CONTEXT / GROUND IN CONTEXT toggle", () => {
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(screen.getByRole("button", { name: /ignore context/i })).toBeDefined();
+    expect(screen.getByRole("button", { name: /ground in context/i })).toBeDefined();
+  });
+
+  it("flipping the toggle flips survive⟷collapse", () => {
+    // Seed a grounded, loaded state with the hero pack present.
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph());
+    s.setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    s.setApplyContextWeights(true);
+    s.applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    // GROUND IN CONTEXT → keystone cracks, structure collapses.
+    expect(integrity(keystoneStore.getState().workingGraph!)).toBeLessThan(10);
+    expect(keystoneStore.getState().failures.has("k_credible")).toBe(true);
+
+    // Flip to IGNORE CONTEXT → keystone holds, structure survives.
+    fireEvent.click(screen.getByRole("button", { name: /ignore context/i }));
+    expect(keystoneStore.getState().applyContextWeights).toBe(false);
+    expect(integrity(keystoneStore.getState().workingGraph!)).toBeGreaterThan(15);
+    expect(keystoneStore.getState().failures.has("k_credible")).toBe(false);
+
+    // Flip back to GROUND IN CONTEXT → collapse returns.
+    fireEvent.click(screen.getByRole("button", { name: /ground in context/i }));
+    expect(integrity(keystoneStore.getState().workingGraph!)).toBeLessThan(10);
+    expect(keystoneStore.getState().failures.has("k_credible")).toBe(true);
   });
 });

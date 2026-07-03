@@ -20,12 +20,10 @@
 ## Wave 0 — Demo-blockers (do first, sequential-safe)
 
 ### W0-1 · Make context flip the OUTCOME ⟵ the single highest-leverage change
-- [ ] Retune `src/context/fixtures.ts::fixtureContextGraph()` attack severities so:
-  - **raw attacks (no pack):** integrity lands ~35–45%, `k_credible` HOLDS, no failures;
-  - **context-reweighted attacks:** `k_credible` crosses the 0.35 threshold → cracks; post-load <10%; `c_roi` still holds.
-- [ ] Keep every pinned assertion green: baseline ≈62.0 (`fixtures.test.ts:18`), keystone dominance ≥5× (`:26-29`), post-load <10 (`:34`), `c_roi` holds (`:40`). ADD pinned assertions for the new raw-path numbers (survives, no failures).
-- [ ] **A/B toggle in STRESS tab** (`src/ui/tabs/StressTab.tsx`): `IGNORE CONTEXT ⟷ GROUND IN CONTEXT` — applies raw vs reweighted attacks; flipping it live flips survive⟷collapse. This toggle IS the demo.
-- [ ] Guardrails: do NOT touch `src/llm/fixture.ts`; engine stays pure (reweight remains the single pure function).
+- [x] Retune `src/context/fixtures.ts` attack severities. **DEVIATION (verified impossible as specced):** raw 35–45% with zero failures cannot coexist with pinned reweighted <10% — the keystone enters the integrity product *squared* (feeds c_exec AND c_reliab), so raw k must sit ≈0.50 for a ×1.5 reweight to flip it, capping raw integrity ≈20%. Delivered the achievable beat: **raw → k_credible 0.513 HOLDS, all claims hold, integrity 17.1% (only T stressed); reweighted → atk 0.43→0.645, k_credible 0.320 FAILS, integrity 6.4%, cascade {T,c_exec,c_reliab,k_credible}, c_roi holds.** Math documented in fixtures.ts.
+- [x] Pinned assertions kept green (baseline 61.97, dominance 17×, post-load <10, c_roi holds) + NEW pins: raw ∈ (15,25), keystone holds raw, keystone fails reweighted.
+- [x] **A/B toggle in STRESS tab**: `IGNORE CONTEXT ⟷ GROUND IN CONTEXT` segmented control; store keeps `rawAttacks` + `setApplyContextWeights` re-derives live from clean baseline. Toggle tests added.
+- [x] Guardrails held: `src/llm/fixture.ts` untouched; engine untouched.
 - Files: `src/context/fixtures.ts`, `src/context/weights.ts` (K=0.5), `src/context/fixtures.test.ts`, `src/ui/tabs/StressTab.tsx`, `src/store/**`.
 
 ### W0-2 · Load the real fonts (30 min, highest ROI/hour)

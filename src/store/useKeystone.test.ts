@@ -22,14 +22,23 @@ describe("keystone store (context fixtures)", () => {
     expect(selectIntegrity(store.getState())).toBeLessThan(before);
   });
 
-  it("applyLoad drops integrity and marks failures", () => {
+  it("applyLoad drops integrity; RAW survives, context-grounded collapses", () => {
     const store = createKeystoneStore();
     store.getState().setGraph(fixtureContextGraph());
+    // RAW (context ignored, no pack): the keystone HOLDS — structure survives.
     store.getState().applyLoad(fixtureContextAttacks());
     expect(store.getState().loadApplied).toBe(true);
+    expect(selectIntegrity(store.getState())).toBeLessThan(62); // dropped from baseline
+    expect(selectIntegrity(store.getState())).toBeGreaterThan(15);
+    expect(selectFailures(store.getState()).has("k_credible")).toBe(false);
+    expect(selectKeystoneId(store.getState())).toBe("k_credible");
+
+    // GROUNDED IN CONTEXT: the hero pack reweights the execution attack and the
+    // keystone crosses the threshold — collapse.
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
     expect(selectIntegrity(store.getState())).toBeLessThan(10);
     expect(selectFailures(store.getState()).has("k_credible")).toBe(true);
-    expect(selectKeystoneId(store.getState())).toBe("k_credible");
   });
 
   it("reset returns the working graph to the base graph", () => {
@@ -54,7 +63,9 @@ describe("keystone store (context fixtures)", () => {
     const a = selectFailures(store.getState());
     const b = selectFailures(store.getState());
     expect(a).toBe(b);
-    expect(a.has("k_credible")).toBe(true);
+    // RAW attacks (no pack) survive at the keystone but crater the thesis, so the
+    // populated failure set contains T — enough to prove stability of a non-empty set.
+    expect(a.has("T")).toBe(true);
   });
 });
 
@@ -75,7 +86,7 @@ describe("keystone store (context integration)", () => {
 
     store.getState().applyLoad(fixtureContextAttacks());
 
-    // Reweight is applied: the execution-increase (magnitude 0.8) pushes atk_k above its raw 0.8.
+    // Reweight is applied: the execution-increase (magnitude 1.0) pushes atk_k above its raw 0.43.
     const stored = store.getState().attacks.find((a) => a.id === "atk_k");
     const raw = fixtureContextAttacks().find((a) => a.id === "atk_k");
     expect(stored?.severity).toBeGreaterThan(raw?.severity ?? 0);

@@ -17,6 +17,9 @@ export interface KeystoneState {
   baseGraph: Graph | null;
   workingGraph: Graph | null;
   attacks: Attack[];
+  // The un-reweighted attacks last passed to applyLoad. Kept so the A/B toggle can
+  // recompute raw⟷reweighted live without a round-trip to /api/attacks.
+  rawAttacks: Attack[];
   loadApplied: boolean;
   failures: ReadonlySet<string>;
   companyContext: CompanyContext | null;
@@ -34,6 +37,7 @@ export interface KeystoneState {
     source: "live" | "fixture",
   ) => void;
   applyLoad: (attacks: Attack[]) => void;
+  setApplyContextWeights: (value: boolean) => void;
   reset: () => void;
   setSelectedNode: (id: string | null) => void;
   setTilt: (tilt: boolean) => void;
@@ -44,6 +48,7 @@ export function createKeystoneStore() {
     baseGraph: null,
     workingGraph: null,
     attacks: [],
+    rawAttacks: [],
     loadApplied: false,
     failures: EMPTY_FAILURES,
     companyContext: null,
@@ -53,7 +58,7 @@ export function createKeystoneStore() {
     selectedNodeId: null,
     tilt: true,
     setGraph: (g) =>
-      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], loadApplied: false, failures: EMPTY_FAILURES }),
+      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES }),
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
       if (!wg) return;
@@ -67,21 +72,43 @@ export function createKeystoneStore() {
     setContext: (companyContext, decisionContextPack, source) =>
       set({ companyContext, decisionContextPack, contextSource: source }),
     applyLoad: (attacks) => {
-      const wg = get().workingGraph;
-      if (!wg) return;
+      const base = get().baseGraph ?? get().workingGraph;
+      if (!base) return;
       const { applyContextWeights, decisionContextPack } = get();
       // The ONLY place context math meets the engine: reweight severities BEFORE applyAttacks.
       const effective =
         applyContextWeights && decisionContextPack
           ? reweightAttacksByContext(attacks, decisionContextPack.contextWeightAdjustments)
           : attacks;
-      const workingGraph = applyAttacks(wg, effective);
-      set({ workingGraph, attacks: effective, loadApplied: true, failures: detectFailures(workingGraph) });
+      // Always apply against a clean baseline clone so re-applying (e.g. the A/B
+      // toggle) never double-attacks an already-stressed graph.
+      const workingGraph = applyAttacks(cloneGraph(base), effective);
+      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph) });
+    },
+    // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
+    // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
+    setApplyContextWeights: (value) => {
+      const { loadApplied, rawAttacks, baseGraph, decisionContextPack } = get();
+      if (!loadApplied || !baseGraph || rawAttacks.length === 0) {
+        set({ applyContextWeights: value });
+        return;
+      }
+      const effective =
+        value && decisionContextPack
+          ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
+          : rawAttacks;
+      const workingGraph = applyAttacks(cloneGraph(baseGraph), effective);
+      set({
+        applyContextWeights: value,
+        workingGraph,
+        attacks: effective,
+        failures: detectFailures(workingGraph),
+      });
     },
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], loadApplied: false, failures: EMPTY_FAILURES });
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),

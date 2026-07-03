@@ -108,7 +108,7 @@ export function fixtureDecisionContextPack(decision?: string): DecisionContextPa
       { id: "risk_tech", category: "technical", statement: "Limited observability for distributed ops.", likelihood: 0.6, severity: 0.6 },
     ],
     contextWeightAdjustments: [
-      { targetCategory: "execution", direction: "increase", magnitude: 0.8, reason: "A major customer meeting tomorrow raises near-term delivery credibility." },
+      { targetCategory: "execution", direction: "increase", magnitude: 1.0, reason: "A major customer meeting tomorrow maximally raises near-term delivery/execution risk." },
       { targetCategory: "reliability", direction: "increase", magnitude: 0.7, reason: "The meeting centers on enterprise reliability guarantees." },
       { targetCategory: "auditability", direction: "increase", magnitude: 0.7, reason: "Regulated fintech buyers require audit trails." },
       { targetCategory: "timeline", direction: "increase", magnitude: 0.6, reason: "A credible plan is needed by tomorrow, not a long rewrite." },
@@ -136,11 +136,21 @@ export function fixtureContextGraph(): Graph {
   };
 }
 
+// RAW attack severities (context IGNORED). Tuned so the structure SURVIVES the
+// raw assault: the keystone `k_credible` and all three claims hold above the 0.35
+// failure threshold. Only when `reweightAttacksByContext` applies the hero pack
+// (tomorrow's enterprise meeting → ▲ execution) does the keystone attack cross the
+// threshold and fail, cascading c_exec + c_reliab and cratering integrity <10%.
+//
+// Numbers worked against the engine (integrity = k²·m·r, keystone squared):
+//   RAW        → k=0.513 (HOLDS), integrity ≈ 17.1%, failures = {T} only.
+//   REWEIGHTED → atk_k 0.43→0.645 (×1.5 execution) → k=0.320 (FAILS),
+//                integrity ≈ 6.4%, failures = {T, c_exec, c_reliab, k_credible}; c_roi holds.
 export function fixtureContextAttacks(): Attack[] {
   return [
-    { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.8, rationale: "With tomorrow's meeting, there is no time to prove a safe staged migration — the plan is not credible yet." },
-    { id: "atk_obs", targetId: "a_obs", category: "reliability", severity: 0.4, rationale: "Observability is limited; distributed failure modes would be blind spots." },
-    { id: "atk_bound", targetId: "a_bound", category: "second-order", severity: 0.3, rationale: "Domain boundaries are still shifting; premature splits need re-merging." },
-    { id: "atk_audit", targetId: "a_audit", category: "auditability", severity: 0.35, rationale: "Audit trails across services are unproven for regulated buyers." },
+    { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.43, rationale: "With tomorrow's meeting, there is no time to prove a safe staged migration — the plan is not credible yet." },
+    { id: "atk_obs", targetId: "a_obs", category: "reliability", severity: 0.1, rationale: "Observability is limited; distributed failure modes would be blind spots." },
+    { id: "atk_bound", targetId: "a_bound", category: "second-order", severity: 0.12, rationale: "Domain boundaries are still shifting; premature splits need re-merging." },
+    { id: "atk_audit", targetId: "a_audit", category: "auditability", severity: 0.1, rationale: "Audit trails across services are unproven for regulated buyers." },
   ];
 }

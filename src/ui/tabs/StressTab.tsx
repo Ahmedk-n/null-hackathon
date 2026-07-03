@@ -34,6 +34,65 @@ const RIGHT: React.CSSProperties = {
   background: "var(--panel)",
 };
 
+// A/B toggle — the demo. IGNORE CONTEXT (raw attacks, structure survives) ⟷
+// GROUND IN CONTEXT (hero pack reweights severities, keystone cracks, collapse).
+// Terminal/ledger styling: uppercase tracked labels, mono, zero radius.
+function ContextToggle({
+  grounded,
+  onChange,
+  disabled,
+}: {
+  grounded: boolean;
+  onChange: (grounded: boolean) => void;
+  disabled?: boolean;
+}) {
+  const seg = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: "7px 8px",
+    fontFamily: "var(--mono)",
+    fontSize: 10,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    textAlign: "center",
+    cursor: disabled ? "default" : "pointer",
+    border: "none",
+    borderRadius: 0,
+    background: active ? (grounded ? "var(--bad)" : "var(--ink)") : "transparent",
+    color: active ? "var(--bg)" : "var(--muted)",
+    opacity: disabled ? 0.5 : 1,
+  });
+  return (
+    <div>
+      <span className="label" style={{ display: "block", marginBottom: 5 }}>
+        Attack Basis
+      </span>
+      <div
+        data-testid="context-toggle"
+        style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
+      >
+        <button
+          type="button"
+          aria-pressed={!grounded}
+          disabled={disabled}
+          onClick={() => onChange(false)}
+          style={seg(!grounded)}
+        >
+          Ignore Context
+        </button>
+        <button
+          type="button"
+          aria-pressed={grounded}
+          disabled={disabled}
+          onClick={() => onChange(true)}
+          style={seg(grounded)}
+        >
+          Ground In Context
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // One attack rendered as a ledger block: CATEGORY (uppercase) + SEVERITY (mono),
 // the target id muted beneath, and a severity bar (width = severity, red).
 function AttackRow({ attack }: { attack: Attack }) {
@@ -81,6 +140,7 @@ export function StressTab({
   const tilt = useKeystone((s) => s.tilt);
   const pack = useKeystone((s) => s.decisionContextPack);
   const source = useKeystone((s) => s.contextSource);
+  const applyContextWeights = useKeystone((s) => s.applyContextWeights);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -102,6 +162,12 @@ export function StressTab({
             sorted.map((a) => <AttackRow key={a.id} attack={a} />)
           )}
         </div>
+
+        <ContextToggle
+          grounded={applyContextWeights}
+          disabled={loading}
+          onChange={(g) => keystoneStore.getState().setApplyContextWeights(g)}
+        />
 
         <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           <Button primary onClick={onApplyLoad} disabled={loading}>
