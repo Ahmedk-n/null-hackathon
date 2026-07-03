@@ -235,6 +235,7 @@ export function KeystoneCanvas({
           layer,
           translateZ: LAYER_Z[n.type] + (isKeystone ? KEYSTONE_Z_BUMP : 0),
           evidence: n.evidence,
+          provenance: n.provenance,
           evidenceDropDelay: EVIDENCE_DROP_DELAY,
           dimmed,
           plateDimmed,

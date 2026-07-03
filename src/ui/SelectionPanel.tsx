@@ -1,9 +1,10 @@
 "use client";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { Graph, GraphNode } from "@/engine";
 import { computeSupport, rankLoadBearing } from "@/engine";
 import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, HAIR_STRONG, OK, WARN } from "@/ui/tokens";
-import { LedgerRow, SectionHeader } from "@/ui/primitives";
+import { LedgerRow, SectionHeader, Field, Button, Chip } from "@/ui/primitives";
+import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 
 const TYPE_COLOR: Record<string, string> = { thesis: THESIS, claim: CLAIM, assumption: ASSUMPTION };
 
@@ -27,12 +28,22 @@ function ColorChip({ label, color }: { label: string; color: string }) {
   );
 }
 
-// Confidence + provenance (V3-6). For an ASSUMPTION we make the number traceable to evidence:
+// Confidence + provenance (V3-6 · V5-3). For an ASSUMPTION we make the number traceable:
+//  - human-edited (provenance "modified") → "0.50 · MODIFIED — UNVERIFIED" (--warn); the cited
+//    evidence no longer backs the edited belief, so it takes priority over grounding (mirrors
+//    memo/derive provenanceOf).
 //  - evidence present  → "0.72 · GROUNDED" (--ok) + the fact + source in mono muted.
 //  - evidence null/none → "0.85 · UNGROUNDED — ASSUMED" (--warn), disarming "you invented these".
-// thesis/claim nodes keep the plain confidence row (grounding is an assumption-level concept).
+// A MODIFIED thesis/claim shows the MODIFIED row too; otherwise thesis/claim keep the plain row.
 function ConfidenceRow({ node }: { node: GraphNode }) {
   const conf = node.confidence.toFixed(2);
+  if (node.provenance === "modified") {
+    return (
+      <div data-evidence="modified">
+        <LedgerRow label="Confidence" value={`${conf} · MODIFIED — UNVERIFIED`} accent={WARN} />
+      </div>
+    );
+  }
   if (node.type !== "assumption") {
     return <LedgerRow label="Confidence" value={conf} />;
   }
@@ -60,15 +71,214 @@ function ConfidenceRow({ node }: { node: GraphNode }) {
   );
 }
 
+// V5-3 · how many OTHER nodes a delete would take with it. Simulate the store's cascade:
+// drop the node, unwire it from every group, then count nodes no longer reachable from the
+// thesis (excluding the deleted node itself). Pure — mirrors validate's reachability repair.
+function dependentsRemovedByDelete(graph: Graph, id: string): number {
+  if (id === graph.thesisId) return 0;
+  const remaining = graph.nodes.filter((n) => n.id !== id);
+  const byId = new Map(remaining.map((n) => [n.id, n]));
+  const seen = new Set<string>();
+  const stack = [graph.thesisId];
+  while (stack.length > 0) {
+    const cur = stack.pop() as string;
+    if (seen.has(cur)) continue;
+    seen.add(cur);
+    const node = byId.get(cur);
+    if (!node) continue;
+    for (const group of node.groups) {
+      for (const childId of group.childIds) {
+        if (childId !== id && !seen.has(childId)) stack.push(childId);
+      }
+    }
+  }
+  const survivors = remaining.filter((n) => seen.has(n.id)).length;
+  // removed total = (all - survivors); minus 1 for the deleted node → its orphaned dependents.
+  return graph.nodes.length - survivors - 1;
+}
+
+// V5-3 · handlers the studio wires to the store's editing actions. Optional: when absent the
+// panel stays a pure read-only display (the V3-6 selection-panel test renders it that way).
+export interface SelectionEditHandlers {
+  onRename?: (id: string, label: string) => void;
+  onSetConfidence?: (id: string, value: number) => void;
+  onAddAssumption?: (parentId: string, label: string) => void;
+  onFlipGroup?: (nodeId: string, groupIndex: number) => void;
+  onDelete?: (id: string) => void;
+  editError?: string | null;
+}
+
+// V5-3 · EDIT section. Terminal styling (.label/.mono, zero radius, hairlines). Keyed by node.id
+// in the parent so its local field state resets cleanly when the selection changes.
+function EditSection({
+  graph,
+  node,
+  onRename,
+  onSetConfidence,
+  onAddAssumption,
+  onFlipGroup,
+  onDelete,
+  editError,
+}: {
+  graph: Graph;
+  node: GraphNode;
+} & SelectionEditHandlers) {
+  const [newLabel, setNewLabel] = useState("");
+  const canParent = node.type === "claim" || node.type === "thesis";
+  const dependents = onDelete && node.id !== graph.thesisId
+    ? dependentsRemovedByDelete(graph, node.id)
+    : 0;
+
+  return (
+    <div>
+      <SectionHeader>Edit</SectionHeader>
+
+      {editError ? (
+        <div style={{ marginBottom: 8 }} data-testid="edit-error">
+          <Chip tone="warn">{editError}</Chip>
+        </div>
+      ) : null}
+
+      {/* RENAME — commit on blur / Enter. Uncontrolled (keyed by node in parent) so it seeds
+          from the current label without a controlled-state round-trip. */}
+      {onRename ? (
+        <label style={{ display: "block", marginBottom: 10 }}>
+          <span className="label" style={{ display: "block", marginBottom: 5 }}>
+            Rename
+          </span>
+          <input
+            className="field-input"
+            data-testid="rename-input"
+            defaultValue={node.label}
+            style={{ fontFamily: "var(--sans)" }}
+            onBlur={(e) => {
+              const v = e.target.value.trim();
+              if (v && v !== node.label) onRename(node.id, v);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const v = (e.target as HTMLInputElement).value.trim();
+                if (v && v !== node.label) onRename(node.id, v);
+                (e.target as HTMLInputElement).blur();
+              }
+            }}
+          />
+        </label>
+      ) : null}
+
+      {/* CONFIDENCE — assumptions only (grounding/knock-out is an assumption concept). */}
+      {onSetConfidence && node.type === "assumption" ? (
+        <ConfidenceSlider
+          id={node.id}
+          label="Confidence"
+          value={node.confidence}
+          onChange={(id, v) => onSetConfidence(id, v)}
+        />
+      ) : null}
+
+      {/* ADD ASSUMPTION — on claims + the thesis. */}
+      {onAddAssumption && canParent ? (
+        <div style={{ marginBottom: 10 }}>
+          <Field
+            label="Add Assumption"
+            value={newLabel}
+            onChange={setNewLabel}
+            placeholder="New assumption…"
+            mono={false}
+          />
+          <Button
+            style={{ marginTop: 6 }}
+            disabled={newLabel.trim().length === 0}
+            onClick={() => {
+              const v = newLabel.trim();
+              if (v) {
+                onAddAssumption(node.id, v);
+                setNewLabel("");
+              }
+            }}
+          >
+            Add
+          </Button>
+        </div>
+      ) : null}
+
+      {/* AND↔OR toggle per dependency group. */}
+      {onFlipGroup && node.groups.length > 0 ? (
+        <div style={{ marginBottom: 10 }}>
+          <span className="label" style={{ display: "block", marginBottom: 5 }}>
+            Groups
+          </span>
+          {node.groups.map((g, i) => (
+            <div
+              key={i}
+              style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}
+            >
+              <button
+                type="button"
+                data-testid="group-toggle"
+                onClick={() => onFlipGroup(node.id, i)}
+                className="mono"
+                style={{
+                  padding: "3px 8px",
+                  fontSize: 11,
+                  letterSpacing: "0.1em",
+                  border: "1px solid var(--hair-strong)",
+                  borderRadius: 0,
+                  background: "transparent",
+                  color: "var(--ink)",
+                  cursor: "pointer",
+                }}
+              >
+                {g.kind}
+              </button>
+              <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+                {g.childIds.length} child{g.childIds.length === 1 ? "" : "ren"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {/* DELETE — refused for the thesis (root); note the orphaned dependents count. */}
+      {onDelete && node.id !== graph.thesisId ? (
+        <div>
+          <Button
+            style={{ color: "var(--bad)", borderColor: "var(--bad)" }}
+            onClick={() => onDelete(node.id)}
+          >
+            Delete Node
+          </Button>
+          <div
+            className="mono"
+            data-testid="delete-note"
+            style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}
+          >
+            removes {dependents} dependent node{dependents === 1 ? "" : "s"}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function SelectionPanel({
   graph,
   selectedNodeId,
   keystoneId,
+  onRename,
+  onSetConfidence,
+  onAddAssumption,
+  onFlipGroup,
+  onDelete,
+  editError,
 }: {
   graph: Graph | null;
   selectedNodeId: string | null;
   keystoneId: string | null;
-}) {
+} & SelectionEditHandlers) {
+  // Editing is enabled when the studio wires at least one action (kept off for the pure
+  // read-only render in the V3-6 provenance test).
+  const editable = !!(onRename || onSetConfidence || onAddAssumption || onFlipGroup || onDelete);
   const detail = useMemo(() => {
     if (!graph || !selectedNodeId) return null;
     const node = graph.nodes.find((n) => n.id === selectedNodeId);
@@ -136,6 +346,23 @@ export function SelectionPanel({
           </div>
         )}
       </div>
+
+      {/* V5-3 · EDIT section — only when editing is wired AND a node is selected. Keyed by node
+          id so field state resets on selection change. The solver re-verdicts live: structural
+          edits rebuild workingGraph and the integrity/keystone selectors recompute immediately. */}
+      {editable && detail ? (
+        <EditSection
+          key={detail.node.id}
+          graph={graph as Graph}
+          node={detail.node}
+          onRename={onRename}
+          onSetConfidence={onSetConfidence}
+          onAddAssumption={onAddAssumption}
+          onFlipGroup={onFlipGroup}
+          onDelete={onDelete}
+          editError={editError}
+        />
+      ) : null}
 
       <div>
         <SectionHeader>Encoding</SectionHeader>

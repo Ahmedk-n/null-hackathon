@@ -30,6 +30,14 @@ export interface GraphNode {
   groups: DepGroup[];
   /** Optional confidence provenance. Engine-inert; UI-only. null = ungrounded assumption. */
   evidence?: NodeEvidence | null;
+  /**
+   * V5-3 · human-edit provenance. OPTIONAL, purely additive, ENGINE-INERT (like `evidence`):
+   * the pure engine never reads it. `"modified"` marks a node a human edited via the studio
+   * inspector (rename / add-assumption / group-kind flip) → the UI renders it
+   * MODIFIED — UNVERIFIED and detaches any evidence plate (the cited fact no longer backs the
+   * edited belief). Undefined means untouched (LLM- or fixture-authored).
+   */
+  provenance?: "modified";
 }
 
 export interface Graph {

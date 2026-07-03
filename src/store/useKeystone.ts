@@ -13,6 +13,9 @@ import {
 // Pure, key-free transform (data-in/data-out). Safe to bundle client-side. This is the ONLY
 // context import allowed in the store — never the compiler, the llm client, or the Anthropic SDK.
 import { reweightAttacksByContext } from "@/context/weights";
+// V5-3 (additive): the manual-edit validation wall. Pure (engine types + normaliseCategory only —
+// never the llm client / Anthropic SDK), so importing it keeps the client/key-safety boundary green.
+import { validateManualEdit } from "@/llm/validate";
 // V3-7 (additive): pure, key-free time-axis transforms. Deep path (never the barrel)
 // so the client/key-safety boundary guard stays happy.
 import { adjustmentsAt, failsInDays, CRATER_THRESHOLD } from "@/context/timeline";
@@ -29,6 +32,24 @@ function deriveFailsInDay(
 ): number | null {
   if (!applyContextWeights || !baseGraph || !pack || rawAttacks.length === 0) return null;
   return failsInDays(baseGraph, rawAttacks, pack, CRATER_THRESHOLD);
+}
+
+// V5-3 · deterministic id from a human label (no Math.random/Date — client-safe). Lowercase,
+// non-alphanumerics → single dashes, trimmed. Empty/symbol-only labels fall back to "assumption".
+function slugify(label: string): string {
+  const slug = label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug.length > 0 ? slug : "assumption";
+}
+
+// V5-3 · unique id: append -2, -3, … until it clears the taken set. Deterministic.
+function uniqueId(base: string, taken: ReadonlySet<string>): string {
+  if (!taken.has(base)) return base;
+  let n = 2;
+  while (taken.has(`${base}-${n}`)) n++;
+  return `${base}-${n}`;
 }
 
 // Stable empty reference reused for the "no failures" case. Returning a fresh `new Set()` from a
@@ -67,8 +88,22 @@ export interface KeystoneState {
   // craters below the failure line (null = survives the horizon), derived GROUNDED-only.
   timelineDay: number;
   failsInDay: number | null;
+  // V5-3 (additive): the last graph-edit rejection reason, surfaced as a --warn chip in the
+  // SelectionPanel EDIT section. null = no pending error. Every SUCCESSFUL edit clears it.
+  editError: string | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
+  // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
+  // re-validates with the relaxed manual caps (3..25) before committing; invalid → editError,
+  // state untouched. STRUCTURAL edits (delete / add / flip) additionally RESET the stress verdict
+  // and rebuild workingGraph from the edited baseGraph (integrity re-derived at baseline). RENAME
+  // is non-structural: it marks provenance but preserves any applied load. Edited nodes become
+  // provenance:"modified" → MODIFIED — UNVERIFIED (evidence plate detaches).
+  renameNode: (id: string, label: string) => void;
+  deleteNode: (id: string) => void;
+  addAssumption: (parentId: string, label: string, confidence?: number) => void;
+  flipGroupKind: (nodeId: string, groupIndex: number) => void;
+  clearEditError: () => void;
   setContext: (
     companyContext: CompanyContext,
     decisionContextPack: DecisionContextPack,
@@ -110,6 +145,7 @@ export function createKeystoneStore() {
     reinforcementPlan: null,
     timelineDay: 0,
     failsInDay: null,
+    editError: null,
     setGraph: (g) =>
       set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null }),
     setConfidence: (id, value) => {
@@ -122,6 +158,156 @@ export function createKeystoneStore() {
       const failures = get().loadApplied ? detectFailures(next) : EMPTY_FAILURES;
       set({ workingGraph: next, failures, reinforcementPlan: null });
     },
+    // ── V5-3 · GRAPH EDITING ────────────────────────────────────────────────
+    // Structural edits (delete / add / flip) reset the stress verdict back to baseline:
+    // attacks, the raw attacks, the applied-load flag, failures, the de-risking plan, and the
+    // time axis are all cleared, and the working graph is rebuilt from the edited base graph so
+    // integrity re-derives at baseline. The pure engine re-verdicts automatically (the
+    // integrity/keystone/failures selectors read workingGraph) — that's the live CAD moment.
+    renameNode: (id, label) => {
+      const { baseGraph, workingGraph } = get();
+      if (!baseGraph) return;
+      const nextBase = cloneGraph(baseGraph);
+      const bNode = nextBase.nodes.find((n) => n.id === id);
+      if (!bNode) {
+        set({ editError: `Cannot rename — unknown node "${id}".` });
+        return;
+      }
+      bNode.label = label;
+      bNode.provenance = "modified";
+      // Rename can't alter structure, but we still run the wall so a base that somehow drifted
+      // invalid is rejected rather than committed.
+      const validated = validateManualEdit(nextBase);
+      if (!validated) {
+        set({ editError: "Rename rejected — the structure would be invalid." });
+        return;
+      }
+      // Non-structural: PRESERVE the current stress state. Mirror the edit onto the working
+      // graph in place (same node id) so an attacked structure keeps its verdict.
+      let nextWorking = workingGraph;
+      if (workingGraph) {
+        nextWorking = cloneGraph(workingGraph);
+        const wNode = nextWorking.nodes.find((n) => n.id === id);
+        if (wNode) {
+          wNode.label = label;
+          wNode.provenance = "modified";
+        }
+      }
+      set({ baseGraph: validated, workingGraph: nextWorking, editError: null });
+    },
+    deleteNode: (id) => {
+      const { baseGraph, selectedNodeId } = get();
+      if (!baseGraph) return;
+      if (id === baseGraph.thesisId) {
+        set({ editError: "Cannot delete the thesis — it is the root of the Structure." });
+        return;
+      }
+      const next = cloneGraph(baseGraph);
+      // Drop the node, then unwire it from every group and drop groups left empty. Orphaned
+      // subtree nodes (now unreachable from the thesis) are pruned by validateManualEdit's
+      // reachability repair — the same logic the LLM wall uses.
+      next.nodes = next.nodes.filter((n) => n.id !== id);
+      for (const n of next.nodes) {
+        n.groups = n.groups
+          .map((g) => ({ kind: g.kind, childIds: g.childIds.filter((c) => c !== id) }))
+          .filter((g) => g.childIds.length > 0);
+      }
+      const validated = validateManualEdit(next);
+      if (!validated) {
+        set({ editError: "Delete rejected — the remaining Structure would be invalid." });
+        return;
+      }
+      set({
+        baseGraph: validated,
+        workingGraph: cloneGraph(validated),
+        // If the deleted (or an orphaned) node was selected, drop the stale selection.
+        selectedNodeId:
+          selectedNodeId && validated.nodes.some((n) => n.id === selectedNodeId)
+            ? selectedNodeId
+            : null,
+        attacks: [],
+        rawAttacks: [],
+        loadApplied: false,
+        failures: EMPTY_FAILURES,
+        reinforcementPlan: null,
+        timelineDay: 0,
+        failsInDay: null,
+        editError: null,
+      });
+    },
+    addAssumption: (parentId, label, confidence = 0.5) => {
+      const { baseGraph } = get();
+      if (!baseGraph) return;
+      const next = cloneGraph(baseGraph);
+      const parent = next.nodes.find((n) => n.id === parentId);
+      if (!parent || (parent.type !== "claim" && parent.type !== "thesis")) {
+        set({ editError: "Assumptions attach to a claim or the thesis." });
+        return;
+      }
+      const id = uniqueId(slugify(label), new Set(next.nodes.map((n) => n.id)));
+      next.nodes.push({
+        id,
+        type: "assumption",
+        label,
+        confidence: Math.min(1, Math.max(0, confidence)),
+        groups: [],
+        provenance: "modified",
+      });
+      // Append to the parent's first AND group (assumptions are conjunctive support by default);
+      // create one if the parent has no AND group yet.
+      const andGroup = parent.groups.find((g) => g.kind === "AND");
+      if (andGroup) andGroup.childIds.push(id);
+      else parent.groups.push({ kind: "AND", childIds: [id] });
+      const validated = validateManualEdit(next);
+      if (!validated) {
+        set({ editError: "Add rejected — the Structure would exceed the node limit." });
+        return;
+      }
+      set({
+        baseGraph: validated,
+        workingGraph: cloneGraph(validated),
+        selectedNodeId: id,
+        attacks: [],
+        rawAttacks: [],
+        loadApplied: false,
+        failures: EMPTY_FAILURES,
+        reinforcementPlan: null,
+        timelineDay: 0,
+        failsInDay: null,
+        editError: null,
+      });
+    },
+    flipGroupKind: (nodeId, groupIndex) => {
+      const { baseGraph } = get();
+      if (!baseGraph) return;
+      const next = cloneGraph(baseGraph);
+      const node = next.nodes.find((n) => n.id === nodeId);
+      if (!node || !node.groups[groupIndex]) {
+        set({ editError: "Cannot flip — no such dependency group." });
+        return;
+      }
+      const group = node.groups[groupIndex];
+      group.kind = group.kind === "AND" ? "OR" : "AND";
+      node.provenance = "modified";
+      const validated = validateManualEdit(next);
+      if (!validated) {
+        set({ editError: "Flip rejected — the Structure would be invalid." });
+        return;
+      }
+      set({
+        baseGraph: validated,
+        workingGraph: cloneGraph(validated),
+        attacks: [],
+        rawAttacks: [],
+        loadApplied: false,
+        failures: EMPTY_FAILURES,
+        reinforcementPlan: null,
+        timelineDay: 0,
+        failsInDay: null,
+        editError: null,
+      });
+    },
+    clearEditError: () => set({ editError: null }),
     setContext: (companyContext, decisionContextPack, source) =>
       set({ companyContext, decisionContextPack, contextSource: source }),
     applyLoad: (attacks) => {

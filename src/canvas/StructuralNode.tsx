@@ -56,6 +56,11 @@ export interface StructuralNodeData {
    * nothing + an UNGROUNDED hover hint). Thesis/claims carry no evidence.
    */
   evidence?: NodeEvidence | null;
+  /**
+   * V5-3 · human-edit provenance. When "modified", the evidence plate DETACHES (the cited fact
+   * no longer backs the edited belief) — the node reads MODIFIED — UNVERIFIED in the inspector.
+   */
+  provenance?: "modified";
   /** V4-1 · delay (s) for the evidence plate's collapse — plates fall LAST. */
   evidenceDropDelay?: number;
   /** V4-1 · stratum focus dimming: fade this node when another stratum is focused. */
@@ -196,8 +201,9 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       )}
 
       {/* V4-1 — evidence stratum (L3). A grounded assumption drops a source-plate onto
-          the evidence plane below it; an ungrounded assumption floats over nothing. */}
-      {data.type === "assumption" && data.evidence != null && (
+          the evidence plane below it; an ungrounded assumption floats over nothing.
+          V5-3 — a human-MODIFIED node detaches its plate: the cited fact no longer backs it. */}
+      {data.type === "assumption" && data.evidence != null && data.provenance !== "modified" && (
         <EvidencePlate
           evidence={data.evidence}
           zDelta={plateZDelta}

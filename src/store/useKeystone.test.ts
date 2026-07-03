@@ -284,3 +284,173 @@ describe("keystone store (context integration)", () => {
     expect(stored?.severity).toBe(raw?.severity);
   });
 });
+
+// ── V5-3 · GRAPH EDITING ────────────────────────────────────────────────────
+describe("keystone store (graph editing — V5-3)", () => {
+  const node = (id: string) => (s: ReturnType<ReturnType<typeof createKeystoneStore>["getState"]>) =>
+    s.baseGraph!.nodes.find((n) => n.id === id);
+
+  it("renameNode is non-structural: preserves applied load, marks provenance modified", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().applyLoad(fixtureContextAttacks());
+    expect(store.getState().loadApplied).toBe(true);
+
+    store.getState().renameNode("k_credible", "Reworded keystone");
+
+    // Stress state SURVIVES a rename (not a structural edit).
+    expect(store.getState().loadApplied).toBe(true);
+    const n = store.getState().baseGraph!.nodes.find((x) => x.id === "k_credible")!;
+    expect(n.label).toBe("Reworded keystone");
+    expect(n.provenance).toBe("modified");
+    // Mirrored onto the (attacked) working graph.
+    expect(store.getState().workingGraph!.nodes.find((x) => x.id === "k_credible")!.label).toBe(
+      "Reworded keystone",
+    );
+    expect(store.getState().editError).toBeNull();
+  });
+
+  it("renameNode rejects an unknown node with editError, state untouched", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().renameNode("nope", "x");
+    expect(store.getState().editError).not.toBeNull();
+    expect(store.getState().baseGraph!.nodes).toHaveLength(9);
+  });
+
+  it("deleteNode is structural: removes the node and RESETS the stress verdict to baseline", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().applyLoad(fixtureContextAttacks());
+    expect(store.getState().loadApplied).toBe(true);
+
+    store.getState().deleteNode("a_load");
+
+    expect(store.getState().loadApplied).toBe(false);
+    expect(store.getState().attacks).toEqual([]);
+    expect(store.getState().rawAttacks).toEqual([]);
+    expect(store.getState().reinforcementPlan).toBeNull();
+    expect(store.getState().failsInDay).toBeNull();
+    expect(store.getState().baseGraph!.nodes.map((n) => n.id)).not.toContain("a_load");
+    // Working graph rebuilt from the edited base → integrity re-derived at baseline (holds).
+    expect(selectIntegrity(store.getState())).toBeGreaterThan(55);
+  });
+
+  it("deleteNode cascades: removing a claim prunes its now-orphaned subtree", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    // c_roi is the only parent of a_bound + a_load → deleting it orphans both.
+    store.getState().deleteNode("c_roi");
+    const ids = store.getState().baseGraph!.nodes.map((n) => n.id);
+    expect(ids).not.toContain("c_roi");
+    expect(ids).not.toContain("a_bound");
+    expect(ids).not.toContain("a_load");
+    expect(ids).toHaveLength(6);
+    expect(store.getState().editError).toBeNull();
+  });
+
+  it("deleteNode refuses to delete the thesis (editError, state untouched)", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().deleteNode("T");
+    expect(store.getState().editError).toMatch(/thesis/i);
+    expect(store.getState().baseGraph!.nodes).toHaveLength(9);
+  });
+
+  it("addAssumption appends to the parent claim's AND group, slugified + provenance modified", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().applyLoad(fixtureContextAttacks());
+
+    store.getState().addAssumption("c_exec", "Team has migration experience");
+
+    const created = node("team-has-migration-experience")(store.getState());
+    expect(created).toBeDefined();
+    expect(created!.type).toBe("assumption");
+    expect(created!.provenance).toBe("modified");
+    expect(created!.confidence).toBe(0.5);
+    // Appended to c_exec's first AND group.
+    const cExec = node("c_exec")(store.getState())!;
+    expect(cExec.groups[0].kind).toBe("AND");
+    expect(cExec.groups[0].childIds).toContain("team-has-migration-experience");
+    // Structural → stress reset + auto-selects the new node.
+    expect(store.getState().loadApplied).toBe(false);
+    expect(store.getState().selectedNodeId).toBe("team-has-migration-experience");
+  });
+
+  it("addAssumption de-duplicates ids with a numeric suffix", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().addAssumption("c_exec", "Same label");
+    store.getState().addAssumption("c_exec", "Same label");
+    const ids = store.getState().baseGraph!.nodes.map((n) => n.id);
+    expect(ids).toContain("same-label");
+    expect(ids).toContain("same-label-2");
+  });
+
+  it("addAssumption rejects a non-claim/thesis parent (editError)", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().addAssumption("k_credible", "child of an assumption");
+    expect(store.getState().editError).toMatch(/claim|thesis/i);
+    expect(store.getState().baseGraph!.nodes).toHaveLength(9);
+  });
+
+  it("addAssumption rejects past the manual node cap (25) with editError", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph()); // 9 nodes
+    // Add until the cap bites. 9 + 16 = 25 (ok); the 17th (→26) is rejected.
+    for (let i = 0; i < 20; i++) store.getState().addAssumption("c_exec", `Extra ${i}`);
+    expect(store.getState().editError).not.toBeNull();
+    expect(store.getState().baseGraph!.nodes).toHaveLength(25);
+  });
+
+  it("flipGroupKind flips AND↔OR, marks provenance, resets stress, re-verdicts live", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().applyLoad(fixtureContextAttacks());
+    const before = selectIntegrity(store.getState());
+
+    // Flip the thesis's AND (product of claims) → OR (max of claims): integrity should jump.
+    store.getState().flipGroupKind("T", 0);
+
+    expect(node("T")(store.getState())!.groups[0].kind).toBe("OR");
+    expect(node("T")(store.getState())!.provenance).toBe("modified");
+    expect(store.getState().loadApplied).toBe(false);
+    // Live re-verdict from the pure engine off the rebuilt working graph.
+    expect(selectIntegrity(store.getState())).toBeGreaterThan(before);
+  });
+
+  it("flipGroupKind rejects an out-of-range group index (editError)", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().flipGroupKind("T", 9);
+    expect(store.getState().editError).not.toBeNull();
+    expect(node("T")(store.getState())!.groups[0].kind).toBe("AND");
+  });
+
+  it("editError auto-clears on the next successful edit; clearEditError resets it", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().deleteNode("T"); // rejected → editError set
+    expect(store.getState().editError).not.toBeNull();
+
+    store.getState().renameNode("a_obs", "Renamed"); // succeeds → clears editError
+    expect(store.getState().editError).toBeNull();
+
+    store.getState().deleteNode("T"); // rejected again
+    expect(store.getState().editError).not.toBeNull();
+    store.getState().clearEditError();
+    expect(store.getState().editError).toBeNull();
+  });
+
+  it("keystone recomputes after a structural edit (delete the keystone → new keystone)", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    expect(selectKeystoneId(store.getState())).toBe("k_credible");
+    store.getState().deleteNode("k_credible");
+    // The engine re-verdicts off the rebuilt graph: the keystone is no longer k_credible.
+    expect(selectKeystoneId(store.getState())).not.toBe("k_credible");
+    expect(store.getState().baseGraph!.nodes.map((n) => n.id)).not.toContain("k_credible");
+  });
+});

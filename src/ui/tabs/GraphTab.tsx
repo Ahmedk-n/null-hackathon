@@ -173,6 +173,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const rawAttacks = useKeystone((s) => s.rawAttacks);
   const loadApplied = useKeystone((s) => s.loadApplied);
   const baseGraph = useKeystone((s) => s.baseGraph);
+  const editError = useKeystone((s) => s.editError);
   const pack = useKeystone((s) => s.decisionContextPack);
   const contextAdjustments = pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS;
   // V4-2 — the pack's constraints as boundary planes (mirrors contextAdjustments' flow).
@@ -369,7 +370,17 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
 
       {/* RIGHT — SELECTION + ENCODING */}
       <div style={RIGHT}>
-        <SelectionPanel graph={graph} selectedNodeId={selectedNodeId} keystoneId={keystoneId} />
+        <SelectionPanel
+          graph={graph}
+          selectedNodeId={selectedNodeId}
+          keystoneId={keystoneId}
+          editError={editError}
+          onRename={(id, label) => keystoneStore.getState().renameNode(id, label)}
+          onSetConfidence={(id, v) => keystoneStore.getState().setConfidence(id, v)}
+          onAddAssumption={(parentId, label) => keystoneStore.getState().addAssumption(parentId, label)}
+          onFlipGroup={(nodeId, i) => keystoneStore.getState().flipGroupKind(nodeId, i)}
+          onDelete={(id) => keystoneStore.getState().deleteNode(id)}
+        />
       </div>
     </div>
   );

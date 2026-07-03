@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Attack, Graph, GraphNode } from "@/engine";
-import { validateGraph, validateAttacks } from "./validate";
+import { validateGraph, validateAttacks, validateManualEdit } from "./validate";
 
 /** Thesis `t` with one AND group over `count` leaf assumptions a1..aN. Total nodes = count + 1. */
 function makeGraph(count: number): Graph {
@@ -200,6 +200,70 @@ describe("validateAttacks", () => {
     expect(out![0]).not.toBe(input[0]); // copy, not same reference
     expect(input).toEqual(snapshot); // original untouched (still severity 0.9)
     expect(out![0].severity).toBe(0.6); // capped copy
+  });
+});
+
+describe("validateManualEdit — relaxed node-count band (V5-3, 3..25)", () => {
+  it("accepts a 3-node graph the LLM wall rejects (below the 5 min)", () => {
+    const g = makeGraph(2); // thesis + 2 = 3 nodes
+    expect(validateGraph(g)).toBeNull(); // LLM band 5..12
+    expect(validateManualEdit(g)).not.toBeNull(); // manual band 3..25
+  });
+
+  it("accepts a 4-node graph the LLM wall rejects", () => {
+    const g = makeGraph(3); // 4 nodes
+    expect(validateGraph(g)).toBeNull();
+    expect(validateManualEdit(g)).not.toBeNull();
+  });
+
+  it("rejects fewer than 3 nodes", () => {
+    const g = makeGraph(1); // 2 nodes
+    expect(validateManualEdit(g)).toBeNull();
+  });
+
+  it("accepts up to 25 nodes the LLM wall rejects (over 12)", () => {
+    const g = makeGraph(24); // 25 nodes
+    expect(validateGraph(g)).toBeNull();
+    const out = validateManualEdit(g);
+    expect(out).not.toBeNull();
+    expect(out!.nodes).toHaveLength(25);
+  });
+
+  it("rejects more than 25 nodes", () => {
+    const g = makeGraph(25); // 26 nodes
+    expect(validateManualEdit(g)).toBeNull();
+  });
+
+  it("keeps every non-count rule identical (two-thesis → null, cycle → null, orphan repaired)", () => {
+    const twoTheses = makeGraph(4);
+    twoTheses.nodes[1].type = "thesis";
+    expect(validateManualEdit(twoTheses)).toBeNull();
+
+    const cyclic = makeGraph(4);
+    cyclic.nodes[1].groups = [{ kind: "AND", childIds: ["t"] }];
+    expect(validateManualEdit(cyclic)).toBeNull();
+
+    const orphaned = makeGraph(4);
+    orphaned.nodes.push({ id: "loose", type: "assumption", label: "x", confidence: 0.5, groups: [] });
+    const repaired = validateManualEdit(orphaned);
+    expect(repaired).not.toBeNull();
+    expect(repaired!.nodes.map((n) => n.id)).not.toContain("loose");
+  });
+
+  it("preserves human-edit provenance through the manual-edit repair path", () => {
+    const g = makeGraph(3);
+    g.nodes[1].provenance = "modified";
+    const out = validateManualEdit(g);
+    expect(out).not.toBeNull();
+    expect(out!.nodes.find((n) => n.id === "a1")!.provenance).toBe("modified");
+  });
+});
+
+describe("validateGraph — explicit opts override the caps", () => {
+  it("honours a custom min/max band", () => {
+    const g = makeGraph(2); // 3 nodes
+    expect(validateGraph(g, { minNodes: 3, maxNodes: 25 })).not.toBeNull();
+    expect(validateGraph(g, { minNodes: 5, maxNodes: 12 })).toBeNull();
   });
 });
 

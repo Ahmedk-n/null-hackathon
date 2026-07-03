@@ -17,7 +17,18 @@ function clamp01(n: number): number {
 
 const NODE_MIN = 5;
 const NODE_MAX = 12; // pickLayoutMode: >25 band is UNBUILT; 12 keeps Band 1 (≤8) / Band 2 (≤25).
+// V5-3 · manual editing relaxes the node-count band (the LLM path stays 5..12): a human may
+// prune a Structure smaller or grow it larger than an LLM proposal. 3 keeps a thesis + a claim
+// + one assumption viable; 25 is the top of pickLayoutMode's built bands.
+const MANUAL_NODE_MIN = 3;
+const MANUAL_NODE_MAX = 25;
 const SEVERITY_CAP = 0.6; // raw attacks are capped; context reweighting must be what tips structure.
+
+/** V5-3 · node-count caps only. All other rules (one thesis, acyclic, no orphans) are identical. */
+export interface ValidateGraphOptions {
+  minNodes?: number;
+  maxNodes?: number;
+}
 
 /** Deep copy so the input Graph is never mutated. */
 function cloneGraph(g: Graph): Graph {
@@ -34,6 +45,8 @@ function cloneGraph(g: Graph): Graph {
       ...(n.evidence !== undefined
         ? { evidence: n.evidence ? { source: n.evidence.source, fact: n.evidence.fact } : n.evidence }
         : {}),
+      // V5-3 · preserve human-edit provenance through the manual-edit validation path too.
+      ...(n.provenance !== undefined ? { provenance: n.provenance } : {}),
     })),
   };
 }
@@ -98,8 +111,13 @@ function reachableFrom(nodes: GraphNode[], rootId: string): Set<string> {
  *  - final node count outside 5..12 → REJECT (null).
  *
  * Returns a repaired DEEP COPY, or null when unrepairable. Never mutates the input.
+ *
+ * V5-3 · `opts` parametrizes the node-count band ONLY (default = LLM path 5..12). Every other
+ * rule is identical, so `validateManualEdit` (3..25) and the LLM wall share one implementation.
  */
-export function validateGraph(g: Graph): Graph | null {
+export function validateGraph(g: Graph, opts: ValidateGraphOptions = {}): Graph | null {
+  const minNodes = opts.minNodes ?? NODE_MIN;
+  const maxNodes = opts.maxNodes ?? NODE_MAX;
   const graph = cloneGraph(g);
 
   // Clamp confidences (repair).
@@ -131,9 +149,19 @@ export function validateGraph(g: Graph): Graph | null {
   if (hasCycle(graph.nodes)) return null;
 
   // Node-count band (checked AFTER dropping unreachable nodes).
-  if (graph.nodes.length < NODE_MIN || graph.nodes.length > NODE_MAX) return null;
+  if (graph.nodes.length < minNodes || graph.nodes.length > maxNodes) return null;
 
   return graph;
+}
+
+/**
+ * V5-3 · the manual-edit validation wall. Same repair-vs-reject policy as `validateGraph`
+ * (one thesis, acyclic, no orphans, thesis keeps ≥1 group) with the node-count band relaxed
+ * to 3..25 so a human can prune or grow the Structure past an LLM proposal. The graph-editing
+ * store actions run every edit through this before committing; null → reject (surface editError).
+ */
+export function validateManualEdit(g: Graph): Graph | null {
+  return validateGraph(g, { minNodes: MANUAL_NODE_MIN, maxNodes: MANUAL_NODE_MAX });
 }
 
 /**
