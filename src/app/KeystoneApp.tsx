@@ -10,11 +10,10 @@ import {
   selectFailures,
 } from "@/store/useKeystone";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
-import { IntegrityGauge } from "@/ui/IntegrityGauge";
-import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { LoadPanel } from "@/ui/LoadPanel";
 import { ContextPanel } from "@/ui/ContextPanel";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
+import { GraphTab } from "@/ui/tabs/GraphTab";
 import {
   TopBar,
   Tabs,
@@ -41,6 +40,8 @@ export default function KeystoneApp({
   const [activeTab, setActiveTab] = useState("context");
   const [building, setBuilding] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Bumped by the TopBar FIT action → drives KeystoneCanvas.fitView.
+  const [fitSignal, setFitSignal] = useState(0);
 
   const workingGraph = useKeystone((s) => s.workingGraph);
   const loadApplied = useKeystone((s) => s.loadApplied);
@@ -99,8 +100,6 @@ export default function KeystoneApp({
     }
   }
 
-  const assumptions = workingGraph?.nodes.filter((n) => n.type === "assumption") ?? [];
-
   // Bottom status strip: live reads of engine/store outputs.
   const statusItems = [
     { key: "Nodes", value: workingGraph ? workingGraph.nodes.length : "—" },
@@ -132,7 +131,7 @@ export default function KeystoneApp({
         timestamp={startedAt}
         actions={
           <>
-            <Button onClick={() => undefined} title="Fit graph to view">
+            <Button onClick={() => setFitSignal((n) => n + 1)} title="Fit graph to view">
               Fit
             </Button>
             <Button onClick={() => keystoneStore.getState().reset()}>Reset</Button>
@@ -153,15 +152,7 @@ export default function KeystoneApp({
             startedAt={startedAt}
           />
         )}
-        {activeTab === "graph" && (
-          <GraphTab
-            graph={workingGraph}
-            keystoneId={keystoneId}
-            failures={failures}
-            integrityValue={integrityValue}
-            assumptions={assumptions}
-          />
-        )}
+        {activeTab === "graph" && <GraphTab fitSignal={fitSignal} />}
         {activeTab === "stress" && (
           <StressTab
             graph={workingGraph}
@@ -227,56 +218,6 @@ function ContextTab({
         ) : (
           <div className="label" style={{ marginTop: 8 }}>
             Analyse a decision to populate the context pack.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function GraphTab({
-  graph,
-  keystoneId,
-  failures,
-  integrityValue,
-  assumptions,
-}: {
-  graph: Graph | null;
-  keystoneId: string | null;
-  failures: ReadonlySet<string>;
-  integrityValue: number;
-  assumptions: Graph["nodes"];
-}) {
-  return (
-    <div style={{ display: "flex", height: "100%" }}>
-      <div style={RAIL}>
-        <SectionHeader>Graph Ledger</SectionHeader>
-        {graph ? (
-          <>
-            <IntegrityGauge value={integrityValue} />
-            <div>
-              <SectionHeader>Assumptions</SectionHeader>
-              {assumptions.map((a) => (
-                <ConfidenceSlider
-                  key={a.id}
-                  id={a.id}
-                  label={a.label}
-                  value={a.confidence}
-                  onChange={(id, v) => keystoneStore.getState().setConfidence(id, v)}
-                />
-              ))}
-            </div>
-          </>
-        ) : (
-          <div className="label">No structure yet — analyse a decision first.</div>
-        )}
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {graph ? (
-          <KeystoneCanvas graph={graph} keystoneId={keystoneId} failures={failures} />
-        ) : (
-          <div className="label" style={{ padding: "var(--pad)" }}>
-            Analyse a decision to assemble the structure.
           </div>
         )}
       </div>

@@ -23,6 +23,9 @@ export interface KeystoneState {
   decisionContextPack: DecisionContextPack | null;
   contextSource: "live" | "fixture" | null;
   applyContextWeights: boolean;
+  // R2 (additive): GRAPH-tab node selection + 3D board tilt.
+  selectedNodeId: string | null;
+  tilt: boolean;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   setContext: (
@@ -32,6 +35,8 @@ export interface KeystoneState {
   ) => void;
   applyLoad: (attacks: Attack[]) => void;
   reset: () => void;
+  setSelectedNode: (id: string | null) => void;
+  setTilt: (tilt: boolean) => void;
 }
 
 export function createKeystoneStore() {
@@ -45,6 +50,8 @@ export function createKeystoneStore() {
     decisionContextPack: null,
     contextSource: null,
     applyContextWeights: true,
+    selectedNodeId: null,
+    tilt: true,
     setGraph: (g) =>
       set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], loadApplied: false, failures: EMPTY_FAILURES }),
     setConfidence: (id, value) => {
@@ -76,6 +83,8 @@ export function createKeystoneStore() {
       if (!base) return;
       set({ workingGraph: cloneGraph(base), attacks: [], loadApplied: false, failures: EMPTY_FAILURES });
     },
+    setSelectedNode: (id) => set({ selectedNodeId: id }),
+    setTilt: (tilt) => set({ tilt }),
   }));
 }
 

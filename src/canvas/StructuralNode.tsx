@@ -1,7 +1,9 @@
 "use client";
 import { Handle, Position } from "@xyflow/react";
 import { motion } from "motion/react";
+import { useState } from "react";
 import type { NodeType } from "@/engine";
+import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, BAD, PANEL, INK, MUTED } from "@/ui/tokens";
 
 export interface StructuralNodeData {
   label: string;
@@ -10,77 +12,99 @@ export interface StructuralNodeData {
   isKeystone: boolean;
   isFailed: boolean;
   collapseDelay?: number;
+  /** Layer index (assumption 0 · claim 1 · thesis 2) — passed from the canvas. */
+  layer?: number;
+  /** Resting elevation in px (layer Z + keystone bump) — passed from the canvas. */
+  translateZ?: number;
   [key: string]: unknown;
 }
 
-const BORDER: Record<NodeType, string> = { thesis: "#3b82f6", claim: "#14b8a6", assumption: "#4b5563" };
+// Light-ledger accents per structural role (plan §1.1). Keystone overrides to red.
+const ACCENT: Record<NodeType, string> = { thesis: THESIS, claim: CLAIM, assumption: ASSUMPTION };
 
-// Band-2 (§8) pseudo-depth: assumptions are the foundation (z=0, recessed),
-// claims sit mid (z=1), the thesis is raised (z=2, brightest/largest).
-const DEPTH: Record<NodeType, number> = { assumption: 0, claim: 1, thesis: 2 };
-
-// Per-layer depth cues expressed purely in CSS.
-const SCALE_BY_Z = [1.0, 1.03, 1.06];
-const BRIGHTNESS_BY_Z = [0.92, 1.0, 1.08];
-// Foundation gets a longer, softer shadow; raised layers a tighter, stronger one.
-const SHADOW_BY_Z = [
-  "0 10px 22px rgba(0,0,0,0.55)",
-  "0 8px 18px rgba(0,0,0,0.5)",
-  "0 6px 16px rgba(59,130,246,0.35), 0 4px 10px rgba(0,0,0,0.5)",
-];
-const BASE_OPACITY_BY_Z = [0.9, 0.97, 1.0];
+// Elevation by layer (plan §4): assumptions are the foundation (z=0), claims mid,
+// thesis raised. The canvas passes this via data.translateZ; kept here as a fallback.
+const LAYER_Z: Record<NodeType, number> = { assumption: 0, claim: 28, thesis: 56 };
 
 export function StructuralNode({ data }: { data: StructuralNodeData }) {
-  const z = DEPTH[data.type];
-  const border = data.isKeystone ? "#ef4444" : BORDER[data.type];
-  const fill = data.isKeystone
-    ? "#2a1416"
-    : data.type === "thesis"
-      ? "#12233b"
-      : data.type === "claim"
-        ? "#0f2528"
-        : "#1a2130";
+  const [hover, setHover] = useState(false);
+
+  const accent = data.isKeystone ? KEYSTONE : ACCENT[data.type];
+  const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? 18 : 0);
 
   const showCracks = data.isFailed || data.isKeystone;
   // A failed keystone shatters hardest.
   const crackStrength = data.isFailed && data.isKeystone ? 1 : data.isKeystone ? 0.55 : 0.75;
 
-  // Keystone glow always sits above the layer elevation shadow.
-  const restingShadow = data.isKeystone
-    ? "0 0 16px rgba(239,68,68,0.65), " + SHADOW_BY_Z[z]
-    : SHADOW_BY_Z[z];
-  const failedShadow = "0 0 20px rgba(239,68,68,0.55), 0 14px 26px rgba(0,0,0,0.6)";
+  // Contact shadow grows with elevation → stacked-plates depth. Keystone adds a red rim-light.
+  const contact = `0 ${6 + restingZ / 4}px ${10 + restingZ / 3}px rgba(26,26,21,0.16)`;
+  const keystoneGlow = "0 0 14px rgba(178,58,46,0.55), inset 0 0 0 1px rgba(178,58,46,0.35)";
+  const restingShadow = data.isKeystone ? `${keystoneGlow}, ${contact}` : contact;
+  const failedShadow = `0 0 18px rgba(178,58,46,0.5), 0 16px 26px rgba(26,26,21,0.28)`;
 
   const collapseDelay = data.collapseDelay ?? 0;
+  // Parallax lift on hover: +16px toward the viewer.
+  const liveZ = restingZ + (hover ? 16 : 0);
 
   return (
     <motion.div
+      onHoverStart={() => setHover(true)}
+      onHoverEnd={() => setHover(false)}
       initial={false}
       animate={
         data.isFailed
-          ? { opacity: 0.42, rotate: data.type === "thesis" ? -2 : data.type === "claim" ? -8 : -4, y: 14, scale: SCALE_BY_Z[z] * 0.98 }
-          : { opacity: BASE_OPACITY_BY_Z[z], rotate: 0, y: 0, scale: SCALE_BY_Z[z] }
+          ? {
+              // Buckle toward the viewer: drop, rotate off-axis, and sink in Z.
+              opacity: 0.4,
+              rotateX: 42,
+              rotateY: data.type === "thesis" ? -6 : data.type === "claim" ? -12 : -8,
+              rotate: data.type === "thesis" ? -2 : data.type === "claim" ? -8 : -4,
+              y: 18,
+              z: -70,
+            }
+          : { opacity: 1, rotateX: 0, rotateY: 0, rotate: 0, y: 0, z: liveZ }
       }
       transition={{ duration: 0.55, delay: data.isFailed ? collapseDelay : 0, ease: "easeInOut" }}
       style={{
+        transformStyle: "preserve-3d",
         position: "relative",
         width: 200,
         height: 72,
-        borderRadius: 10,
-        border: `2px solid ${border}`,
-        background: fill,
+        border: `1px solid ${accent}`,
+        borderLeft: `3px solid ${accent}`,
+        background: data.isFailed ? "#f6ecea" : PANEL,
         boxShadow: data.isFailed ? failedShadow : restingShadow,
-        filter: `brightness(${data.isFailed ? 0.85 : BRIGHTNESS_BY_Z[z]})`,
+        filter: hover && !data.isFailed ? "brightness(1.04)" : "none",
         padding: 8,
         boxSizing: "border-box",
-        color: "#e6edf3",
+        color: INK,
       }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <div style={{ fontSize: 9, letterSpacing: 1.5, color: data.isKeystone ? "#f87171" : "#8b98a5" }}>
-        {(data.isKeystone ? "KEYSTONE" : data.type.toUpperCase())} · {data.confidence.toFixed(2)}
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+          fontFamily: "var(--sans)",
+          fontSize: 9,
+          fontWeight: 600,
+          letterSpacing: "0.12em",
+          textTransform: "uppercase",
+          color: accent,
+        }}
+      >
+        <span>{data.isFailed ? "FAILED" : data.isKeystone ? "KEYSTONE" : data.type}</span>
+        <span
+          className="mono"
+          style={{ fontSize: 10, color: data.isFailed ? BAD : MUTED }}
+        >
+          {data.confidence.toFixed(2)}
+        </span>
       </div>
-      <div style={{ fontSize: 13, marginTop: 6 }}>{data.label}</div>
+      <div style={{ fontFamily: "var(--sans)", fontSize: 12, marginTop: 6, lineHeight: 1.25 }}>
+        {data.label}
+      </div>
 
       {showCracks && <CrackOverlay strength={crackStrength} />}
 
@@ -89,8 +113,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   );
 }
 
-// Red crack polylines ported from the collapsed reference SVG, scaled to the
-// 200×72 node box. Rendered above the node content but below the borders.
+// Red crack polylines scaled to the 200×72 node box, recolored to the keystone/bad red.
 function CrackOverlay({ strength }: { strength: number }) {
   return (
     <svg
@@ -99,9 +122,9 @@ function CrackOverlay({ strength }: { strength: number }) {
       viewBox="0 0 200 72"
       style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}
     >
-      <polyline points="18,0 50,26 30,42 74,72" fill="none" stroke="#ef4444" strokeWidth={1.8} opacity={0.9 * strength} />
-      <polyline points="118,0 140,32 158,72" fill="none" stroke="#ef4444" strokeWidth={1.4} opacity={0.75 * strength} />
-      <polyline points="70,0 92,20 84,72" fill="none" stroke="#ef4444" strokeWidth={1.2} opacity={0.6 * strength} />
+      <polyline points="18,0 50,26 30,42 74,72" fill="none" stroke={KEYSTONE} strokeWidth={1.8} opacity={0.9 * strength} />
+      <polyline points="118,0 140,32 158,72" fill="none" stroke={BAD} strokeWidth={1.4} opacity={0.75 * strength} />
+      <polyline points="70,0 92,20 84,72" fill="none" stroke={KEYSTONE} strokeWidth={1.2} opacity={0.6 * strength} />
     </svg>
   );
 }

@@ -176,6 +176,42 @@ body {
   border-color: var(--ink);
 }
 
+/* ── Hairline range control (thin track, square thumb) ──────────────── */
+.ledger-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 2px;
+  background: var(--hair-strong);
+  cursor: pointer;
+}
+.ledger-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 10px;
+  height: 14px;
+  background: var(--ink);
+  border: none;
+  border-radius: 0;
+}
+.ledger-range::-moz-range-thumb {
+  width: 10px;
+  height: 14px;
+  background: var(--ink);
+  border: none;
+  border-radius: 0;
+}
+.ledger-range:focus {
+  outline: none;
+}
+
+/* ── Checkbox (square hairline) ─────────────────────────────────────── */
+.ledger-check {
+  width: 13px;
+  height: 13px;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
 /* ── Tabs ───────────────────────────────────────────────────────────── */
 .tab {
   font-family: var(--sans);

@@ -86,6 +86,34 @@ describe("keystone store (context integration)", () => {
     expect(selectIntegrity(store.getState())).toBeLessThan(10);
   });
 
+  it("setSelectedNode stores and clears the selection", () => {
+    const store = createKeystoneStore();
+    expect(store.getState().selectedNodeId).toBeNull();
+    store.getState().setSelectedNode("k_credible");
+    expect(store.getState().selectedNodeId).toBe("k_credible");
+    store.getState().setSelectedNode(null);
+    expect(store.getState().selectedNodeId).toBeNull();
+  });
+
+  it("tilt defaults on and toggles", () => {
+    const store = createKeystoneStore();
+    expect(store.getState().tilt).toBe(true);
+    store.getState().setTilt(false);
+    expect(store.getState().tilt).toBe(false);
+    store.getState().setTilt(true);
+    expect(store.getState().tilt).toBe(true);
+  });
+
+  it("selection/tilt setters leave the failures snapshot referentially stable", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().applyLoad(fixtureContextAttacks());
+    const before = selectFailures(store.getState());
+    store.getState().setSelectedNode("k_credible");
+    store.getState().setTilt(false);
+    expect(selectFailures(store.getState())).toBe(before);
+  });
+
   it("applyContextWeights=false leaves severities untouched", () => {
     const store = createKeystoneStore();
     store.getState().setGraph(fixtureContextGraph());
