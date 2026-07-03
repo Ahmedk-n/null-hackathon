@@ -10,18 +10,33 @@ import { retryOnce } from "./retry";
 const MODEL = "claude-opus-4-8";
 // Hard per-request deadline so a slow live web_search can never freeze the demo. The SDK
 // rejects with APIConnectionTimeoutError, which the existing catch → fixture fallback handles.
-const REQUEST_TIMEOUT_MS = 30_000;
+// This call does genuine multi-step server-side tool use (web_search + web_fetch). With the
+// bounded basic tool variants below, a full anthropic.com + competitor turn measured ~30-38s
+// live (2026-07-04); 60s gives one attempt comfortable headroom, and retryOnce fires a second
+// fresh attempt if the first overruns.
+const REQUEST_TIMEOUT_MS = 60_000;
 
 function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
 }
 
-// Anthropic server tools. The runtime API supports the _20260209 (dynamic-filtering)
-// variants on claude-opus-4-8; the installed SDK's static tool union is older, so the
-// value is cast at the single boundary below. This code only runs with a key present.
+// Anthropic server tools. Audit R2 flagged that if these type ids were rejected by the live
+// API, messages.create would throw and business gather would SILENTLY always fall back to the
+// fixture — the "live" flex quietly dead. Verified live against claude-opus-4-8 on 2026-07-04
+// (scripts/probe-server-tools.mjs): the newer dynamic-filtering _20260209 variants ARE accepted
+// (no 400) — but they run code_execution under the hood and their latency is wildly unbounded
+// (~53s to >275s per turn, timing out even at 90s), which would keep the live path dead by
+// timeout. The basic _20250305 / _20250910 variants do the same real web research WITHOUT the
+// code-execution filtering, at a reliable ~30-38s — so the live flex actually works. max_uses
+// bounds the tool loop (3 searches + 2 fetches over the site + one competitor is ample for the
+// 5+ facts the system prompt asks for).
+//
+// web_search_20250305 is in the SDK's non-beta ToolUnion, but web_fetch_20250910 lives only in
+// the beta namespace, so the single boundary cast below is still required (task R2: kept only
+// because it's still needed, and now verified safe). This code only runs with a key present.
 const SERVER_TOOLS = [
-  { type: "web_search_20260209", name: "web_search" },
-  { type: "web_fetch_20260209", name: "web_fetch" },
+  { type: "web_search_20250305", name: "web_search", max_uses: 3 },
+  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 2 },
 ];
 
 const BUSINESS_SYSTEM = `You are Keystone's business context agent. Using web search and web fetch, research the

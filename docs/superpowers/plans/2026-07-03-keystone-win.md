@@ -67,7 +67,7 @@
 - [x] **W2-1 Sensitivity bars:** KNOCK-OUT SENSITIVITY ledger in STRESS rail — rankLoadBearing on clean baseGraph, keystone row --bad accented, hairline bars, tabular numerals.
 - [x] **W2-2 Deterministic re-run beat:** RE-RUN ANALYSIS button re-executes pipeline from stored raw inputs, compares verdict, flashes "IDENTICAL ✓ DETERMINISTIC" chip (~2s); DRIFT DETECTED fallback. Store additions additive only.
 - [x] **W2-3 Second scenario that HOLDS:** Scenario B "Reinforce First" (7-node simple-2d, keystone k_sre): baseline 69.0%, raw 49.2%, reweighted 47.6%, zero failures — same context that craters A barely stresses B. SCENARIO segmented control in ContextTab; scenario threads through context→extract→attacks; default stays hero A (T6 pinned). Pinned tests added; 136 total green.
-- [ ] **W2-4 One truly-live axis in demo:** verify `web_search_20260209`/`web_fetch_20260209` tool ids against the live API (audit R2 — may silently always fixture); if dead, fix ids. Technical agent repo-clone streaming into FINDINGS is the flex beat.
+- [x] **W2-4 One truly-live axis in demo:** _20260209 ids ACCEPTED by API but latency-unbounded (53–275s → dead-by-timeout → silent fixture). Switched to web_search_20250305/web_fetch_20250910 + max_uses caps + 60s timeout → live business gather reliable ~35s. smoke-live business PASS source:live, 10 real facts. Probe kept at scripts/probe-server-tools.mjs.
 
 ## Wave 3 — Chrome polish (cheap, batch into one agent)
 
