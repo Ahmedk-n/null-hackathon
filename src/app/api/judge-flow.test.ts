@@ -102,6 +102,7 @@ describe("CUSTOM mode + key + valid model replies → the whole chain runs LIVE"
       }),
     );
     expect(exRes.status).toBe(200);
+    expect(exRes.headers.get("x-keystone-source")).toBe("live");
     const graph = (await exRes.json()) as Graph;
     expect(graph.thesisId).toBe("t_hire");
     expect(validateGraph(graph)).not.toBeNull();
@@ -113,6 +114,7 @@ describe("CUSTOM mode + key + valid model replies → the whole chain runs LIVE"
       jsonReq("http://x/api/attacks", { graph, pack: ctx.decisionContextPack }),
     );
     expect(atkRes.status).toBe(200);
+    expect(atkRes.headers.get("x-keystone-source")).toBe("live");
     const { attacks } = (await atkRes.json()) as { attacks: Attack[] };
     expect(attacks.map((a) => a.targetId).sort()).toEqual(["a_demand", "a_process"]);
     expect(attacks.every((a) => a.severity <= 0.6)).toBe(true);
@@ -134,6 +136,7 @@ describe("CUSTOM mode + key + MALFORMED replies → graceful fixture fallback, n
       jsonReq("http://x/api/extract", { decision: "anything", pack: fixtureDecisionContextPack() }),
     );
     expect(exRes.status).toBe(200);
+    expect(exRes.headers.get("x-keystone-source")).toBe("fixture");
     expect(await exRes.json()).toEqual(fixtureContextGraph());
 
     const atkRes = await attacksPOST(
@@ -143,6 +146,7 @@ describe("CUSTOM mode + key + MALFORMED replies → graceful fixture fallback, n
       }),
     );
     expect(atkRes.status).toBe(200);
+    expect(atkRes.headers.get("x-keystone-source")).toBe("fixture");
     expect(((await atkRes.json()) as { attacks: Attack[] }).attacks).toEqual(fixtureContextAttacks());
   });
 });
@@ -164,6 +168,7 @@ describe("INVARIANT — a passed scenario + key still wins the fixture (never go
         scenario: "A",
       }),
     );
+    expect(exRes.headers.get("x-keystone-source")).toBe("fixture");
     const graph = (await exRes.json()) as Graph;
     expect(graph.nodes.some((n) => n.id === "k_credible")).toBe(true);
 

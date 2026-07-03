@@ -161,22 +161,45 @@ async function extractRun(
   return validated;
 }
 
+/** Provenance of a produced result: "live" only when the model's answer passed the validation wall. */
+export type Source = "live" | "fixture";
+export interface GraphWithSource {
+  graph: Graph;
+  source: Source;
+}
+
+/**
+ * extractStructure, but reporting provenance ADDITIVELY. `source` is "live" ONLY when the live
+ * branch actually produced a schema-valid, wall-passing graph; a scenario pin, a missing key, or
+ * ANY fixture fallback inside the live path all report "fixture". The graph itself is byte-identical
+ * to what extractStructure returns for the same inputs — this is the same body, plus a tag.
+ */
+export async function extractStructureWithSource(
+  decisionText: string,
+  pack?: unknown,
+  scenario?: ScenarioId,
+  findings?: ExtractFinding[],
+): Promise<GraphWithSource> {
+  const fallback = (): Graph =>
+    !pack ? fixtureGraph() : scenario === "B" ? fixtureContextGraphB() : fixtureContextGraph();
+  // FIXTURES ALWAYS WIN when a scenario is pinned; live fires only with a key and no scenario.
+  if (scenario) return { graph: fallback(), source: "fixture" };
+  if (!hasApiKey()) return { graph: fallback(), source: "fixture" };
+  try {
+    return { graph: await retryOnce(() => extractRun(decisionText, pack, findings)), source: "live" };
+  } catch {
+    return { graph: fallback(), source: "fixture" };
+  }
+}
+
+/** Existing signature (bare graph) — delegates to the provenance-carrying variant. Zero churn for callers. */
 export async function extractStructure(
   decisionText: string,
   pack?: unknown,
   scenario?: ScenarioId,
   findings?: ExtractFinding[],
 ): Promise<Graph> {
-  const fallback = (): Graph =>
-    !pack ? fixtureGraph() : scenario === "B" ? fixtureContextGraphB() : fixtureContextGraph();
-  // FIXTURES ALWAYS WIN when a scenario is pinned; live fires only with a key and no scenario.
-  if (scenario) return fallback();
-  if (!hasApiKey()) return fallback();
-  try {
-    return await retryOnce(() => extractRun(decisionText, pack, findings));
-  } catch {
-    return fallback();
-  }
+  return (await extractStructureWithSource(decisionText, pack, scenario, findings)).graph;
 }
 
 // ── ATTACKS ──────────────────────────────────────────────────────────────
@@ -226,18 +249,37 @@ async function attacksRun(graph: Graph, pack: unknown): Promise<Attack[]> {
   return validated;
 }
 
+export interface AttacksWithSource {
+  attacks: Attack[];
+  source: Source;
+}
+
+/**
+ * generateAttacks, but reporting provenance ADDITIVELY. `source` is "live" ONLY when the live
+ * branch actually produced a schema-valid, wall-passing attack set; scenario/no-key/any fallback
+ * report "fixture". The attacks array is byte-identical to generateAttacks for the same inputs.
+ */
+export async function generateAttacksWithSource(
+  graph: Graph,
+  pack?: unknown,
+  scenario?: ScenarioId,
+): Promise<AttacksWithSource> {
+  const fallback = (): Attack[] =>
+    !pack ? fixtureAttacks() : scenario === "B" ? fixtureContextAttacksB() : fixtureContextAttacks();
+  if (scenario) return { attacks: fallback(), source: "fixture" };
+  if (!hasApiKey()) return { attacks: fallback(), source: "fixture" };
+  try {
+    return { attacks: await retryOnce(() => attacksRun(graph, pack)), source: "live" };
+  } catch {
+    return { attacks: fallback(), source: "fixture" };
+  }
+}
+
+/** Existing signature (bare attacks) — delegates to the provenance-carrying variant. Zero churn. */
 export async function generateAttacks(
   graph: Graph,
   pack?: unknown,
   scenario?: ScenarioId,
 ): Promise<Attack[]> {
-  const fallback = (): Attack[] =>
-    !pack ? fixtureAttacks() : scenario === "B" ? fixtureContextAttacksB() : fixtureContextAttacks();
-  if (scenario) return fallback();
-  if (!hasApiKey()) return fallback();
-  try {
-    return await retryOnce(() => attacksRun(graph, pack));
-  } catch {
-    return fallback();
-  }
+  return (await generateAttacksWithSource(graph, pack, scenario)).attacks;
 }

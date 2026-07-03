@@ -40,6 +40,14 @@ export default function KeystoneApp({
   // Per-stage progress through the compile/extract/attacks chain, surfaced in the StatusStrip
   // using the plan's terminal vocabulary so a live run reads honestly, quietly.
   const [stage, setStage] = useState<"idle" | "context" | "extract" | "attacks" | "done">("idle");
+  // Truthful per-stage provenance for THIS run. context comes from the /api/context body `source`;
+  // extract/attacks read the additive `x-keystone-source` response header (V3-8, was inferred from
+  // the context stage alone). null = the stage hasn't executed yet in this run.
+  const [stageSource, setStageSource] = useState<{
+    context: "live" | "fixture" | null;
+    extract: "live" | "fixture" | null;
+    attacks: "live" | "fixture" | null;
+  }>({ context: null, extract: null, attacks: null });
   // Bumped by the TopBar FIT action → drives KeystoneCanvas.fitView via GraphTab.
   const [fitSignal, setFitSignal] = useState(0);
   // V3-8: facts lifted from finished gather runs (per kind). Extraction maps them into its
@@ -52,13 +60,14 @@ export default function KeystoneApp({
 
   const workingGraph = useKeystone((s) => s.workingGraph);
   const decisionContextPack = useKeystone((s) => s.decisionContextPack);
-  const contextSource = useKeystone((s) => s.contextSource);
   const integrityValue = useKeystone(selectIntegrity);
   const keystoneId = useKeystone(selectKeystoneId);
 
   // Orchestration reaches the model ONLY over HTTP — never imports server modules.
   async function analyse(input: ContextInput) {
     setBuilding(true);
+    // Fresh run → clear last run's provenance (attacks stays null until Apply Load fires).
+    setStageSource({ context: null, extract: null, attacks: null });
     try {
       // Stage 1 — COMPILE CONTEXT. Omit `scenario` entirely in CUSTOM mode (JSON.stringify drops
       // the undefined key) so the route's live branch can fire; A/B keep it and stay deterministic.
@@ -76,6 +85,7 @@ export default function KeystoneApp({
       // Reveal sequencing: set the context pack first (Context Used surfaces),
       // then a short beat before the graph assembles on the canvas second.
       keystoneStore.getState().setContext(companyContext, pack, source);
+      setStageSource((s) => ({ ...s, context: source }));
 
       // Stage 2 — EXTRACT STRUCTURE. Gathered facts ground the extraction's confidences:
       // GatherFinding {label,value,source} → ExtractFinding {source, fact}. Empty → omitted.
@@ -90,6 +100,10 @@ export default function KeystoneApp({
         body: JSON.stringify({ decision: input.decisionText, pack, scenario: scenarioArg, findings }),
       });
       const graph = (await exRes.json()) as Graph;
+      setStageSource((s) => ({
+        ...s,
+        extract: exRes.headers.get("x-keystone-source") === "live" ? "live" : "fixture",
+      }));
       await new Promise((resolve) => setTimeout(resolve, 800));
       keystoneStore.getState().setGraph(graph);
       setStage("done");
@@ -115,6 +129,10 @@ export default function KeystoneApp({
         }),
       });
       const { attacks: generated } = (await res.json()) as { attacks: Attack[] };
+      setStageSource((s) => ({
+        ...s,
+        attacks: res.headers.get("x-keystone-source") === "live" ? "live" : "fixture",
+      }));
       keystoneStore.getState().applyLoad(generated);
       setStage("done");
     } finally {
@@ -141,6 +159,27 @@ export default function KeystoneApp({
     done: "READY",
   };
   const running = building || loading;
+  // CUSTOM-mode chain provenance, now that EVERY stage reports a truthful source (context via body,
+  // extract/attacks via the additive x-keystone-source header). We grade only the stages that have
+  // executed this run: ALL live → LIVE CHAIN (--ok); some live, some fixture → PARTIAL naming the
+  // first fixture stage (--warn); none live → FIXTURE; none executed yet → "—". A/B stay PINNED.
+  function customSource(): { value: string; accent?: string } {
+    const executed = (
+      [
+        ["CONTEXT", stageSource.context],
+        ["EXTRACT", stageSource.extract],
+        ["ATTACKS", stageSource.attacks],
+      ] as const
+    ).filter(([, s]) => s !== null);
+    if (executed.length === 0) return { value: "—" };
+    if (executed.every(([, s]) => s === "live")) return { value: "LIVE CHAIN", accent: "var(--ok)" };
+    if (executed.some(([, s]) => s === "live")) {
+      const firstFixture = executed.find(([, s]) => s === "fixture")![0];
+      return { value: `PARTIAL (${firstFixture}: FIXTURE)`, accent: "var(--warn)" };
+    }
+    return { value: "FIXTURE" };
+  }
+  const sourceItem = mode !== "custom" ? { value: "PINNED" } : customSource();
   const statusItems = [
     {
       key: "Stage",
@@ -164,19 +203,11 @@ export default function KeystoneApp({
     },
     {
       key: "Source",
-      // Factual provenance, not an apology. A/B are PINNED (the deterministic demo). In CUSTOM
-      // the run went live IFF the context stage came back "live" — HONESTY SIMPLIFICATION: the
-      // extract/attacks routes don't return a `source`, so we infer the whole chain's liveness
-      // from the context stage's truthful source alone (documented deviation, follow-up V3-x).
-      value:
-        mode !== "custom"
-          ? "PINNED"
-          : contextSource
-            ? contextSource === "live"
-              ? "LIVE CHAIN"
-              : "FIXTURE"
-            : "—",
-      accent: mode === "custom" && contextSource === "live" ? "var(--ok)" : undefined,
+      // Factual provenance, not an apology. A/B are PINNED (the deterministic demo). In CUSTOM the
+      // strip grades the whole executed chain from each stage's truthful source (context body +
+      // extract/attacks x-keystone-source header) — see customSource() above.
+      value: sourceItem.value,
+      accent: sourceItem.accent,
     },
   ];
 

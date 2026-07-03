@@ -38,7 +38,12 @@ vi.mock("@anthropic-ai/sdk", () => ({
 }));
 
 // Imported AFTER the mock is registered so the live path uses the stub SDK.
-import { extractStructure, generateAttacks } from "./client";
+import {
+  extractStructure,
+  extractStructureWithSource,
+  generateAttacks,
+  generateAttacksWithSource,
+} from "./client";
 
 const msg = (obj: unknown) => ({ content: [{ type: "text", text: JSON.stringify(obj) }] });
 const pack = { relevantBusinessFacts: ["x"], contextWeightAdjustments: [] };
@@ -168,6 +173,66 @@ describe("generateAttacks (live, mocked SDK)", () => {
     const attacks = await generateAttacks(graph, pack);
     expect(attacks).toEqual(fixtureContextAttacks());
     expect(createMock).toHaveBeenCalledTimes(2);
+  });
+});
+
+// ── provenance-carrying variants (source reporting for the route header) ──────────────────
+describe("extractStructureWithSource — provenance", () => {
+  it("valid live JSON → source 'live' with the SAME graph the bare fn returns", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    const { graph, source } = await extractStructureWithSource("Should we migrate?", pack);
+    expect(source).toBe("live");
+    expect(graph.thesisId).toBe("t_migrate");
+    // Body byte-identical to the bare-return function for the same inputs.
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    expect(graph).toEqual(await extractStructure("Should we migrate?", pack));
+  });
+
+  it("malformed reply → source 'fixture' (the live path fell back)", async () => {
+    createMock.mockResolvedValue({ content: [{ type: "text", text: "no json" }] });
+    const { graph, source } = await extractStructureWithSource("Should we migrate?", pack);
+    expect(source).toBe("fixture");
+    expect(graph).toEqual(fixtureContextGraph());
+  });
+
+  it("scenario pin → source 'fixture', never constructs the SDK", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    const { source } = await extractStructureWithSource("x", pack, "A");
+    expect(source).toBe("fixture");
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("no key → source 'fixture', never constructs the SDK", async () => {
+    delete process.env.ANTHROPIC_API_KEY;
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    const { source } = await extractStructureWithSource("x", pack);
+    expect(source).toBe("fixture");
+    expect(createMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("generateAttacksWithSource — provenance", () => {
+  const graph = VALID_GRAPH as unknown as Graph;
+
+  it("valid live JSON → source 'live'", async () => {
+    createMock.mockResolvedValue(msg(VALID_ATTACKS));
+    const { attacks, source } = await generateAttacksWithSource(graph, pack);
+    expect(source).toBe("live");
+    expect(attacks.length).toBe(2);
+  });
+
+  it("malformed reply → source 'fixture'", async () => {
+    createMock.mockResolvedValue({ content: [{ type: "text", text: "no json" }] });
+    const { attacks, source } = await generateAttacksWithSource(graph, pack);
+    expect(source).toBe("fixture");
+    expect(attacks).toEqual(fixtureContextAttacks());
+  });
+
+  it("scenario pin → source 'fixture', never constructs the SDK", async () => {
+    createMock.mockResolvedValue(msg(VALID_ATTACKS));
+    const { source } = await generateAttacksWithSource(fixtureContextGraph(), pack, "B");
+    expect(source).toBe("fixture");
+    expect(createMock).not.toHaveBeenCalled();
   });
 });
 

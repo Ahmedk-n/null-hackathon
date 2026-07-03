@@ -29,11 +29,25 @@ describe("POST /api/extract", () => {
     const data = await res.json();
     expect(() => GraphSchema.parse(data)).not.toThrow();
   });
+
+  it("stamps x-keystone-source: fixture on the no-key fallback (body unchanged)", async () => {
+    const res = await extractPOST(jsonReq("http://x/api/extract", { decision: "migrate" }));
+    expect(res.headers.get("x-keystone-source")).toBe("fixture");
+    const data = await res.json();
+    expect(() => GraphSchema.parse(data)).not.toThrow();
+  });
 });
 
 describe("POST /api/attacks", () => {
   it("returns schema-valid attacks", async () => {
     const res = await attacksPOST(jsonReq("http://x/api/attacks", { graph: fixtureGraph() }));
+    const data = await res.json();
+    expect(() => AttacksSchema.parse(data)).not.toThrow();
+  });
+
+  it("stamps x-keystone-source: fixture on the no-key fallback (body unchanged)", async () => {
+    const res = await attacksPOST(jsonReq("http://x/api/attacks", { graph: fixtureGraph() }));
+    expect(res.headers.get("x-keystone-source")).toBe("fixture");
     const data = await res.json();
     expect(() => AttacksSchema.parse(data)).not.toThrow();
   });
@@ -96,6 +110,7 @@ describe("live-gating invariants (V3-4)", () => {
           scenario: "A",
         }),
       );
+      expect(res.headers.get("x-keystone-source")).toBe("fixture");
       const graph = (await res.json()) as Graph;
       expect(graph.nodes.length).toBe(9);
       expect(graph.nodes.some((n) => n.id === "k_credible")).toBe(true);
@@ -114,6 +129,7 @@ describe("live-gating invariants (V3-4)", () => {
           scenario: "B",
         }),
       );
+      expect(res.headers.get("x-keystone-source")).toBe("fixture");
       const { attacks } = (await res.json()) as { attacks: Attack[] };
       expect(attacks.some((a) => a.targetId === "k_sre")).toBe(true);
     } finally {
