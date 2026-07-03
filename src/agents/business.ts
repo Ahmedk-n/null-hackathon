@@ -5,8 +5,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { BusinessSource, Emit, GatherFindings, Now } from "./types";
 import { collectText, extractFindings } from "./schemas";
 import { replayFixture } from "./fixtures";
+import { retryOnce } from "./retry";
 
 const MODEL = "claude-opus-4-8";
+// Hard per-request deadline so a slow live web_search can never freeze the demo. The SDK
+// rejects with APIConnectionTimeoutError, which the existing catch → fixture fallback handles.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
@@ -52,14 +56,21 @@ export async function gatherBusiness(
 
   try {
     emit({ type: "status", message: "Searching the web for the company…", ts: now() });
-    const client = new Anthropic();
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: 16_000,
-      system: BUSINESS_SYSTEM,
-      messages: [{ role: "user", content: renderUser(source) }],
-      tools: SERVER_TOOLS as unknown as Anthropic.Messages.ToolUnion[],
-    });
+    // maxRetries: 0 — retryOnce below owns the single guardrail retry; the SDK's default
+    // auto-retry would otherwise stack multiple 30s timeouts and blow the client deadline.
+    const client = new Anthropic({ maxRetries: 0 });
+    const res = await retryOnce(() =>
+      client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: 16_000,
+          system: BUSINESS_SYSTEM,
+          messages: [{ role: "user", content: renderUser(source) }],
+          tools: SERVER_TOOLS as unknown as Anthropic.Messages.ToolUnion[],
+        },
+        { timeout: REQUEST_TIMEOUT_MS },
+      ),
+    );
 
     emit({ type: "status", message: "Analyzing website and competitors…", ts: now() });
     const findings = extractFindings(collectText(res.content));

@@ -12,9 +12,16 @@ import { z as z4 } from "zod/v4";
 import type { Emit, GatherFinding, GatherFindings, Now, TechnicalSource } from "./types";
 import { collectText, extractFindings } from "./schemas";
 import { replayFixture } from "./fixtures";
+import { rejectAfter } from "./retry";
 
 const MODEL = "claude-opus-4-8";
 const CLONE_TIMEOUT_MS = 60_000;
+// Per-turn deadline on each tool_runner LLM call, plus a hard ceiling on the whole
+// multi-turn loop so a slow turn can never freeze the demo. maxRetries: 1 honors the
+// "retry once then fall back to a fixture" guardrail at each turn; on final failure the
+// runner rejects and the existing catch → replayFixture fallback fires.
+const REQUEST_TIMEOUT_MS = 30_000;
+const RUNNER_DEADLINE_MS = 90_000;
 const MAX_ENTRIES = 200;
 const MAX_FILE_CHARS = 20_000;
 const MANIFEST_FILES = ["package.json", "pyproject.toml", "go.mod", "requirements.txt"];
@@ -223,7 +230,7 @@ export async function gatherTechnical(
 
     emit({ type: "status", message: "Exploring with read-only tools (list_dir / read_file / grep)…", ts: now() });
 
-    const client = new Anthropic();
+    const client = new Anthropic({ timeout: REQUEST_TIMEOUT_MS, maxRetries: 1 });
     const runner = client.beta.messages.toolRunner({
       model: MODEL,
       max_tokens: 8_000,
@@ -240,7 +247,10 @@ export async function gatherTechnical(
       tools: [listDir, readFileTool, grepTool],
     });
 
-    const final = await runner.runUntilDone();
+    const final = await Promise.race([
+      runner.runUntilDone(),
+      rejectAfter(RUNNER_DEADLINE_MS, "technical tool_runner"),
+    ]);
     const findings = extractFindings(collectText(final.content));
     if (findings) {
       findings.kind = "technical";

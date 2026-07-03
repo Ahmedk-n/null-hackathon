@@ -5,8 +5,12 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { Emit, GatherFindings, Now, TemporalSource } from "./types";
 import { collectText, extractFindings } from "./schemas";
 import { replayFixture } from "./fixtures";
+import { retryOnce } from "./retry";
 
 const MODEL = "claude-opus-4-8";
+// Hard per-request deadline so a slow live call can never freeze the demo. The SDK rejects
+// with APIConnectionTimeoutError, which the existing catch → fixture fallback handles.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
@@ -34,13 +38,19 @@ export async function gatherTemporal(
 
   try {
     emit({ type: "status", message: "Parsing agenda / notes…", ts: now() });
-    const client = new Anthropic();
-    const res = await client.messages.create({
-      model: MODEL,
-      max_tokens: 8_000,
-      system: TEMPORAL_SYSTEM,
-      messages: [{ role: "user", content: source.notes }],
-    });
+    // maxRetries: 0 — retryOnce below owns the single guardrail retry (see business.ts).
+    const client = new Anthropic({ maxRetries: 0 });
+    const res = await retryOnce(() =>
+      client.messages.create(
+        {
+          model: MODEL,
+          max_tokens: 8_000,
+          system: TEMPORAL_SYSTEM,
+          messages: [{ role: "user", content: source.notes }],
+        },
+        { timeout: REQUEST_TIMEOUT_MS },
+      ),
+    );
 
     emit({ type: "status", message: "Extracting events, deadlines, and urgency…", ts: now() });
     const findings = extractFindings(collectText(res.content));

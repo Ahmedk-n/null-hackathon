@@ -32,9 +32,9 @@
 - [x] `src/app/layout.tsx`: `next/font/google` — Inter + JetBrains Mono as CSS variables on `<html>`; point `--sans`/`--mono` (`src/ui/theme.css:27-28`) at them. Verify tabular numerals render. *(Done: next/font/google, subsets latin, display swap; tsc clean, shell tests green, isolated build compiled.)*
 
 ### W0-3 · Timeout every live LLM path
-- [ ] Pass `{ timeout: 30_000 }` (SDK option) or `Promise.race` → existing `catch → fallback` in `src/agents/business.ts:56`, `temporal.ts:38`, `technical.ts:243` (tool-runner: also cap total via `max_iterations` already present + outer race).
-- [ ] Client deadline: `AbortController` + ~75s cap in `src/lib/useAgentStream.ts` so `running` can never spin forever.
-- [ ] While here, honor the "retry once then fixture" guardrail (single retry wrapper).
+- [x] Pass `{ timeout: 30_000 }` (SDK option) or `Promise.race` → existing `catch → fallback` in `src/agents/business.ts:56`, `temporal.ts:38`, `technical.ts:243` (tool-runner: also cap total via `max_iterations` already present + outer race). *(Done: per-request timeout 30s on business/temporal, client-level 30s + 90s Promise.race on toolRunner.)*
+- [x] Client deadline: `AbortController` + ~75s cap in `src/lib/useAgentStream.ts` so `running` can never spin forever. *(Done: abort + terminal error event, clearTimeout in finally, no Date.now.)*
+- [x] While here, honor the "retry once then fixture" guardrail (single retry wrapper). *(Done: src/agents/retry.ts retryOnce with SDK maxRetries:0 on business/temporal; toolRunner uses SDK maxRetries:1 — intentional, runner is stateful.)*
 
 ### W0-4 · Truthful SOURCE labeling (credibility with judges)
 - [ ] `/api/context` (`src/app/api/context/route.ts:9`) claims `"live"` while `compile.ts`/`llm/client.ts` are fixture-only stubs → StatusStrip shows "SOURCE live" falsely. Label from actual call outcome (or `"fixture"` until real compile lands).

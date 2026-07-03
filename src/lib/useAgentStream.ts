@@ -12,6 +12,12 @@ export interface UseAgentStream {
   run: (kind: GatherKind, source: GatherSource) => Promise<void>;
 }
 
+// Hard client-side deadline so `running` can never spin forever if the server hangs.
+// Uses setTimeout (no Date.now / timestamp math — GOAL T8).
+const RUN_DEADLINE_MS = 75_000;
+// Constant placeholder ts for client-generated terminal events (never a live clock).
+const CLIENT_TS = "";
+
 export function useAgentStream(): UseAgentStream {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [findings, setFindings] = useState<GatherFindings | null>(null);
@@ -21,11 +27,14 @@ export function useAgentStream(): UseAgentStream {
     setEvents([]);
     setFindings(null);
     setRunning(true);
+    const controller = new AbortController();
+    const deadline = setTimeout(() => controller.abort(), RUN_DEADLINE_MS);
     try {
       const res = await fetch("/api/gather", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ kind, source }),
+        signal: controller.signal,
       });
       const body = res.body;
       if (!body) return;
@@ -54,7 +63,16 @@ export function useAgentStream(): UseAgentStream {
           }
         }
       }
+    } catch (err) {
+      // On the deadline abort (or a network failure) surface a terminal error event,
+      // consistent with how the AGENT LOG renders server-emitted `error` events.
+      const aborted = err instanceof DOMException && err.name === "AbortError";
+      const message = aborted
+        ? `Agent run exceeded the ${RUN_DEADLINE_MS / 1000}s deadline and was cancelled.`
+        : "Agent run failed.";
+      setEvents((prev) => [...prev, { type: "error", message, ts: CLIENT_TS }]);
     } finally {
+      clearTimeout(deadline);
       setRunning(false);
     }
   }, []);
