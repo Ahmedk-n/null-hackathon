@@ -43,10 +43,10 @@
 - [ ] R must exercise the FULL v4 geometry: ≥4 strata (evidence-rich), ≥2 constraint planes, a keystone whose crack callout cites a real source.
 - Files: scripts/generate-scenario-r.mjs (live generation, run once, committed), src/context/fixtures.ts (R), ContextTab/KeystoneApp wiring, tests.
 
-## V4-4 · Copy + final sweep
+## V4-4 · Copy + final sweep ✅
 
-- [ ] App copy aligned to the track: TopBar subtitle / empty state / README pitch speak the manifesto ("ideas have constraints; beliefs have dependencies; plans have load-bearing assumptions"). No lorem-toy vocabulary.
-- [ ] Full gates + e2e updated for the new control names + one live custom run. Judge re-score against the track brief.
+- [x] Copy: TopBar "STRUCTURAL ANALYSIS FOR DECISIONS — <decision>"; EmptyCanvas manifesto sub-line; README = judge-facing pitch (track quote, manifesto→mechanism table, honest architecture claim, scenario R provenance, 60s demo script, run instructions).
+- [x] Final certification: 286/286 vitest · tsc clean · isolated build 0 · e2e REHEARSAL PASS driving A + B + R (default R asserted). Live custom run covered by the pinned acid test. Judge re-score dispatched for the record.
 
 ## Invariants (unchanged from v3)
 

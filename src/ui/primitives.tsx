@@ -341,9 +341,25 @@ export function EmptyCanvas({ label = "Awaiting Structure" }: { label?: string }
         {/* keystone wedge at the crown, emphasized */}
         <path d="M64 26 L84 26 L80 46 L68 46 Z" stroke="var(--muted)" strokeWidth={1.4} />
       </svg>
-      <span className="label" style={{ letterSpacing: "0.16em" }}>
-        {label}
-      </span>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 8,
+        }}
+      >
+        <span className="label" style={{ letterSpacing: "0.16em" }}>
+          {label}
+        </span>
+        {/* The manifesto, whispered: structure is not decoration — thought has load paths. */}
+        <span
+          className="label"
+          style={{ letterSpacing: "0.14em", color: "var(--muted)", opacity: 0.7 }}
+        >
+          BELIEFS HAVE DEPENDENCIES · PLANS HAVE LOAD-BEARING ASSUMPTIONS
+        </span>
+      </div>
     </div>
   );
 }
