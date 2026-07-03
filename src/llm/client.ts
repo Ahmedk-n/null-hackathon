@@ -20,8 +20,10 @@ import type { DecisionContextPack } from "@/context";
 import {
   fixtureContextAttacks,
   fixtureContextAttacksB,
+  fixtureContextAttacksR,
   fixtureContextGraph,
   fixtureContextGraphB,
+  fixtureContextGraphR,
 } from "@/context";
 import { retryOnce } from "@/agents/retry";
 
@@ -181,7 +183,13 @@ export async function extractStructureWithSource(
   findings?: ExtractFinding[],
 ): Promise<GraphWithSource> {
   const fallback = (): Graph =>
-    !pack ? fixtureGraph() : scenario === "B" ? fixtureContextGraphB() : fixtureContextGraph();
+    !pack
+      ? fixtureGraph()
+      : scenario === "R"
+        ? fixtureContextGraphR()
+        : scenario === "B"
+          ? fixtureContextGraphB()
+          : fixtureContextGraph();
   // FIXTURES ALWAYS WIN when a scenario is pinned; live fires only with a key and no scenario.
   if (scenario) return { graph: fallback(), source: "fixture" };
   if (!hasApiKey()) return { graph: fallback(), source: "fixture" };
@@ -265,7 +273,13 @@ export async function generateAttacksWithSource(
   scenario?: ScenarioId,
 ): Promise<AttacksWithSource> {
   const fallback = (): Attack[] =>
-    !pack ? fixtureAttacks() : scenario === "B" ? fixtureContextAttacksB() : fixtureContextAttacks();
+    !pack
+      ? fixtureAttacks()
+      : scenario === "R"
+        ? fixtureContextAttacksR()
+        : scenario === "B"
+          ? fixtureContextAttacksB()
+          : fixtureContextAttacks();
   if (scenario) return { attacks: fallback(), source: "fixture" };
   if (!hasApiKey()) return { attacks: fallback(), source: "fixture" };
   try {

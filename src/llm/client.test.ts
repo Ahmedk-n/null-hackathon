@@ -6,7 +6,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { validateGraph } from "./validate";
 import { normaliseCategory } from "@/context/weights";
-import { fixtureContextGraph, fixtureContextAttacks } from "@/context";
+import {
+  fixtureContextGraph,
+  fixtureContextAttacks,
+  fixtureContextGraphR,
+  fixtureContextAttacksR,
+} from "@/context";
 import type { Graph } from "@/engine";
 
 // The attack prompt pins these exact category strings; every one MUST normalise to a WeightCategory,
@@ -249,5 +254,22 @@ describe("scenario short-circuit beats the live key (FIXTURES ALWAYS WIN)", () =
     const attacks = await generateAttacks(fixtureContextGraph(), pack, "B");
     expect(createMock).not.toHaveBeenCalled();
     expect(attacks.some((a) => a.targetId === "k_sre")).toBe(true);
+  });
+
+  // ── Scenario R (real Excalidraw) replays offline too — never touches the SDK ──
+  it("extract with scenario R replays the pinned real graph without the SDK", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    const graph = await extractStructure("x", pack, "R");
+    expect(createMock).not.toHaveBeenCalled();
+    expect(graph).toEqual(fixtureContextGraphR());
+    expect(graph.thesisId).toBe("build_own_realtime_backend_now");
+  });
+
+  it("generateAttacks with scenario R replays the pinned real attacks without the SDK", async () => {
+    createMock.mockResolvedValue(msg(VALID_ATTACKS));
+    const attacks = await generateAttacks(fixtureContextGraphR(), pack, "R");
+    expect(createMock).not.toHaveBeenCalled();
+    expect(attacks).toEqual(fixtureContextAttacksR());
+    expect(attacks.some((a) => a.targetId === "team_has_backend_capacity")).toBe(true);
   });
 });

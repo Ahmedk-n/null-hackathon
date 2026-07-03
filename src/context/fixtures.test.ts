@@ -14,6 +14,9 @@ import {
   fixtureContextGraphB,
   fixtureContextAttacksB,
   fixtureDecisionContextPackB,
+  fixtureContextGraphR,
+  fixtureContextAttacksR,
+  fixtureDecisionContextPackR,
 } from "./fixtures";
 import { reweightAttacksByContext } from "./weights";
 import { pickLayoutMode } from "@/canvas/layout";
@@ -155,5 +158,89 @@ describe("scenario B (reinforce) fixture — holds under load", () => {
     // Reweighting lowers integrity (context makes it harder) but never breaks it.
     expect(integrity(reweighted)).toBeLessThan(integrity(raw));
     expect(detectFailures(reweighted).size).toBe(0);
+  });
+});
+
+// ── Scenario R — a REAL project (Excalidraw), generated live + pinned ──────────
+// STRUCTURE + EVIDENCE captured verbatim from a live pipeline run (see
+// scripts/generate-scenario-r.mjs / scenario-r.artifacts.json). The beat is a grounded
+// collapse with a partial hold: the "6-person team has spare capacity" keystone HOLDS a
+// raw assault but CRACKS once the pack's ▲execution weight grounds the same attack; the
+// differentiation claim holds throughout. Numbers worked against the real engine.
+describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial hold", () => {
+  it("produces a graph that validates against GraphSchema", () => {
+    expect(() => GraphSchema.parse(fixtureContextGraphR())).not.toThrow();
+  });
+
+  it("is a 10-node structure in the layered-2-5d band (Band 2)", () => {
+    const g = fixtureContextGraphR();
+    expect(g.nodes.length).toBe(10);
+    expect(pickLayoutMode(g.nodes.length)).toBe("layered-2-5d");
+  });
+
+  it("has a standing baseline integrity (~52.6%)", () => {
+    expect(integrity(fixtureContextGraphR())).toBeCloseTo(52.63, 1);
+  });
+
+  it("has team_has_backend_capacity as the keystone (AND-path tie broken by node order)", () => {
+    const g = fixtureContextGraphR();
+    expect(keystone(g)?.id).toBe("team_has_backend_capacity");
+    const ranked = rankLoadBearing(g);
+    // Every AND-path assumption is individually fatal, so five tie on impact; the OR-only
+    // leg competitive_urgency_real is the sole low-impact assumption (~0).
+    const comp = ranked.find((r) => r.id === "competitive_urgency_real")!;
+    expect(comp.impact).toBeCloseTo(0, 5);
+    // The keystone's impact is the (tied) maximum — strictly greater than the OR-only leg.
+    expect(ranked[0].impact).toBeGreaterThan(comp.impact + 1);
+  });
+
+  it("grounds ≥60% of assumptions in real evidence (here 100%: 6/6, real paths + urls)", () => {
+    const assumptions = fixtureContextGraphR().nodes.filter((n) => n.type === "assumption");
+    const grounded = assumptions.filter((n) => n.evidence && n.evidence.source);
+    expect(grounded.length / assumptions.length).toBeGreaterThanOrEqual(0.6);
+    expect(grounded.length).toBe(6);
+    // Provenance is real repo file paths + real urls (V4-3: judge-clickable).
+    const sources = grounded.map((n) => n.evidence!.source);
+    expect(sources).toContain("excalidraw-app/package.json");
+    expect(sources.some((s) => s.startsWith("https://"))).toBe(true);
+  });
+
+  it("carries ≥2 constraint-shaped entries in the pack (V4-2 boundary planes)", () => {
+    expect(fixtureDecisionContextPackR().relevantConstraints.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("RAW attacks (context ignored): keystone HOLDS, differentiation HOLDS, structure stressed", () => {
+    const raw = applyAttacks(fixtureContextGraphR(), fixtureContextAttacksR());
+    const failures = detectFailures(raw);
+    expect(failures.has("team_has_backend_capacity")).toBe(false); // keystone holds raw
+    expect(failures.has("differentiates_vs_competitors")).toBe(false); // partial hold, both ways
+    expect(integrity(raw)).toBeCloseTo(15.78, 1);
+  });
+
+  it("REWEIGHTED attacks (grounded in context): keystone CRACKS, thesis craters, differentiation holds", () => {
+    const pack = fixtureDecisionContextPackR();
+    const reweighted = applyAttacks(
+      fixtureContextGraphR(),
+      reweightAttacksByContext(fixtureContextAttacksR(), pack.contextWeightAdjustments),
+    );
+    expect(integrity(reweighted)).toBeLessThan(10);
+    expect(integrity(reweighted)).toBeCloseTo(8.35, 1);
+    const failures = detectFailures(reweighted);
+    expect(failures.has("team_has_backend_capacity")).toBe(true); // keystone fails once grounded
+    expect(failures.has("team_can_build_operate_infra")).toBe(true); // its claim cascades
+    expect(failures.has("build_own_realtime_backend_now")).toBe(true); // thesis craters
+    expect(failures.has("differentiates_vs_competitors")).toBe(false); // partial hold
+  });
+
+  it("context strictly lowers integrity and uniquely fails the keystone (the beat)", () => {
+    const raw = applyAttacks(fixtureContextGraphR(), fixtureContextAttacksR());
+    const pack = fixtureDecisionContextPackR();
+    const reweighted = applyAttacks(
+      fixtureContextGraphR(),
+      reweightAttacksByContext(fixtureContextAttacksR(), pack.contextWeightAdjustments),
+    );
+    expect(integrity(reweighted)).toBeLessThan(integrity(raw));
+    expect(detectFailures(raw).has("team_has_backend_capacity")).toBe(false);
+    expect(detectFailures(reweighted).has("team_has_backend_capacity")).toBe(true);
   });
 });

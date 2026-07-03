@@ -80,6 +80,40 @@ describe("ContextTab (R3-UI static structure)", () => {
     expect(container.querySelectorAll("[data-tab]").length).toBe(4);
   });
 
+  it("renders R as the FIRST mode segment and seeds the real Excalidraw decision", () => {
+    const { container } = render(
+      <ContextTab onAnalyse={() => {}} analysing={false} mode="R" onModeChange={() => {}} />,
+    );
+    // R exists and is the first segment in the mode control.
+    const segs = [...container.querySelectorAll("[data-scenario]")];
+    expect(segs[0].getAttribute("data-scenario")).toBe("R");
+    expect(container.querySelector('[data-scenario="R"]')!.textContent).toMatch(/REAL.*EXCALIDRAW/i);
+    // The decision sub-tab seeds from the real scenario input.
+    fireEvent.click(container.querySelector('[data-tab="decision"]')!);
+    const decision = [...container.querySelectorAll("textarea")].find(
+      (t) => (t as HTMLTextAreaElement).value === SCENARIOS.R.input.decisionText,
+    );
+    expect(decision).toBeTruthy();
+    expect((decision as HTMLTextAreaElement).value).toMatch(/excalidraw/i);
+  });
+
+  it("clicking scenario R calls onModeChange('R') and shows PINNED · SCENARIO R", () => {
+    let picked: string | null = null;
+    const { container } = render(
+      <ContextTab
+        onAnalyse={() => {}}
+        analysing={false}
+        mode="R"
+        onModeChange={(m) => (picked = m)}
+      />,
+    );
+    expect(container.querySelector('[data-testid="mode-chip"]')!.textContent).toMatch(
+      /PINNED · SCENARIO R/i,
+    );
+    fireEvent.click(container.querySelector('[data-scenario="A"]')!);
+    expect(picked).toBe("A");
+  });
+
   it("clicking scenario B calls onModeChange('B')", () => {
     let picked: string | null = null;
     const { container } = render(

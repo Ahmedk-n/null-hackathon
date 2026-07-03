@@ -4,6 +4,7 @@ import { ContextCompileSchema } from "./schemas";
 import {
   HERO_CONTEXT_INPUT,
   REINFORCE_CONTEXT_INPUT,
+  REAL_CONTEXT_INPUT,
   fixtureCompanyContext,
   fixtureDecisionContextPack,
 } from "./fixtures";
@@ -57,6 +58,15 @@ describe("compileContext — fixture invariants (no live call)", () => {
   it("no key + no scenario → source 'fixture' and NO SDK call", async () => {
     const res = await compileContext(HERO_CONTEXT_INPUT);
     expect(res.source).toBe("fixture");
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("scenario 'R' + key present → the real Excalidraw fixture pack, source 'fixture', no SDK call", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
+    const res = await compileContext(REAL_CONTEXT_INPUT, "R");
+    expect(res.source).toBe("fixture");
+    expect(res.decisionContextPack.decision).toBe(REAL_CONTEXT_INPUT.decisionText);
+    expect(res.companyContext.business.industry).toContain("whiteboard");
     expect(createMock).not.toHaveBeenCalled();
   });
 });

@@ -62,6 +62,7 @@ function ModeSelect({
   onSelect: (m: ContextMode) => void;
 }) {
   const segs: { id: ContextMode; label: string }[] = [
+    { id: "R", label: "R — REAL: EXCALIDRAW" },
     { id: "A", label: SCENARIOS.A.label },
     { id: "B", label: SCENARIOS.B.label },
     { id: "custom", label: "C — Custom (Live)" },

@@ -1,0 +1,818 @@
+{
+  "meta": {
+    "generatedFrom": "http://localhost:3002",
+    "repoUrl": "https://github.com/excalidraw/excalidraw",
+    "website": "https://excalidraw.com",
+    "competitors": [
+      "tldraw",
+      "Figma FigJam",
+      "Miro"
+    ],
+    "decision": "Should Excalidraw build a paid realtime-collaboration backend (own infra) now, instead of continuing to rely on the open-source excalidraw-room and third-party embeds?",
+    "temporalNotes": "Excalidraw+ subscription growth has been flat for two quarters. Competitor tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively. Internal team planning meeting on the collaboration roadmap is in 2 days. A conference talk on our collaboration story has a submission deadline in 3 weeks. The next quarterly board update covering the monetization plan is in 6 weeks.",
+    "sources": {
+      "technical": "live",
+      "business": "live",
+      "temporal": "live",
+      "context": "live",
+      "extract": "live",
+      "attacks": "live"
+    }
+  },
+  "contextInput": {
+    "businessContextText": "Excalidraw is a bootstrapped, open-source (MIT-licensed) virtual collaborative whiteboard for hand-drawn-style diagrams, launched in 2020 by former Meta engineer Christopher Chedeau and now run by a small team (~6 people) headquartered in Brno, Czech Republic. It operates a freemium model: the core app is free forever, while Excalidraw+ is a paid, seat-based cloud tier (~$6/user/month billed yearly, $7 monthly) targeting teams and enterprises with cloud workspaces, access management, presentations, comments, voice hangouts, and AI features. Its differentiation is deliberate simplicity, a sketch-like aesthetic, privacy-first end-to-end encryption, and no-signup access—serving individual developers plus small-to-mid-market product, engineering, and business teams who want quick informal diagramming without enterprise complexity. It competes with tldraw (an open-source infinite-canvas SDK for developers, VC-backed with ~$14M raised), Figma FigJam (design-team whiteboard bundled into Figma seats), and Miro (the enterprise category leader with ~90-100M users, ~$665M ARR and a $17.5B valuation). Key growth constraints are converting free/open-source users into paid Excalidraw+ subscribers, limited enterprise support capacity given the tiny team, and meeting enterprise auditability/reliability/security demands (addressed via SOC 2 Type II compliance and a DPA) against far larger, better-funded rivals.",
+    "technicalContextText": "Excalidraw is a TypeScript monorepo (Yarn workspaces) whose flagship deliverable is a React 19 npm component library, plus a reference web app (excalidraw-app) hosting excalidraw.com. It's a client-heavy, canvas-based SPA built with Vite (PWA plugin, offline service worker) and split into internal packages (common, element, math, excalidraw, utils, fractional-indexing, laser-pointer). The hosted app has no traditional backend of its own: real-time collaboration runs over Socket.IO with end-to-end encryption, and scene/file persistence uses Firebase Firestore + Firebase Storage, with local-first storage via idb-keyval. State is managed with Jotai; deployment is via Vercel for the web app and a multi-stage Docker/nginx image for self-hosting. Observability is limited to Sentry error tracking; CI (GitHub Actions) runs Vitest tests, ESLint, Prettier, typechecking, size-limit, and locale coverage.",
+    "temporalContextText": "There is a near-term internal team planning meeting on the collaboration roadmap in 2 days, making it the most immediate time pressure. A conference talk submission deadline on the collaboration story falls in 3 weeks, and the next quarterly board update covering the monetization plan is in 6 weeks. Competitive pressure from tldraw's recent funding and aggressive SDK shipping adds urgency to these decisions.",
+    "decisionText": "Should Excalidraw build a paid realtime-collaboration backend (own infra) now, instead of continuing to rely on the open-source excalidraw-room and third-party embeds?"
+  },
+  "findings": {
+    "technical": {
+      "kind": "technical",
+      "summary": "Excalidraw is a TypeScript monorepo (Yarn workspaces) whose flagship deliverable is a React 19 npm component library, plus a reference web app (excalidraw-app) hosting excalidraw.com. It's a client-heavy, canvas-based SPA built with Vite (PWA plugin, offline service worker) and split into internal packages (common, element, math, excalidraw, utils, fractional-indexing, laser-pointer). The hosted app has no traditional backend of its own: real-time collaboration runs over Socket.IO with end-to-end encryption, and scene/file persistence uses Firebase Firestore + Firebase Storage, with local-first storage via idb-keyval. State is managed with Jotai; deployment is via Vercel for the web app and a multi-stage Docker/nginx image for self-hosting. Observability is limited to Sentry error tracking; CI (GitHub Actions) runs Vitest tests, ESLint, Prettier, typechecking, size-limit, and locale coverage.",
+      "facts": [
+        {
+          "label": "Language & framework",
+          "value": "TypeScript 5.9 + React 19, built with Vite 5; canvas-based whiteboard SPA",
+          "source": "package.json"
+        },
+        {
+          "label": "Architecture",
+          "value": "Yarn workspaces monorepo: excalidraw-app + internal packages (common, element, math, excalidraw, utils, fractional-indexing, laser-pointer); library published as @excalidraw/excalidraw npm package",
+          "source": "package.json"
+        },
+        {
+          "label": "Internal packages",
+          "value": "Modular design with separate packages: common, element, excalidraw, fractional-indexing, laser-pointer, math, utils",
+          "source": "packages"
+        },
+        {
+          "label": "Persistence & backend",
+          "value": "No custom backend; scenes stored in Firebase Firestore, files in Firebase Storage, both end-to-end encrypted client-side",
+          "source": "excalidraw-app/data/firebase.ts"
+        },
+        {
+          "label": "Real-time collaboration",
+          "value": "socket.io-client 4.7.2 used for real-time collab; local-first with idb-keyval and jotai for state",
+          "source": "excalidraw-app/package.json"
+        },
+        {
+          "label": "Deployment (self-host)",
+          "value": "Multi-stage Dockerfile building with Node 24 and serving static build via nginx-alpine; docker-compose exposes port 3000:80",
+          "source": "Dockerfile"
+        },
+        {
+          "label": "Deployment (hosted)",
+          "value": "Vercel deploys excalidraw-app/build with CORS/security headers and host-based redirects; install via yarn",
+          "source": "vercel.json"
+        },
+        {
+          "label": "Observability",
+          "value": "Sentry browser error tracking (@sentry/browser 9.0.1); tracking toggled via VITE_APP env flags, disabled in Docker builds",
+          "source": "excalidraw-app/package.json"
+        },
+        {
+          "label": "Testing & CI",
+          "value": "GitHub Actions runs Vitest (jsdom) on Node 20; additional workflows for lint, size-limit, test-coverage, locales-coverage, semantic PR titles",
+          "source": ".github/workflows/test.yml"
+        },
+        {
+          "label": "Code quality tooling",
+          "value": "ESLint (max-warnings=0), Prettier, tsc typecheck, husky pre-commit + lint-staged",
+          "source": "package.json"
+        },
+        {
+          "label": "Firebase infra config",
+          "value": "Dedicated firebase-project with firestore.rules, storage.rules, and firestore indexes committed",
+          "source": "firebase-project/firebase.json"
+        }
+      ]
+    },
+    "business": {
+      "kind": "business",
+      "summary": "Excalidraw is a bootstrapped, open-source (MIT-licensed) virtual collaborative whiteboard for hand-drawn-style diagrams, launched in 2020 by former Meta engineer Christopher Chedeau and now run by a small team (~6 people) headquartered in Brno, Czech Republic. It operates a freemium model: the core app is free forever, while Excalidraw+ is a paid, seat-based cloud tier (~$6/user/month billed yearly, $7 monthly) targeting teams and enterprises with cloud workspaces, access management, presentations, comments, voice hangouts, and AI features. Its differentiation is deliberate simplicity, a sketch-like aesthetic, privacy-first end-to-end encryption, and no-signup access—serving individual developers plus small-to-mid-market product, engineering, and business teams who want quick informal diagramming without enterprise complexity. It competes with tldraw (an open-source infinite-canvas SDK for developers, VC-backed with ~$14M raised), Figma FigJam (design-team whiteboard bundled into Figma seats), and Miro (the enterprise category leader with ~90-100M users, ~$665M ARR and a $17.5B valuation). Key growth constraints are converting free/open-source users into paid Excalidraw+ subscribers, limited enterprise support capacity given the tiny team, and meeting enterprise auditability/reliability/security demands (addressed via SOC 2 Type II compliance and a DPA) against far larger, better-funded rivals.",
+      "facts": [
+        {
+          "label": "Company stage & structure",
+          "value": "Bootstrapped, independent open-source company headquartered in Brno, Czech Republic; runs as an open-source project with a roughly 6-person team, serving a global user base from individual developers to enterprises.",
+          "source": "https://www.brex.com/tools/charge-finder/excalidraw"
+        },
+        {
+          "label": "Founding & origin",
+          "value": "Launched January 1, 2020 by Christopher Chedeau, a software engineer at Meta, with a mission of simplicity over feature bloat; grew from ~12,000 users in its first weeks to 350,000 monthly users by 2023, with 110,000+ GitHub stars.",
+          "source": "https://checkthat.ai/brands/excalidraw"
+        },
+        {
+          "label": "Industry / product",
+          "value": "Virtual collaborative whiteboard for creating hand-drawn-style diagrams, wireframes, and illustrations; open source under the MIT license with end-to-end encryption and no-signup access for secure collaboration.",
+          "source": "https://www.crunchbase.com/organization/excalidraw"
+        },
+        {
+          "label": "Revenue model & pricing",
+          "value": "Freemium model with subscription revenue only (no ads, no data monetization): core app free forever, Excalidraw+ paid seat-based cloud tier at ~$6/user/month billed yearly ($7 monthly), 14-day free trial, with education discounts.",
+          "source": "https://www.g2.com/products/excalidraw/pricing"
+        },
+        {
+          "label": "Paid-tier features & enterprise trust",
+          "value": "Excalidraw+ adds unlimited cloud scenes/folders, access management, sharing with edit/view rights, presentations, comments, voice hangouts/screensharing, and extended AI; it is SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs.",
+          "source": "https://www.g2.com/products/excalidraw/reviews"
+        },
+        {
+          "label": "Customer segments & positioning",
+          "value": "Serves small-to-mid-market companies across product, engineering, and business teams needing quick informal diagramming; competes on simplicity, privacy-first architecture, and zero cost for core features rather than on advanced integrations vs. Miro/Figma.",
+          "source": "https://checkthat.ai/brands/excalidraw"
+        },
+        {
+          "label": "Strategic goal / why they built a company",
+          "value": "The company was formed around Excalidraw with Excalidraw+ as its first product to address enterprise adoption complaints—easy sharing among co-workers, dependable live collaboration, and data security—that a volunteer-based open-source model couldn't solve.",
+          "source": "https://plus.excalidraw.com/blog/introducing-excalidraw-plus"
+        },
+        {
+          "label": "Competitor: tldraw",
+          "value": "London-based startup founded 2022 by Steve Ruiz; open-source infinite-canvas SDK for developers (used by ClickUp, Padlet, Craft, Jam), closed just under $1M in license deals in its first year, raised a $10M Series A in April 2025 (Lux Capital, Definition), ~$14M total raised.",
+          "source": "https://tldraw.dev/blog/announcing-tldraw-series-a"
+        },
+        {
+          "label": "Competitor: Figma FigJam",
+          "value": "Lightweight, design-centric whiteboard built by Figma for design teams and early-stage ideation; its pricing is bundled into Figma seats and it integrates tightly with Figma Design, though it lacks advanced diagramming depth versus Miro.",
+          "source": "https://mockflow.com/blog/miro-vs-figjam"
+        },
+        {
+          "label": "Competitor: Miro",
+          "value": "Category-leading enterprise visual-collaboration platform (founded 2011, formerly RealtimeBoard); ~90-100M users across 250,000 organizations (99 of Fortune 100), tiered subscriptions from free to enterprise, estimated ~$665M ARR in 2024 and a $17.5B valuation from its 2022 Series C.",
+          "source": "https://sacra.com/c/miro/"
+        },
+        {
+          "label": "Growth bottleneck & market constraint",
+          "value": "The freemium open-source model creates conversion challenges (most users stay free) and limited enterprise support capacity from a tiny team; the broader whiteboard market is projected to reach ~$8.11B by 2033 (14.3% CAGR), intensifying competition with far larger, better-funded rivals.",
+          "source": "https://mockflow.com/blog/miro-vs-figjam"
+        }
+      ]
+    },
+    "temporal": {
+      "kind": "temporal",
+      "summary": "There is a near-term internal team planning meeting on the collaboration roadmap in 2 days, making it the most immediate time pressure. A conference talk submission deadline on the collaboration story falls in 3 weeks, and the next quarterly board update covering the monetization plan is in 6 weeks. Competitive pressure from tldraw's recent funding and aggressive SDK shipping adds urgency to these decisions.",
+      "facts": [
+        {
+          "label": "Team planning meeting (collaboration roadmap)",
+          "value": "in 2 days",
+          "source": "notes"
+        },
+        {
+          "label": "Conference talk submission deadline (collaboration story)",
+          "value": "in 3 weeks",
+          "source": "notes"
+        },
+        {
+          "label": "Quarterly board update (monetization plan)",
+          "value": "in 6 weeks",
+          "source": "notes"
+        },
+        {
+          "label": "Competitive context",
+          "value": "tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively",
+          "source": "notes"
+        },
+        {
+          "label": "Business backdrop",
+          "value": "Excalidraw+ subscription growth has been flat for two quarters",
+          "source": "notes"
+        }
+      ]
+    }
+  },
+  "extractFindings": [
+    {
+      "source": "package.json",
+      "fact": "Language & framework: TypeScript 5.9 + React 19, built with Vite 5; canvas-based whiteboard SPA"
+    },
+    {
+      "source": "package.json",
+      "fact": "Architecture: Yarn workspaces monorepo: excalidraw-app + internal packages (common, element, math, excalidraw, utils, fractional-indexing, laser-pointer); library published as @excalidraw/excalidraw npm package"
+    },
+    {
+      "source": "packages",
+      "fact": "Internal packages: Modular design with separate packages: common, element, excalidraw, fractional-indexing, laser-pointer, math, utils"
+    },
+    {
+      "source": "excalidraw-app/data/firebase.ts",
+      "fact": "Persistence & backend: No custom backend; scenes stored in Firebase Firestore, files in Firebase Storage, both end-to-end encrypted client-side"
+    },
+    {
+      "source": "excalidraw-app/package.json",
+      "fact": "Real-time collaboration: socket.io-client 4.7.2 used for real-time collab; local-first with idb-keyval and jotai for state"
+    },
+    {
+      "source": "Dockerfile",
+      "fact": "Deployment (self-host): Multi-stage Dockerfile building with Node 24 and serving static build via nginx-alpine; docker-compose exposes port 3000:80"
+    },
+    {
+      "source": "vercel.json",
+      "fact": "Deployment (hosted): Vercel deploys excalidraw-app/build with CORS/security headers and host-based redirects; install via yarn"
+    },
+    {
+      "source": "excalidraw-app/package.json",
+      "fact": "Observability: Sentry browser error tracking (@sentry/browser 9.0.1); tracking toggled via VITE_APP env flags, disabled in Docker builds"
+    },
+    {
+      "source": ".github/workflows/test.yml",
+      "fact": "Testing & CI: GitHub Actions runs Vitest (jsdom) on Node 20; additional workflows for lint, size-limit, test-coverage, locales-coverage, semantic PR titles"
+    },
+    {
+      "source": "package.json",
+      "fact": "Code quality tooling: ESLint (max-warnings=0), Prettier, tsc typecheck, husky pre-commit + lint-staged"
+    },
+    {
+      "source": "firebase-project/firebase.json",
+      "fact": "Firebase infra config: Dedicated firebase-project with firestore.rules, storage.rules, and firestore indexes committed"
+    },
+    {
+      "source": "https://www.brex.com/tools/charge-finder/excalidraw",
+      "fact": "Company stage & structure: Bootstrapped, independent open-source company headquartered in Brno, Czech Republic; runs as an open-source project with a roughly 6-person team, serving a global user base from individual developers to enterprises."
+    },
+    {
+      "source": "https://checkthat.ai/brands/excalidraw",
+      "fact": "Founding & origin: Launched January 1, 2020 by Christopher Chedeau, a software engineer at Meta, with a mission of simplicity over feature bloat; grew from ~12,000 users in its first weeks to 350,000 monthly users by 2023, with 110,000+ GitHub stars."
+    },
+    {
+      "source": "https://www.crunchbase.com/organization/excalidraw",
+      "fact": "Industry / product: Virtual collaborative whiteboard for creating hand-drawn-style diagrams, wireframes, and illustrations; open source under the MIT license with end-to-end encryption and no-signup access for secure collaboration."
+    },
+    {
+      "source": "https://www.g2.com/products/excalidraw/pricing",
+      "fact": "Revenue model & pricing: Freemium model with subscription revenue only (no ads, no data monetization): core app free forever, Excalidraw+ paid seat-based cloud tier at ~$6/user/month billed yearly ($7 monthly), 14-day free trial, with education discounts."
+    },
+    {
+      "source": "https://www.g2.com/products/excalidraw/reviews",
+      "fact": "Paid-tier features & enterprise trust: Excalidraw+ adds unlimited cloud scenes/folders, access management, sharing with edit/view rights, presentations, comments, voice hangouts/screensharing, and extended AI; it is SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs."
+    },
+    {
+      "source": "https://checkthat.ai/brands/excalidraw",
+      "fact": "Customer segments & positioning: Serves small-to-mid-market companies across product, engineering, and business teams needing quick informal diagramming; competes on simplicity, privacy-first architecture, and zero cost for core features rather than on advanced integrations vs. Miro/Figma."
+    },
+    {
+      "source": "https://plus.excalidraw.com/blog/introducing-excalidraw-plus",
+      "fact": "Strategic goal / why they built a company: The company was formed around Excalidraw with Excalidraw+ as its first product to address enterprise adoption complaints—easy sharing among co-workers, dependable live collaboration, and data security—that a volunteer-based open-source model couldn't solve."
+    },
+    {
+      "source": "https://tldraw.dev/blog/announcing-tldraw-series-a",
+      "fact": "Competitor: tldraw: London-based startup founded 2022 by Steve Ruiz; open-source infinite-canvas SDK for developers (used by ClickUp, Padlet, Craft, Jam), closed just under $1M in license deals in its first year, raised a $10M Series A in April 2025 (Lux Capital, Definition), ~$14M total raised."
+    },
+    {
+      "source": "https://mockflow.com/blog/miro-vs-figjam",
+      "fact": "Competitor: Figma FigJam: Lightweight, design-centric whiteboard built by Figma for design teams and early-stage ideation; its pricing is bundled into Figma seats and it integrates tightly with Figma Design, though it lacks advanced diagramming depth versus Miro."
+    },
+    {
+      "source": "https://sacra.com/c/miro/",
+      "fact": "Competitor: Miro: Category-leading enterprise visual-collaboration platform (founded 2011, formerly RealtimeBoard); ~90-100M users across 250,000 organizations (99 of Fortune 100), tiered subscriptions from free to enterprise, estimated ~$665M ARR in 2024 and a $17.5B valuation from its 2022 Series C."
+    },
+    {
+      "source": "https://mockflow.com/blog/miro-vs-figjam",
+      "fact": "Growth bottleneck & market constraint: The freemium open-source model creates conversion challenges (most users stay free) and limited enterprise support capacity from a tiny team; the broader whiteboard market is projected to reach ~$8.11B by 2033 (14.3% CAGR), intensifying competition with far larger, better-funded rivals."
+    },
+    {
+      "source": "notes",
+      "fact": "Team planning meeting (collaboration roadmap): in 2 days"
+    },
+    {
+      "source": "notes",
+      "fact": "Conference talk submission deadline (collaboration story): in 3 weeks"
+    },
+    {
+      "source": "notes",
+      "fact": "Quarterly board update (monetization plan): in 6 weeks"
+    },
+    {
+      "source": "notes",
+      "fact": "Competitive context: tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively"
+    },
+    {
+      "source": "notes",
+      "fact": "Business backdrop: Excalidraw+ subscription growth has been flat for two quarters"
+    }
+  ],
+  "companyContext": {
+    "business": {
+      "companyStage": "bootstrapped early-stage open-source",
+      "industry": "collaborative whiteboarding / diagramming software",
+      "customers": [
+        "individual developers",
+        "small-to-mid-market product teams",
+        "engineering teams",
+        "business teams",
+        "enterprises via Excalidraw+"
+      ],
+      "revenueModel": "freemium; seat-based Excalidraw+ cloud tier (~$6/user/mo yearly)",
+      "competitors": [
+        "tldraw",
+        "Figma FigJam",
+        "Miro"
+      ],
+      "strategicGoals": [
+        "convert free users into Excalidraw+ subscribers",
+        "meet enterprise auditability/reliability/security demands",
+        "preserve deliberate simplicity and privacy-first differentiation"
+      ],
+      "growthBottlenecks": [
+        "free/open-source to paid conversion",
+        "limited enterprise support capacity from tiny team",
+        "enterprise auditability/reliability/security expectations"
+      ],
+      "marketConstraints": [
+        "far larger, better-funded rivals (Miro $17.5B, tldraw ~$14M raised)",
+        "enterprise complexity expectations vs simplicity positioning"
+      ]
+    },
+    "technical": {
+      "stack": [
+        "TypeScript",
+        "React 19",
+        "Vite",
+        "Jotai",
+        "Socket.IO",
+        "Firebase Firestore",
+        "Firebase Storage",
+        "idb-keyval"
+      ],
+      "architecture": "client-heavy canvas SPA; npm component library in Yarn monorepo",
+      "infrastructure": [
+        "Vercel (web app)",
+        "Docker/nginx multi-stage image (self-hosting)",
+        "Firebase"
+      ],
+      "integrations": [
+        "Firebase Firestore",
+        "Firebase Storage",
+        "excalidraw-room",
+        "third-party embeds"
+      ],
+      "deploymentProcess": "Vercel for web app; Docker/nginx for self-hosting",
+      "observability": "limited to Sentry error tracking",
+      "teamSize": 6,
+      "technicalDebt": [
+        "no traditional backend of its own",
+        "reliance on open-source excalidraw-room for realtime collab"
+      ],
+      "engineeringConstraints": [
+        "tiny team (~6 people)",
+        "end-to-end encryption requirement for collaboration",
+        "local-first, offline-capable design"
+      ]
+    },
+    "temporal": {
+      "upcomingEvents": [
+        {
+          "id": "evt-roadmap-planning",
+          "type": "other",
+          "title": "Internal team collaboration roadmap planning meeting",
+          "dateDescription": "in 2 days",
+          "relevanceToDecision": "Directly decides collaboration roadmap including this backend question",
+          "importance": 0.9
+        },
+        {
+          "id": "evt-conf-talk",
+          "type": "other",
+          "title": "Conference talk submission on the collaboration story",
+          "dateDescription": "in 3 weeks",
+          "relevanceToDecision": "Collaboration narrative shaped by backend direction",
+          "importance": 0.5
+        },
+        {
+          "id": "evt-board-update",
+          "type": "board_update",
+          "title": "Quarterly board update on monetization plan",
+          "dateDescription": "in 6 weeks",
+          "relevanceToDecision": "Paid collaboration backend ties to monetization plan",
+          "importance": 0.7
+        }
+      ],
+      "deadlines": [
+        {
+          "id": "dl-conf-submission",
+          "title": "Conference talk submission deadline",
+          "dateDescription": "in 3 weeks",
+          "consequenceIfMissed": "Miss opportunity to present collaboration story",
+          "severity": 0.4
+        }
+      ],
+      "urgencyLevel": 0.7
+    },
+    "constraints": [
+      {
+        "id": "con-team",
+        "type": "team",
+        "statement": "Tiny ~6-person team with limited enterprise support capacity",
+        "severity": 0.8
+      },
+      {
+        "id": "con-time",
+        "type": "time",
+        "statement": "Roadmap planning meeting in 2 days forces near-term direction",
+        "severity": 0.6
+      },
+      {
+        "id": "con-budget",
+        "type": "budget",
+        "statement": "Bootstrapped; must self-fund infrastructure investments",
+        "severity": 0.7
+      },
+      {
+        "id": "con-technical",
+        "type": "technical",
+        "statement": "Currently no own backend; relies on excalidraw-room and Firebase",
+        "severity": 0.6
+      },
+      {
+        "id": "con-regulatory",
+        "type": "regulatory",
+        "statement": "Enterprise SOC 2 Type II, DPA and E2E encryption expectations",
+        "severity": 0.7
+      },
+      {
+        "id": "con-market",
+        "type": "market",
+        "statement": "Competing against far larger, better-funded rivals",
+        "severity": 0.6
+      }
+    ],
+    "objectives": [
+      {
+        "id": "obj-convert",
+        "statement": "Convert free/open-source users into paid Excalidraw+ subscribers",
+        "priority": 0.9
+      },
+      {
+        "id": "obj-enterprise",
+        "statement": "Meet enterprise reliability, auditability, and security demands",
+        "priority": 0.8
+      },
+      {
+        "id": "obj-simplicity",
+        "statement": "Preserve simplicity and privacy-first differentiation",
+        "priority": 0.7
+      }
+    ],
+    "knownRisks": [
+      {
+        "id": "risk-capacity",
+        "category": "execution",
+        "statement": "Tiny team may lack capacity to build and operate own backend",
+        "likelihood": 0.7,
+        "severity": 0.7
+      },
+      {
+        "id": "risk-competitor",
+        "category": "competitor",
+        "statement": "tldraw funding and aggressive SDK shipping pressures collaboration decisions",
+        "likelihood": 0.6,
+        "severity": 0.5
+      },
+      {
+        "id": "risk-reliability",
+        "category": "technical",
+        "statement": "Owning realtime backend adds reliability burden without prior backend experience",
+        "likelihood": 0.5,
+        "severity": 0.7
+      },
+      {
+        "id": "risk-opp-cost",
+        "category": "opportunity_cost",
+        "statement": "Backend build diverts scarce team from conversion and features",
+        "likelihood": 0.6,
+        "severity": 0.6
+      }
+    ],
+    "missingInfo": [
+      "Current Excalidraw+ subscriber count and conversion rate",
+      "Cost/limitations of relying on excalidraw-room today",
+      "Specific enterprise customer requirements driving backend need",
+      "Available runway or budget for infrastructure investment",
+      "Current realtime reliability metrics or incidents"
+    ]
+  },
+  "decisionContextPack": {
+    "decision": "Build a paid realtime-collaboration backend on own infra now vs. continue relying on excalidraw-room and third-party embeds",
+    "relevantBusinessFacts": [
+      "Bootstrapped freemium; Excalidraw+ is the paid seat-based tier",
+      "Growth bottleneck is converting free users to paid subscribers",
+      "Enterprise auditability/reliability/security demands must be met",
+      "Competes with better-funded tldraw, FigJam, and Miro"
+    ],
+    "relevantTechnicalFacts": [
+      "Hosted app has no traditional backend of its own",
+      "Realtime collab runs over Socket.IO with end-to-end encryption",
+      "Persistence uses Firebase Firestore/Storage; local-first idb-keyval",
+      "Currently relies on open-source excalidraw-room",
+      "Observability limited to Sentry error tracking"
+    ],
+    "relevantTemporalFacts": [
+      "Collaboration roadmap planning meeting in 2 days",
+      "Conference talk submission on collaboration in 3 weeks",
+      "Quarterly board update on monetization in 6 weeks",
+      "tldraw funding/SDK shipping adds competitive urgency"
+    ],
+    "relevantConstraints": [
+      {
+        "id": "con-team",
+        "type": "team",
+        "statement": "Tiny ~6-person team with limited enterprise support capacity",
+        "severity": 0.8
+      },
+      {
+        "id": "con-budget",
+        "type": "budget",
+        "statement": "Bootstrapped; must self-fund infrastructure investments",
+        "severity": 0.7
+      },
+      {
+        "id": "con-technical",
+        "type": "technical",
+        "statement": "Currently no own backend; relies on excalidraw-room and Firebase",
+        "severity": 0.6
+      },
+      {
+        "id": "con-regulatory",
+        "type": "regulatory",
+        "statement": "Enterprise SOC 2 Type II, DPA and E2E encryption expectations",
+        "severity": 0.7
+      },
+      {
+        "id": "con-time",
+        "type": "time",
+        "statement": "Roadmap planning meeting in 2 days forces near-term direction",
+        "severity": 0.6
+      }
+    ],
+    "relevantObjectives": [
+      {
+        "id": "obj-convert",
+        "statement": "Convert free/open-source users into paid Excalidraw+ subscribers",
+        "priority": 0.9
+      },
+      {
+        "id": "obj-enterprise",
+        "statement": "Meet enterprise reliability, auditability, and security demands",
+        "priority": 0.8
+      },
+      {
+        "id": "obj-simplicity",
+        "statement": "Preserve simplicity and privacy-first differentiation",
+        "priority": 0.7
+      }
+    ],
+    "relevantKnownRisks": [
+      {
+        "id": "risk-capacity",
+        "category": "execution",
+        "statement": "Tiny team may lack capacity to build and operate own backend",
+        "likelihood": 0.7,
+        "severity": 0.7
+      },
+      {
+        "id": "risk-reliability",
+        "category": "technical",
+        "statement": "Owning realtime backend adds reliability burden without prior backend experience",
+        "likelihood": 0.5,
+        "severity": 0.7
+      },
+      {
+        "id": "risk-opp-cost",
+        "category": "opportunity_cost",
+        "statement": "Backend build diverts scarce team from conversion and features",
+        "likelihood": 0.6,
+        "severity": 0.6
+      },
+      {
+        "id": "risk-competitor",
+        "category": "competitor",
+        "statement": "tldraw funding and aggressive SDK shipping pressures collaboration decisions",
+        "likelihood": 0.6,
+        "severity": 0.5
+      }
+    ],
+    "contextWeightAdjustments": [
+      {
+        "targetCategory": "timeline",
+        "direction": "increase",
+        "magnitude": 0.7,
+        "reason": "Roadmap planning meeting in 2 days demands a near-term stance before building anything large."
+      },
+      {
+        "targetCategory": "execution",
+        "direction": "increase",
+        "magnitude": 0.8,
+        "reason": "A ~6-person team with no prior backend limits capacity to build/operate own infra now."
+      },
+      {
+        "targetCategory": "opportunity_cost",
+        "direction": "increase",
+        "magnitude": 0.7,
+        "reason": "Backend build competes with the priority goal of converting free users to Excalidraw+."
+      },
+      {
+        "targetCategory": "reliability",
+        "direction": "increase",
+        "magnitude": 0.7,
+        "reason": "Owning realtime infra raises reliability burden while observability is only Sentry error tracking."
+      },
+      {
+        "targetCategory": "auditability",
+        "direction": "increase",
+        "magnitude": 0.6,
+        "reason": "Enterprise SOC 2 Type II and DPA demands make own-backend auditability a differentiator."
+      },
+      {
+        "targetCategory": "technical",
+        "direction": "increase",
+        "magnitude": 0.5,
+        "reason": "Replacing excalidraw-room requires reimplementing E2E-encrypted Socket.IO collaboration on own infra."
+      },
+      {
+        "targetCategory": "competitor",
+        "direction": "increase",
+        "magnitude": 0.4,
+        "reason": "tldraw's recent funding and aggressive SDK shipping add urgency to the collaboration decision."
+      }
+    ],
+    "missingInformation": [
+      "Cost and reliability limits of current excalidraw-room dependency",
+      "Specific enterprise requirements forcing an own backend",
+      "Available budget/runway for building and operating infra",
+      "Excalidraw+ conversion metrics to weigh revenue upside",
+      "Estimated engineering effort and timeline for the backend"
+    ]
+  },
+  "graph": {
+    "thesisId": "build_own_realtime_backend_now",
+    "nodes": [
+      {
+        "id": "build_own_realtime_backend_now",
+        "type": "thesis",
+        "label": "Build paid realtime backend now",
+        "confidence": 0.4,
+        "groups": [
+          {
+            "kind": "AND",
+            "childIds": [
+              "team_can_build_operate_infra",
+              "backend_drives_conversion",
+              "differentiates_vs_competitors"
+            ]
+          }
+        ],
+        "evidence": null
+      },
+      {
+        "id": "team_can_build_operate_infra",
+        "type": "claim",
+        "label": "Team can build and operate infra",
+        "confidence": 0.35,
+        "groups": [
+          {
+            "kind": "AND",
+            "childIds": [
+              "team_has_backend_capacity",
+              "can_reimplement_e2e_collab",
+              "reliability_observability_ready"
+            ]
+          }
+        ],
+        "evidence": null
+      },
+      {
+        "id": "backend_drives_conversion",
+        "type": "claim",
+        "label": "Own backend improves paid conversion",
+        "confidence": 0.5,
+        "groups": [
+          {
+            "kind": "AND",
+            "childIds": [
+              "conversion_is_collab_limited",
+              "enterprise_auditability_wins"
+            ]
+          }
+        ],
+        "evidence": null
+      },
+      {
+        "id": "differentiates_vs_competitors",
+        "type": "claim",
+        "label": "Backend keeps pace with rivals",
+        "confidence": 0.45,
+        "groups": [
+          {
+            "kind": "OR",
+            "childIds": [
+              "competitive_urgency_real",
+              "enterprise_auditability_wins"
+            ]
+          }
+        ],
+        "evidence": null
+      },
+      {
+        "id": "team_has_backend_capacity",
+        "type": "assumption",
+        "label": "Six-person team has spare capacity",
+        "confidence": 0.3,
+        "groups": [],
+        "evidence": {
+          "source": "https://www.brex.com/tools/charge-finder/excalidraw",
+          "fact": "Bootstrapped, independent open-source company headquartered in Brno, Czech Republic; runs as an open-source project with a roughly 6-person team, serving a global user base from individual developers to enterprises."
+        }
+      },
+      {
+        "id": "can_reimplement_e2e_collab",
+        "type": "assumption",
+        "label": "Can reimplement E2E Socket.IO collab",
+        "confidence": 0.4,
+        "groups": [],
+        "evidence": {
+          "source": "excalidraw-app/package.json",
+          "fact": "Real-time collaboration: socket.io-client 4.7.2 used for real-time collab; local-first with idb-keyval and jotai for state"
+        }
+      },
+      {
+        "id": "reliability_observability_ready",
+        "type": "assumption",
+        "label": "Reliability and observability adequate",
+        "confidence": 0.3,
+        "groups": [],
+        "evidence": {
+          "source": "excalidraw-app/package.json",
+          "fact": "Observability: Sentry browser error tracking (@sentry/browser 9.0.1); tracking toggled via VITE_APP env flags, disabled in Docker builds"
+        }
+      },
+      {
+        "id": "conversion_is_collab_limited",
+        "type": "assumption",
+        "label": "Collab quality gates paid conversion",
+        "confidence": 0.4,
+        "groups": [],
+        "evidence": {
+          "source": "notes",
+          "fact": "Business backdrop: Excalidraw+ subscription growth has been flat for two quarters"
+        }
+      },
+      {
+        "id": "enterprise_auditability_wins",
+        "type": "assumption",
+        "label": "Own backend enables enterprise auditability",
+        "confidence": 0.6,
+        "groups": [],
+        "evidence": {
+          "source": "https://www.g2.com/products/excalidraw/reviews",
+          "fact": "It is SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs."
+        }
+      },
+      {
+        "id": "competitive_urgency_real",
+        "type": "assumption",
+        "label": "tldraw funding pressures collab timeline",
+        "confidence": 0.55,
+        "groups": [],
+        "evidence": {
+          "source": "notes",
+          "fact": "Competitive context: tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively"
+        }
+      }
+    ]
+  },
+  "attacks": [
+    {
+      "id": "atk_no_backend_capacity",
+      "targetId": "team_has_backend_capacity",
+      "category": "execution risk",
+      "severity": 0.55,
+      "rationale": "6-person team with no backend history has no spare capacity; the 2-day roadmap meeting forces a build commitment they cannot staff."
+    },
+    {
+      "id": "atk_observability_gap",
+      "targetId": "reliability_observability_ready",
+      "category": "reliability",
+      "severity": 0.5,
+      "rationale": "Owning realtime infra raises the reliability burden while observability is only Sentry error tracking — inadequate before enterprise SLAs."
+    },
+    {
+      "id": "atk_e2e_reimpl_hard",
+      "targetId": "can_reimplement_e2e_collab",
+      "category": "technical",
+      "severity": 0.4,
+      "rationale": "Reimplementing E2E-encrypted Socket.IO collab off excalidraw-room is deep work unlikely to be scoped before the 3-week talk submission."
+    },
+    {
+      "id": "atk_conversion_not_collab",
+      "targetId": "conversion_is_collab_limited",
+      "category": "market",
+      "severity": 0.4,
+      "rationale": "Growth bottleneck is free-to-paid conversion; backend build competes with that priority goal without proof collab quality gates conversion."
+    },
+    {
+      "id": "atk_auditability_overclaim",
+      "targetId": "enterprise_auditability_wins",
+      "category": "auditability",
+      "severity": 0.45,
+      "rationale": "SOC 2 / DPA demands need audited controls and process, not merely owning infra; own-backend claim may not deliver the differentiator before the board update."
+    }
+  ]
+}

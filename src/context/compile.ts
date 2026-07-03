@@ -22,8 +22,10 @@ import { ContextCompileSchema, postClamp } from "./schemas";
 import {
   fixtureCompanyContext,
   fixtureCompanyContextB,
+  fixtureCompanyContextR,
   fixtureDecisionContextPack,
   fixtureDecisionContextPackB,
+  fixtureDecisionContextPackR,
 } from "./fixtures";
 import { retryOnce } from "@/agents/retry";
 
@@ -123,6 +125,13 @@ function collectText(content: unknown): string {
 
 // Scenario short-circuit + every failure path lands here. FIXTURES ALWAYS WIN under a scenario.
 function fixtureResult(input: ContextInput, scenario?: ScenarioId): ContextRouteResponse {
+  if (scenario === "R") {
+    return {
+      companyContext: fixtureCompanyContextR(),
+      decisionContextPack: fixtureDecisionContextPackR(input.decisionText),
+      source: "fixture",
+    };
+  }
   if (scenario === "B") {
     return {
       companyContext: fixtureCompanyContextB(),

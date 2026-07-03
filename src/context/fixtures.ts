@@ -322,11 +322,279 @@ export function fixtureContextAttacksB(): Attack[] {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+ * SCENARIO R — "EXCALIDRAW · REAL" (a REAL project, generated live, pinned)
+ * ──────────────────────────────────────────────────────────────────────────
+ * Produced by scripts/generate-scenario-r.mjs driving the live pipeline end-to-end
+ * (2026-07-04): the technical agent shallow-cloned github.com/excalidraw/excalidraw
+ * and explored it with read-only tools; the business agent crawled excalidraw.com +
+ * competitors (tldraw / Figma FigJam / Miro); the temporal agent parsed a real-shaped
+ * roadmap situation; then live /api/context → /api/extract → /api/attacks. All six
+ * stages returned source="live" (see scripts/scenario-r.artifacts.json). The STRUCTURE
+ * and every EVIDENCE provenance string (real repo file paths + real URLs) are VERBATIM
+ * from that live run; long fact strings are trimmed for the ledger but never invented.
+ *
+ * DECISION: build Excalidraw's own paid realtime-collaboration backend now, vs. keep
+ * relying on the open-source excalidraw-room + third-party embeds.
+ *
+ * DEMO BEAT — grounded collapse with a partial hold (numbers worked against the real
+ * engine; integrity = thesis support ×100, AND=product, OR=max, threshold 0.35):
+ *   BASELINE   → 52.63% (standing; thesis+claims pinned 1.0 per the fixture convention,
+ *                assumption confidences reflect the live model's real skepticism).
+ *   RAW        → integrity 15.78%; the load-bearing keystone team_has_backend_capacity
+ *                HOLDS at support 0.400; the differentiation claim HOLDS at 0.900.
+ *   REWEIGHTED → the pack's ▲execution 0.8 (roadmap meeting in 2 days, 6-person team,
+ *                no backend history) amplifies the keystone's execution attack 0.50→0.70;
+ *                the keystone CRACKS to 0.240, thesis craters to 8.35%, and
+ *                differentiates_vs_competitors STILL HOLDS at 0.900 — a partial collapse.
+ * The keystone flips hold→fail purely from grounding the SAME attacks in context.
+ *
+ * KEYSTONE NOTE: the thesis is an AND of three claims and claim1 is an AND of three
+ * assumptions, so knocking ANY AND-path assumption to zero zeroes the thesis — five
+ * assumptions therefore TIE on load-bearing impact (only the OR-only leg
+ * competitive_urgency_real has ~0 impact). keystone() resolves the tie by node order to
+ * team_has_backend_capacity — the weakest-confidence, most-attacked leg (the "can a tiny
+ * team build+operate its own infra" assumption), which is exactly the right demo keystone.
+ * ════════════════════════════════════════════════════════════════════════ */
+
+// Seeds for the CONTEXT tab R segment — the three live gather summaries + the decision.
+export const REAL_CONTEXT_INPUT: ContextInput = {
+  businessContextText:
+    "Excalidraw is a bootstrapped, open-source (MIT-licensed) virtual collaborative whiteboard, launched in 2020 by former Meta engineer Christopher Chedeau and run by a ~6-person team in Brno, Czech Republic. Freemium model: the core app is free forever; Excalidraw+ is a paid seat-based cloud tier (~$6/user/mo billed yearly) targeting teams and enterprises. Differentiation is deliberate simplicity, a sketch-like aesthetic, privacy-first end-to-end encryption, and no-signup access. Competes with tldraw (open-source infinite-canvas SDK, VC-backed ~$14M raised), Figma FigJam (bundled into Figma seats), and Miro (enterprise leader, ~90-100M users, ~$665M ARR, $17.5B valuation). Key growth constraints: converting free users into paid Excalidraw+ subscribers, limited enterprise support capacity from the tiny team, and meeting enterprise auditability/reliability/security demands (SOC 2 Type II + DPA) against far larger, better-funded rivals.",
+  technicalContextText:
+    "Excalidraw is a TypeScript monorepo (Yarn workspaces) whose flagship deliverable is a React 19 npm component library, plus a reference web app (excalidraw-app) hosting excalidraw.com. Client-heavy, canvas-based SPA built with Vite (PWA, offline service worker), split into internal packages (common, element, math, excalidraw, utils, fractional-indexing, laser-pointer). The hosted app has no traditional backend of its own: real-time collaboration runs over Socket.IO with end-to-end encryption, and scene/file persistence uses Firebase Firestore + Storage, with local-first storage via idb-keyval. State via Jotai; deploy via Vercel (web app) and a multi-stage Docker/nginx image (self-hosting). Observability is limited to Sentry error tracking; CI (GitHub Actions) runs Vitest, ESLint, Prettier, typecheck, size-limit, and locale coverage.",
+  temporalContextText:
+    "There is a near-term internal team planning meeting on the collaboration roadmap in 2 days, making it the most immediate time pressure. A conference talk submission deadline on the collaboration story falls in 3 weeks, and the next quarterly board update covering the monetization plan is in 6 weeks. Competitive pressure from tldraw's recent funding and aggressive SDK shipping adds urgency to these decisions.",
+  decisionText:
+    "Should Excalidraw build a paid realtime-collaboration backend (own infra) now, instead of continuing to rely on the open-source excalidraw-room and third-party embeds?",
+};
+
+export function fixtureCompanyContextR(): CompanyContext {
+  return {
+    business: {
+      companyStage: "bootstrapped early-stage open-source",
+      industry: "collaborative whiteboarding / diagramming software",
+      customers: [
+        "individual developers",
+        "small-to-mid-market product teams",
+        "engineering teams",
+        "business teams",
+        "enterprises via Excalidraw+",
+      ],
+      revenueModel: "freemium; seat-based Excalidraw+ cloud tier (~$6/user/mo yearly)",
+      competitors: ["tldraw", "Figma FigJam", "Miro"],
+      strategicGoals: [
+        "convert free users into Excalidraw+ subscribers",
+        "meet enterprise auditability/reliability/security demands",
+        "preserve deliberate simplicity and privacy-first differentiation",
+      ],
+      growthBottlenecks: [
+        "free/open-source to paid conversion",
+        "limited enterprise support capacity from tiny team",
+        "enterprise auditability/reliability/security expectations",
+      ],
+      marketConstraints: [
+        "far larger, better-funded rivals (Miro $17.5B, tldraw ~$14M raised)",
+        "enterprise complexity expectations vs simplicity positioning",
+      ],
+    },
+    technical: {
+      stack: ["TypeScript", "React 19", "Vite", "Jotai", "Socket.IO", "Firebase Firestore", "Firebase Storage", "idb-keyval"],
+      architecture: "client-heavy canvas SPA; npm component library in Yarn monorepo",
+      infrastructure: ["Vercel (web app)", "Docker/nginx multi-stage image (self-hosting)", "Firebase"],
+      integrations: ["Firebase Firestore", "Firebase Storage", "excalidraw-room", "third-party embeds"],
+      deploymentProcess: "Vercel for web app; Docker/nginx for self-hosting",
+      observability: "limited to Sentry error tracking",
+      teamSize: 6,
+      technicalDebt: [
+        "no traditional backend of its own",
+        "reliance on open-source excalidraw-room for realtime collab",
+      ],
+      engineeringConstraints: [
+        "tiny team (~6 people)",
+        "end-to-end encryption requirement for collaboration",
+        "local-first, offline-capable design",
+      ],
+    },
+    temporal: {
+      upcomingEvents: [
+        {
+          id: "evt_roadmap",
+          type: "architecture_review",
+          title: "Collaboration roadmap planning meeting",
+          dateDescription: "in 2 days",
+          relevanceToDecision: "Sets the near-term stance on building an own realtime backend.",
+          importance: 0.9,
+        },
+        {
+          id: "evt_talk",
+          type: "launch",
+          title: "Conference talk submission (collaboration story)",
+          dateDescription: "in 3 weeks",
+          relevanceToDecision: "The collaboration narrative shapes what can be credibly announced.",
+          importance: 0.6,
+        },
+        {
+          id: "evt_board",
+          type: "board_update",
+          title: "Quarterly board update (monetization plan)",
+          dateDescription: "in 6 weeks",
+          relevanceToDecision: "Backend investment competes with the paid-conversion monetization plan.",
+          importance: 0.7,
+        },
+      ],
+      deadlines: [
+        {
+          id: "dl_roadmap",
+          title: "Near-term collaboration-backend direction",
+          dateDescription: "by the roadmap meeting (2 days)",
+          consequenceIfMissed: "Roadmap stalls; ceding collaboration momentum to tldraw.",
+          severity: 0.7,
+        },
+      ],
+      urgencyLevel: 0.8,
+    },
+    constraints: [
+      { id: "con-team", type: "team", statement: "Tiny ~6-person team with limited enterprise support capacity", severity: 0.8 },
+      { id: "con-time", type: "time", statement: "Roadmap planning meeting in 2 days forces near-term direction", severity: 0.6 },
+      { id: "con-budget", type: "budget", statement: "Bootstrapped; must self-fund infrastructure investments", severity: 0.7 },
+      { id: "con-technical", type: "technical", statement: "Currently no own backend; relies on excalidraw-room and Firebase", severity: 0.6 },
+      { id: "con-regulatory", type: "regulatory", statement: "Enterprise SOC 2 Type II, DPA and E2E encryption expectations", severity: 0.7 },
+      { id: "con-market", type: "market", statement: "Competing against far larger, better-funded rivals", severity: 0.6 },
+    ],
+    objectives: [
+      { id: "obj-convert", statement: "Convert free/open-source users into paid Excalidraw+ subscribers", priority: 0.9 },
+      { id: "obj-enterprise", statement: "Meet enterprise reliability, auditability, and security demands", priority: 0.8 },
+      { id: "obj-simplicity", statement: "Preserve simplicity and privacy-first differentiation", priority: 0.7 },
+    ],
+    knownRisks: [
+      { id: "risk-capacity", category: "execution", statement: "Tiny team may lack capacity to build and operate own backend", likelihood: 0.7, severity: 0.7 },
+      { id: "risk-competitor", category: "competitor", statement: "tldraw funding and aggressive SDK shipping pressures collaboration decisions", likelihood: 0.6, severity: 0.5 },
+      { id: "risk-reliability", category: "technical", statement: "Owning realtime backend adds reliability burden without prior backend experience", likelihood: 0.5, severity: 0.7 },
+      { id: "risk-opp-cost", category: "opportunity_cost", statement: "Backend build diverts scarce team from conversion and features", likelihood: 0.6, severity: 0.6 },
+    ],
+    missingInfo: [
+      "Current Excalidraw+ subscriber count and conversion rate",
+      "Cost/limitations of relying on excalidraw-room today",
+      "Specific enterprise customer requirements driving backend need",
+      "Available runway or budget for infrastructure investment",
+      "Current realtime reliability metrics or incidents",
+    ],
+  };
+}
+
+export function fixtureDecisionContextPackR(decision?: string): DecisionContextPack {
+  return {
+    decision: decision ?? REAL_CONTEXT_INPUT.decisionText,
+    relevantBusinessFacts: [
+      "Bootstrapped freemium; Excalidraw+ is the paid seat-based tier",
+      "Growth bottleneck is converting free users to paid subscribers",
+      "Enterprise auditability/reliability/security demands must be met",
+      "Competes with better-funded tldraw, FigJam, and Miro",
+    ],
+    relevantTechnicalFacts: [
+      "Hosted app has no traditional backend of its own",
+      "Realtime collab runs over Socket.IO with end-to-end encryption",
+      "Persistence uses Firebase Firestore/Storage; local-first idb-keyval",
+      "Currently relies on open-source excalidraw-room",
+      "Observability limited to Sentry error tracking",
+    ],
+    relevantTemporalFacts: [
+      "Collaboration roadmap planning meeting in 2 days",
+      "Conference talk submission on collaboration in 3 weeks",
+      "Quarterly board update on monetization in 6 weeks",
+      "tldraw funding/SDK shipping adds competitive urgency",
+    ],
+    // ≥2 constraint-shaped entries (V4-2 renders these as boundary planes). Kept verbatim
+    // from the live pack: team, budget, technical, regulatory, and time constraints.
+    relevantConstraints: [
+      { id: "con-team", type: "team", statement: "Tiny ~6-person team with limited enterprise support capacity", severity: 0.8 },
+      { id: "con-budget", type: "budget", statement: "Bootstrapped; must self-fund infrastructure investments", severity: 0.7 },
+      { id: "con-technical", type: "technical", statement: "Currently no own backend; relies on excalidraw-room and Firebase", severity: 0.6 },
+      { id: "con-regulatory", type: "regulatory", statement: "Enterprise SOC 2 Type II, DPA and E2E encryption expectations", severity: 0.7 },
+      { id: "con-time", type: "time", statement: "Roadmap planning meeting in 2 days forces near-term direction", severity: 0.6 },
+    ],
+    relevantObjectives: [
+      { id: "obj-convert", statement: "Convert free/open-source users into paid Excalidraw+ subscribers", priority: 0.9 },
+      { id: "obj-enterprise", statement: "Meet enterprise reliability, auditability, and security demands", priority: 0.8 },
+      { id: "obj-simplicity", statement: "Preserve simplicity and privacy-first differentiation", priority: 0.7 },
+    ],
+    relevantKnownRisks: [
+      { id: "risk-capacity", category: "execution", statement: "Tiny team may lack capacity to build and operate own backend", likelihood: 0.7, severity: 0.7 },
+      { id: "risk-reliability", category: "technical", statement: "Owning realtime backend adds reliability burden without prior backend experience", likelihood: 0.5, severity: 0.7 },
+      { id: "risk-opp-cost", category: "opportunity_cost", statement: "Backend build diverts scarce team from conversion and features", likelihood: 0.6, severity: 0.6 },
+      { id: "risk-competitor", category: "competitor", statement: "tldraw funding and aggressive SDK shipping pressures collaboration decisions", likelihood: 0.6, severity: 0.5 },
+    ],
+    // The live compile's own weight adjustments (verbatim). ▲execution 0.8 is the lever that
+    // grounds the keystone attack (0.50→0.70) and cracks the "team has capacity" assumption.
+    contextWeightAdjustments: [
+      { targetCategory: "timeline", direction: "increase", magnitude: 0.7, reason: "Roadmap planning meeting in 2 days demands a near-term stance before building anything large." },
+      { targetCategory: "execution", direction: "increase", magnitude: 0.8, reason: "A ~6-person team with no prior backend limits capacity to build/operate own infra now." },
+      { targetCategory: "opportunity_cost", direction: "increase", magnitude: 0.7, reason: "Backend build competes with the priority goal of converting free users to Excalidraw+." },
+      { targetCategory: "reliability", direction: "increase", magnitude: 0.7, reason: "Owning realtime infra raises reliability burden while observability is only Sentry error tracking." },
+      { targetCategory: "auditability", direction: "increase", magnitude: 0.6, reason: "Enterprise SOC 2 Type II and DPA demands make own-backend auditability a differentiator." },
+      { targetCategory: "technical", direction: "increase", magnitude: 0.5, reason: "Replacing excalidraw-room requires reimplementing E2E-encrypted Socket.IO collaboration on own infra." },
+      { targetCategory: "competitor", direction: "increase", magnitude: 0.4, reason: "tldraw's recent funding and aggressive SDK shipping add urgency to the collaboration decision." },
+    ],
+    missingInformation: [
+      "Cost and reliability limits of current excalidraw-room dependency",
+      "Specific enterprise requirements forcing an own backend",
+      "Available budget/runway for building and operating infra",
+      "Excalidraw+ conversion metrics to weigh revenue upside",
+      "Estimated engineering effort and timeline for the backend",
+    ],
+  };
+}
+
+// Scenario R graph — 10 nodes → Band 2. STRUCTURE + EVIDENCE verbatim from the live extract
+// (real repo file paths + real URLs). Confidence numbers are pinned by the fixture author
+// (thesis+claims 1.0 per the base-engine AND convention; assumption confidences carry the
+// live model's real relative skepticism — the capacity keystone lowest). Engine-inert evidence.
+export function fixtureContextGraphR(): Graph {
+  return {
+    thesisId: "build_own_realtime_backend_now",
+    nodes: [
+      { id: "build_own_realtime_backend_now", type: "thesis", label: "Build paid realtime backend now", confidence: 1.0, groups: [{ kind: "AND", childIds: ["team_can_build_operate_infra", "backend_drives_conversion", "differentiates_vs_competitors"] }] },
+      { id: "team_can_build_operate_infra", type: "claim", label: "Team can build and operate infra", confidence: 1.0, groups: [{ kind: "AND", childIds: ["team_has_backend_capacity", "can_reimplement_e2e_collab", "reliability_observability_ready"] }] },
+      { id: "backend_drives_conversion", type: "claim", label: "Own backend improves paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["conversion_is_collab_limited", "enterprise_auditability_wins"] }] },
+      { id: "differentiates_vs_competitors", type: "claim", label: "Backend keeps pace with rivals", confidence: 1.0, groups: [{ kind: "OR", childIds: ["competitive_urgency_real", "enterprise_auditability_wins"] }] },
+      // KEYSTONE — the load-bearing "a 6-person team has spare capacity" assumption.
+      { id: "team_has_backend_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.8, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno, Czech Republic." } },
+      { id: "can_reimplement_e2e_collab", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; local-first with idb-keyval and jotai for state." } },
+      { id: "reliability_observability_ready", type: "assumption", label: "Reliability and observability adequate", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability: Sentry browser error tracking (@sentry/browser 9.0.1); disabled in Docker builds." } },
+      { id: "conversion_is_collab_limited", type: "assumption", label: "Collab quality gates paid conversion", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
+      { id: "enterprise_auditability_wins", type: "assumption", label: "Own backend enables enterprise auditability", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs." } },
+      { id: "competitive_urgency_real", type: "assumption", label: "tldraw funding pressures collab timeline", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively." } },
+    ],
+  };
+}
+
+// RAW attack severities. The keystone execution attack is the dominant load; the four
+// secondary attacks are milder (as scenario A does) so the ONE keystone flip is the beat.
+// SEVERITY ADJUSTMENTS (live → pinned; all within the live-plausible [0.15,0.55] band):
+//   atk_no_backend_capacity   execution   0.55 → 0.50  (keystone; ×1.4 execution → 0.70 grounded)
+//   atk_observability_gap     reliability 0.50 → 0.12  (softened so raw survives; ×1.35 → 0.162)
+//   atk_e2e_reimpl_hard       technical   0.40 → 0.12  (softened; ×1.25 → 0.150)
+//   atk_conversion_not_collab market      0.40 → 0.12  (softened; no market weight → unchanged)
+//   atk_auditability_overclaim auditability 0.45 → 0.12 (softened; ×1.3 → 0.156)
+// Numbers vs the real engine: RAW integrity 15.78% (keystone support 0.400 HOLDS), REWEIGHTED
+// integrity 8.35% (keystone 0.240 FAILS); differentiates_vs_competitors holds at 0.900 both ways.
+export function fixtureContextAttacksR(): Attack[] {
+  return [
+    { id: "atk_no_backend_capacity", targetId: "team_has_backend_capacity", category: "execution risk", severity: 0.5, rationale: "A 6-person team with no backend history has no spare capacity; the roadmap meeting in 2 days forces a build commitment they cannot staff." },
+    { id: "atk_observability_gap", targetId: "reliability_observability_ready", category: "reliability", severity: 0.12, rationale: "Owning realtime infra raises the reliability burden while observability is only Sentry error tracking." },
+    { id: "atk_e2e_reimpl_hard", targetId: "can_reimplement_e2e_collab", category: "technical", severity: 0.12, rationale: "Reimplementing E2E-encrypted Socket.IO collab off excalidraw-room is deep work to scope before the 3-week talk." },
+    { id: "atk_conversion_not_collab", targetId: "conversion_is_collab_limited", category: "market", severity: 0.12, rationale: "The growth bottleneck is free-to-paid conversion; a backend build competes with that priority without proof collab quality gates conversion." },
+    { id: "atk_auditability_overclaim", targetId: "enterprise_auditability_wins", category: "auditability", severity: 0.12, rationale: "SOC 2 / DPA demands need audited controls and process, not merely owning infra." },
+  ];
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
  * SCENARIO REGISTRY — one place the UI + fixture chain agree on scenarios.
+ * R (real)    = the live-generated Excalidraw decision that COLLAPSES under context.
  * A (default) = the hero migrate decision that COLLAPSES under context.
  * B           = the reinforce decision that HOLDS under the same context.
  * ════════════════════════════════════════════════════════════════════════ */
-export type ScenarioId = "A" | "B";
+export type ScenarioId = "A" | "B" | "R";
 
 export interface ScenarioMeta {
   id: ScenarioId;
@@ -335,11 +603,12 @@ export interface ScenarioMeta {
 }
 
 export const SCENARIOS: Record<ScenarioId, ScenarioMeta> = {
+  R: { id: "R", label: "R — EXCALIDRAW · REAL", input: REAL_CONTEXT_INPUT },
   A: { id: "A", label: "A — Migrate before pilot (collapses)", input: HERO_CONTEXT_INPUT },
   B: { id: "B", label: "B — Reinforce first (holds)", input: REINFORCE_CONTEXT_INPUT },
 };
 
 export function isScenarioId(v: unknown): v is ScenarioId {
-  return v === "A" || v === "B";
+  return v === "A" || v === "B" || v === "R";
 }
 
