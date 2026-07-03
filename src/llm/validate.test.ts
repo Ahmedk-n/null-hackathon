@@ -202,3 +202,39 @@ describe("validateAttacks", () => {
     expect(out![0].severity).toBe(0.6); // capped copy
   });
 });
+
+describe("validateGraph — evidence provenance (V3-6) survives repair", () => {
+  it("preserves an assumption's evidence object through the deep-copy repair path", () => {
+    const g = makeGraph(5);
+    g.nodes[1].evidence = { source: "pyproject.toml", fact: "FastAPI monolith (Python)." };
+    const out = validateGraph(g);
+    expect(out).not.toBeNull();
+    const a1 = out!.nodes.find((n) => n.id === "a1")!;
+    expect(a1.evidence).toEqual({ source: "pyproject.toml", fact: "FastAPI monolith (Python)." });
+    // deep copy, not the same reference
+    expect(a1.evidence).not.toBe(g.nodes[1].evidence);
+  });
+
+  it("preserves an explicit null evidence (ungrounded assumption)", () => {
+    const g = makeGraph(5);
+    g.nodes[2].evidence = null;
+    const out = validateGraph(g);
+    expect(out).not.toBeNull();
+    expect(out!.nodes.find((n) => n.id === "a2")!.evidence).toBeNull();
+  });
+
+  it("leaves evidence undefined when absent (frozen fixture.ts graphs have none)", () => {
+    const g = makeGraph(5);
+    const out = validateGraph(g);
+    expect(out).not.toBeNull();
+    for (const n of out!.nodes) expect(n.evidence).toBeUndefined();
+  });
+
+  it("does not mutate the input graph's evidence", () => {
+    const g = makeGraph(5);
+    g.nodes[1].evidence = { source: "notes", fact: "meeting tomorrow" };
+    const snapshot = JSON.parse(JSON.stringify(g));
+    validateGraph(g);
+    expect(g).toEqual(snapshot);
+  });
+});

@@ -127,11 +127,13 @@ export function fixtureContextGraph(): Graph {
       { id: "c_exec", type: "claim", label: "We can execute safely near-term", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_credible"] }] },
       { id: "c_reliab", type: "claim", label: "Meets enterprise reliability now", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_credible"] }, { kind: "OR", childIds: ["a_obs", "a_audit"] }] },
       { id: "c_roi", type: "claim", label: "Migration ROI justifies it now", confidence: 1.0, groups: [{ kind: "OR", childIds: ["a_bound", "a_load"] }] },
-      { id: "k_credible", type: "assumption", label: "Can explain safe staged migration by meeting", confidence: 0.9, groups: [] }, // KEYSTONE — feeds c_exec AND c_reliab
-      { id: "a_obs", type: "assumption", label: "Enough observability for distributed ops", confidence: 0.85, groups: [] },
-      { id: "a_audit", type: "assumption", label: "Enterprise values auditability over purity", confidence: 0.8, groups: [] },
-      { id: "a_bound", type: "assumption", label: "Services have clean boundaries", confidence: 0.9, groups: [] },
-      { id: "a_load", type: "assumption", label: "Load is uneven across features", confidence: 0.85, groups: [] },
+      // evidence sourced VERBATIM from the scripted gather fixtures (src/agents/fixtures.ts) so the
+      // rehearsed demo shows provenance too. Confidence numbers are PINNED — evidence is engine-inert.
+      { id: "k_credible", type: "assumption", label: "Can explain safe staged migration by meeting", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Credible near-term technical plan needed by the meeting (tomorrow)." } }, // KEYSTONE — feeds c_exec AND c_reliab
+      { id: "a_obs", type: "assumption", label: "Enough observability for distributed ops", confidence: 0.85, groups: [], evidence: { source: "src/", fact: "No tracing/metrics wiring found (observability is limited)." } },
+      { id: "a_audit", type: "assumption", label: "Enterprise values auditability over purity", confidence: 0.8, groups: [], evidence: { source: "https://company.example.com/security", fact: "Auditability and reliability required to close." } },
+      { id: "a_bound", type: "assumption", label: "Services have clean boundaries", confidence: 0.9, groups: [], evidence: { source: "pyproject.toml", fact: "FastAPI monolith (Python) — boundaries not yet separated." } },
+      { id: "a_load", type: "assumption", label: "Load is uneven across features", confidence: 0.85, groups: [], evidence: null }, // no relevant finding → ungrounded
     ],
   };
 }
@@ -297,10 +299,11 @@ export function fixtureContextGraphB(): Graph {
       { id: "T", type: "thesis", label: "Reinforce before pilot (keep monolith, hire 2 SREs)", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_reliab", "c_ready"] }] },
       { id: "c_reliab", type: "claim", label: "Reliability improves enough for the pilot", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_sre"] }, { kind: "OR", childIds: ["a_runbook", "a_oncall"] }] },
       { id: "c_ready", type: "claim", label: "Team is operationally ready by the pilot", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_sre"] }, { kind: "OR", childIds: ["a_oncall", "a_budget"] }] },
-      { id: "k_sre", type: "assumption", label: "2 SREs hired & onboarded before the pilot", confidence: 0.95, groups: [] }, // KEYSTONE — feeds c_reliab AND c_ready
-      { id: "a_runbook", type: "assumption", label: "Runbooks cover the main incident classes", confidence: 0.85, groups: [] },
-      { id: "a_oncall", type: "assumption", label: "On-call rotation is viable with the current team", confidence: 0.8, groups: [] },
-      { id: "a_budget", type: "assumption", label: "Budget approved for two SRE hires", confidence: 0.9, groups: [] },
+      // evidence where natural (the operational-ownership gap grounds the SRE keystone), null elsewhere.
+      { id: "k_sre", type: "assumption", label: "2 SREs hired & onboarded before the pilot", confidence: 0.95, groups: [], evidence: { source: "src/", fact: "No platform/infra owner in CODEOWNERS — operational ownership gap." } }, // KEYSTONE — feeds c_reliab AND c_ready
+      { id: "a_runbook", type: "assumption", label: "Runbooks cover the main incident classes", confidence: 0.85, groups: [], evidence: null },
+      { id: "a_oncall", type: "assumption", label: "On-call rotation is viable with the current team", confidence: 0.8, groups: [], evidence: null },
+      { id: "a_budget", type: "assumption", label: "Budget approved for two SRE hires", confidence: 0.9, groups: [], evidence: null },
     ],
   };
 }

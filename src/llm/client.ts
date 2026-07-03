@@ -82,6 +82,23 @@ function renderPack(pack: unknown): string {
   return lines.join("\n");
 }
 
+/**
+ * A gathered fact threaded into extraction so the model can GROUND each confidence in real
+ * evidence (V3-6). Deliberately mirrors the node `evidence` shape ({ source, fact }): the
+ * orchestrator maps store gather findings (GatherFinding {label,value,source}) to this shape
+ * (fact = `${label}: ${value}`) at the call site — a one-prop change. See renderFindings.
+ */
+export interface ExtractFinding {
+  source: string;
+  fact: string;
+}
+
+/** Compact rendering of gathered findings, each line citable verbatim as node evidence. */
+function renderFindings(findings?: ExtractFinding[]): string {
+  if (!findings || findings.length === 0) return "";
+  return findings.map((f) => `- [${f.source}] ${f.fact}`).join("\n");
+}
+
 // ── EXTRACT ────────────────────────────────────────────────────────────────
 const EXTRACT_SYSTEM = `You are Keystone's structural decomposer. Turn a founder's decision into a dependency
 graph matching this JSON shape EXACTLY and return ONLY that JSON object (no prose):
@@ -90,7 +107,8 @@ graph matching this JSON shape EXACTLY and return ONLY that JSON object (no pros
   "nodes": [
     { "id": "snake_case_id", "type": "thesis" | "claim" | "assumption",
       "label": "<= 8 words", "confidence": 0.0-1.0,
-      "groups": [ { "kind": "AND" | "OR", "childIds": ["<other node ids>"] } ] }
+      "groups": [ { "kind": "AND" | "OR", "childIds": ["<other node ids>"] } ],
+      "evidence": { "source": "<file path / url / notes, VERBATIM from a finding>", "fact": "<the cited finding>" } | null }
   ]
 }
 
@@ -103,18 +121,35 @@ HARD RULES:
 - confidence is each node's standalone solidity in [0,1]. GROUND every confidence in the supplied
   context pack: set it LOWER for assumptions the pack's facts actually stress, HIGHER where facts support them.
 
+EVIDENCE & CONFIDENCE PROVENANCE (disarms "you invented these numbers"):
+- When GATHERED FINDINGS are supplied below, each ASSUMPTION SHOULD cite the SINGLE most relevant
+  finding as "evidence": { "source": <the finding's source VERBATIM — file path, url, or "notes">,
+  "fact": <the finding text> }. Never fabricate a source; copy one from the findings list exactly.
+- Set confidence HIGHER (0.7–0.9) when the cited finding DIRECTLY supports the assumption; LOWER
+  (0.3–0.55) when findings are ABSENT or CONTRADICT it.
+- An assumption with NO relevant finding MUST set "evidence": null. thesis/claim nodes set "evidence": null.
+
 GROUND THE STRUCTURE IN CONTEXT. Make the assumptions COMPANY-SPECIFIC, not generic — prefer
 assumptions the provided business/technical/temporal facts stress. When temporal context raises
 timeline/execution/reliability/auditability weight, surface near-term delivery, operational-readiness,
 and credibility assumptions. Do not invent facts absent from the pack.`;
 
 /** One live extraction attempt: throws on any network/parse/schema/validate failure (retryOnce retries). */
-async function extractRun(decisionText: string, pack: unknown): Promise<Graph> {
+async function extractRun(
+  decisionText: string,
+  pack: unknown,
+  findings?: ExtractFinding[],
+): Promise<Graph> {
   const client = new Anthropic({ maxRetries: 0 });
   const packSummary = renderPack(pack);
-  const user = packSummary
-    ? `DECISION:\n${decisionText}\n\nCONTEXT PACK:\n${packSummary}`
-    : `DECISION:\n${decisionText}`;
+  const findingsSummary = renderFindings(findings);
+  const user = [
+    `DECISION:\n${decisionText}`,
+    packSummary ? `CONTEXT PACK:\n${packSummary}` : "",
+    findingsSummary ? `GATHERED FINDINGS (cite the single most relevant as evidence):\n${findingsSummary}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
   const res = await client.messages.create(
     { model: MODEL, max_tokens: MAX_TOKENS, system: EXTRACT_SYSTEM, messages: [{ role: "user", content: user }] },
     { timeout: REQUEST_TIMEOUT_MS },
@@ -130,6 +165,7 @@ export async function extractStructure(
   decisionText: string,
   pack?: unknown,
   scenario?: ScenarioId,
+  findings?: ExtractFinding[],
 ): Promise<Graph> {
   const fallback = (): Graph =>
     !pack ? fixtureGraph() : scenario === "B" ? fixtureContextGraphB() : fixtureContextGraph();
@@ -137,7 +173,7 @@ export async function extractStructure(
   if (scenario) return fallback();
   if (!hasApiKey()) return fallback();
   try {
-    return await retryOnce(() => extractRun(decisionText, pack));
+    return await retryOnce(() => extractRun(decisionText, pack, findings));
   } catch {
     return fallback();
   }

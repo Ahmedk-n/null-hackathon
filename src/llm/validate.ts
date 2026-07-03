@@ -29,6 +29,11 @@ function cloneGraph(g: Graph): Graph {
       label: n.label,
       confidence: n.confidence,
       groups: n.groups.map((gr) => ({ kind: gr.kind, childIds: [...gr.childIds] })),
+      // Preserve confidence provenance through the repair path (deep-copied; null/undefined
+      // pass through untouched). Engine-inert, but the UI needs it to survive validation.
+      ...(n.evidence !== undefined
+        ? { evidence: n.evidence ? { source: n.evidence.source, fact: n.evidence.fact } : n.evidence }
+        : {}),
     })),
   };
 }

@@ -1,8 +1,8 @@
 "use client";
 import { useMemo } from "react";
-import type { Graph } from "@/engine";
+import type { Graph, GraphNode } from "@/engine";
 import { computeSupport, rankLoadBearing } from "@/engine";
-import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, HAIR_STRONG } from "@/ui/tokens";
+import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, HAIR_STRONG, OK, WARN } from "@/ui/tokens";
 import { LedgerRow, SectionHeader } from "@/ui/primitives";
 
 const TYPE_COLOR: Record<string, string> = { thesis: THESIS, claim: CLAIM, assumption: ASSUMPTION };
@@ -23,6 +23,39 @@ function ColorChip({ label, color }: { label: string; color: string }) {
         style={{ width: 12, height: 12, background: color, border: "1px solid var(--ink)", flex: "0 0 auto" }}
       />
       <span className="label">{label}</span>
+    </div>
+  );
+}
+
+// Confidence + provenance (V3-6). For an ASSUMPTION we make the number traceable to evidence:
+//  - evidence present  → "0.72 · GROUNDED" (--ok) + the fact + source in mono muted.
+//  - evidence null/none → "0.85 · UNGROUNDED — ASSUMED" (--warn), disarming "you invented these".
+// thesis/claim nodes keep the plain confidence row (grounding is an assumption-level concept).
+function ConfidenceRow({ node }: { node: GraphNode }) {
+  const conf = node.confidence.toFixed(2);
+  if (node.type !== "assumption") {
+    return <LedgerRow label="Confidence" value={conf} />;
+  }
+  const evidence = node.evidence ?? null;
+  if (evidence) {
+    return (
+      <div data-evidence="grounded">
+        <LedgerRow label="Confidence" value={`${conf} · GROUNDED`} accent={OK} />
+        <div
+          className="mono"
+          style={{ fontSize: 11, lineHeight: 1.5, marginTop: 2, color: "var(--ink-2)" }}
+        >
+          {evidence.fact}
+        </div>
+        <div className="mono" style={{ fontSize: 11, lineHeight: 1.5, color: "var(--muted)" }}>
+          [{evidence.source}]
+        </div>
+      </div>
+    );
+  }
+  return (
+    <div data-evidence="ungrounded">
+      <LedgerRow label="Confidence" value={`${conf} · UNGROUNDED — ASSUMED`} accent={WARN} />
     </div>
   );
 }
@@ -73,7 +106,7 @@ export function SelectionPanel({
               value={detail.node.id === keystoneId ? "KEYSTONE" : detail.node.type.toUpperCase()}
               accent={detail.node.id === keystoneId ? KEYSTONE : TYPE_COLOR[detail.node.type]}
             />
-            <LedgerRow label="Confidence" value={detail.node.confidence.toFixed(2)} />
+            <ConfidenceRow node={detail.node} />
             <LedgerRow label="Support" value={`${Math.round(detail.support * 100)}%`} />
             <LedgerRow
               label="Knock-out Impact"

@@ -110,6 +110,47 @@ describe("extractStructure (live, mocked SDK)", () => {
   });
 });
 
+describe("extractStructure — evidence provenance (V3-6)", () => {
+  const GRAPH_WITH_EVIDENCE = {
+    ...VALID_GRAPH,
+    nodes: VALID_GRAPH.nodes.map((n) =>
+      n.id === "a_load"
+        ? { ...n, confidence: 0.8, evidence: { source: "pyproject.toml", fact: "FastAPI monolith" } }
+        : n.id === "a_dev"
+          ? { ...n, evidence: null }
+          : n,
+    ),
+  };
+
+  it("live graph carries assumption evidence through the validation wall", async () => {
+    createMock.mockResolvedValue(msg(GRAPH_WITH_EVIDENCE));
+    const graph = await extractStructure("Should we migrate?", pack);
+    const aLoad = graph.nodes.find((n) => n.id === "a_load")!;
+    const aDev = graph.nodes.find((n) => n.id === "a_dev")!;
+    expect(aLoad.evidence).toEqual({ source: "pyproject.toml", fact: "FastAPI monolith" });
+    expect(aDev.evidence).toBeNull();
+  });
+
+  it("threads gathered findings into the extraction prompt (citable sources)", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    await extractStructure("Should we migrate?", pack, undefined, [
+      { source: "pyproject.toml", fact: "FastAPI monolith (Python)" },
+      { source: "notes", fact: "Enterprise meeting tomorrow" },
+    ]);
+    const userContent = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(userContent).toContain("GATHERED FINDINGS");
+    expect(userContent).toContain("[pyproject.toml] FastAPI monolith (Python)");
+    expect(userContent).toContain("[notes] Enterprise meeting tomorrow");
+  });
+
+  it("omits the findings block when none are supplied", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    await extractStructure("Should we migrate?", pack);
+    const userContent = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(userContent).not.toContain("GATHERED FINDINGS");
+  });
+});
+
 describe("generateAttacks (live, mocked SDK)", () => {
   const graph = VALID_GRAPH as unknown as Graph;
 
