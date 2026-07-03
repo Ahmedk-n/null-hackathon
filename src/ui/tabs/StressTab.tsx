@@ -278,6 +278,57 @@ function ReinforcementPanel({
   );
 }
 
+// V3-7 · TIME-AXIS STRESS — "your structure FAILS IN N DAYS", scrubbable. A hairline
+// scrub slider (0..30 days, zero-radius track — same .ledger-range as ConfidenceSlider)
+// drives `setTimelineDay`, which re-derives the temporal attack magnitudes for that day
+// and re-runs the engine LIVE (the gauge craters as the modeled deadline approaches).
+// The readout chip states the verdict: "FAILS IN N DAYS" (--bad) where N = the first day
+// integrity drops below the crater line, or "SURVIVES 30D HORIZON" (--ok) if it never does.
+// Only shown once load is applied AND the run is grounded in context (RAW has no time axis).
+const TIMELINE_HORIZON = 30;
+
+function TimelineSection() {
+  const timelineDay = useKeystone((s) => s.timelineDay);
+  const failsInDay = useKeystone((s) => s.failsInDay);
+  const fails = failsInDay !== null;
+  return (
+    <div data-testid="timeline-section">
+      <SectionHeader>Timeline Stress</SectionHeader>
+      <label style={{ display: "block", marginTop: 4 }}>
+        <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+          <span className="label">Scrub · Days From Now</span>
+          <span className="mono" style={{ fontSize: 11 }}>{`T+${timelineDay}D`}</span>
+        </span>
+        <input
+          type="range"
+          className="ledger-range"
+          data-testid="timeline-slider"
+          aria-label="Timeline day"
+          min={0}
+          max={TIMELINE_HORIZON}
+          step={1}
+          value={timelineDay}
+          onChange={(e) => keystoneStore.getState().setTimelineDay(Number(e.target.value))}
+          style={{ width: "100%", marginTop: 4 }}
+        />
+      </label>
+      <span
+        data-testid="timeline-chip"
+        className="chip mono"
+        style={{
+          marginTop: 6,
+          display: "inline-block",
+          textTransform: "uppercase",
+          color: fails ? "var(--bad)" : "var(--ok)",
+          borderColor: fails ? "var(--bad)" : "var(--ok)",
+        }}
+      >
+        {fails ? `FAILS IN ${failsInDay} DAYS` : `SURVIVES ${TIMELINE_HORIZON}D HORIZON`}
+      </span>
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -347,6 +398,9 @@ export function StressTab({
         {reinforcementPlan && (
           <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} />
         )}
+
+        {/* V3-7 — time-axis stress (grounded only; RAW has no temporal dimension) */}
+        {loadApplied && applyContextWeights && pack && <TimelineSection />}
 
         {/* W2-2 — deterministic re-run beat */}
         <RerunControl />

@@ -6,6 +6,10 @@ import {
   fixtureContextAttacks,
   fixtureCompanyContext,
   fixtureDecisionContextPack,
+  fixtureContextGraphB,
+  fixtureContextAttacksB,
+  fixtureCompanyContextB,
+  fixtureDecisionContextPackB,
 } from "@/context";
 
 describe("keystone store (context fixtures)", () => {
@@ -191,6 +195,71 @@ describe("keystone store (context integration)", () => {
     expect(store.getState().reinforcementPlan).not.toBeNull();
     store.getState().reset();
     expect(store.getState().reinforcementPlan).toBeNull();
+  });
+
+  // ── V3-7 · time-axis stress ────────────────────────────────────────────
+  it("applyLoad derives failsInDay GROUNDED (hero A → 8) and resets the scrub", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+    expect(store.getState().failsInDay).toBe(8);
+    expect(store.getState().timelineDay).toBe(0);
+  });
+
+  it("RAW mode has no time axis (failsInDay = null)", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+    expect(store.getState().failsInDay).toBe(8);
+    store.getState().setApplyContextWeights(false);
+    expect(store.getState().failsInDay).toBeNull();
+    store.getState().setApplyContextWeights(true);
+    expect(store.getState().failsInDay).toBe(8);
+  });
+
+  it("setTimelineDay re-runs the engine live — integrity craters as the deadline nears", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+
+    store.getState().setTimelineDay(0); // deadline a fortnight out → raw-ish, structure holds
+    const early = selectIntegrity(store.getState());
+    store.getState().setTimelineDay(13); // deadline imminent → full collapse
+    const late = selectIntegrity(store.getState());
+    expect(early).toBeGreaterThan(late);
+    expect(late).toBeLessThan(10);
+    expect(store.getState().timelineDay).toBe(13);
+
+    // Deterministic: same day → same verdict.
+    store.getState().setTimelineDay(0);
+    expect(selectIntegrity(store.getState())).toBe(early);
+  });
+
+  it("reinforce composes with the time axis — FAILS IN N DAYS flips to SURVIVES", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraph());
+    store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacks());
+    expect(store.getState().failsInDay).toBe(8);
+
+    store.getState().reinforce();
+    expect(store.getState().failsInDay).toBeNull(); // reinforced structure clears the crater line
+
+    // Scrubbing rebuilds from raw attacks (drops the plan) and re-derives the horizon.
+    store.getState().setTimelineDay(5);
+    expect(store.getState().reinforcementPlan).toBeNull();
+    expect(store.getState().failsInDay).toBe(8);
+  });
+
+  it("scenario B survives the horizon (failsInDay null)", () => {
+    const store = createKeystoneStore();
+    store.getState().setGraph(fixtureContextGraphB());
+    store.getState().setContext(fixtureCompanyContextB(), fixtureDecisionContextPackB(), "fixture");
+    store.getState().applyLoad(fixtureContextAttacksB());
+    expect(store.getState().failsInDay).toBeNull();
   });
 
   it("selection/tilt setters leave the failures snapshot referentially stable", () => {

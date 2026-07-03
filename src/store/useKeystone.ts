@@ -13,7 +13,23 @@ import {
 // Pure, key-free transform (data-in/data-out). Safe to bundle client-side. This is the ONLY
 // context import allowed in the store — never the compiler, the llm client, or the Anthropic SDK.
 import { reweightAttacksByContext } from "@/context/weights";
+// V3-7 (additive): pure, key-free time-axis transforms. Deep path (never the barrel)
+// so the client/key-safety boundary guard stays happy.
+import { adjustmentsAt, failsInDays, CRATER_THRESHOLD } from "@/context/timeline";
 import type { CompanyContext, DecisionContextPack } from "@/context";
+
+// V3-7 helper: the un-reinforced structure's failure horizon under the current raw
+// attacks + context timeline. Only meaningful GROUNDED (context weights on) with a
+// pack present; RAW mode has no temporal axis → null. Pure/deterministic.
+function deriveFailsInDay(
+  baseGraph: Graph | null,
+  rawAttacks: Attack[],
+  pack: DecisionContextPack | null,
+  applyContextWeights: boolean,
+): number | null {
+  if (!applyContextWeights || !baseGraph || !pack || rawAttacks.length === 0) return null;
+  return failsInDays(baseGraph, rawAttacks, pack, CRATER_THRESHOLD);
+}
 
 // Stable empty reference reused for the "no failures" case. Returning a fresh `new Set()` from a
 // selector on every render breaks React 19's useSyncExternalStore (snapshot must be referentially
@@ -46,6 +62,11 @@ export interface KeystoneState {
   // structure. null until `reinforce()` fires; cleared by any action that rebuilds the
   // working graph (so the DE-RISKING PLAN panel never shows a stale plan).
   reinforcementPlan: ReinforcementPlan | null;
+  // V3-7 (additive): time-axis stress. `timelineDay` is the scrub offset in days
+  // from now (0..horizon); `failsInDay` is the FIRST day the un-reinforced structure
+  // craters below the failure line (null = survives the horizon), derived GROUNDED-only.
+  timelineDay: number;
+  failsInDay: number | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   setContext: (
@@ -65,6 +86,9 @@ export interface KeystoneState {
   // V3-2 (additive): run the minimum-reinforcement solver on the current attacked
   // structure and apply the prescribed confidence restores to the working graph.
   reinforce: () => void;
+  // V3-7 (additive): scrub the time axis — re-derive effective attacks for `day`
+  // via adjustmentsAt + reweight and re-run the engine live on a clean clone.
+  setTimelineDay: (day: number) => void;
 }
 
 export function createKeystoneStore() {
@@ -84,8 +108,10 @@ export function createKeystoneStore() {
     rerunConfirmed: false,
     rerunIdentical: null,
     reinforcementPlan: null,
+    timelineDay: 0,
+    failsInDay: null,
     setGraph: (g) =>
-      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null }),
+      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null }),
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
       if (!wg) return;
@@ -110,7 +136,11 @@ export function createKeystoneStore() {
       // Always apply against a clean baseline clone so re-applying (e.g. the A/B
       // toggle) never double-attacks an already-stressed graph.
       const workingGraph = applyAttacks(cloneGraph(base), effective);
-      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null });
+      // V3-7: the time-axis failure horizon is a property of the base structure under
+      // the RAW attacks + context timeline — reset the scrub to now and (grounded-only)
+      // derive the day it craters.
+      const failsInDay = deriveFailsInDay(base, attacks, decisionContextPack, applyContextWeights);
+      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay });
     },
     // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
     // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
@@ -133,12 +163,16 @@ export function createKeystoneStore() {
         // Toggling the attack basis re-derives the outcome from raw state, so any prior
         // reinforcement no longer describes the graph on screen — clear it.
         reinforcementPlan: null,
+        // V3-7: RAW has no temporal axis (failsInDay → null); GROUNDED re-derives it.
+        // Reset the scrub to now so the two views stay coherent.
+        timelineDay: 0,
+        failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, value),
       });
     },
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null });
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),
@@ -202,12 +236,49 @@ export function createKeystoneStore() {
         const baseNode = baseGraph.nodes.find((n) => n.id === id);
         if (node && baseNode) node.confidence = baseNode.confidence;
       }
+      // V3-7: proving the crux composes with the time axis — if the reinforced
+      // structure now clears the crater line, it survives the whole horizon, so the
+      // "FAILS IN N DAYS" chip flips to SURVIVES (failsInDay → null). Otherwise keep
+      // the un-reinforced horizon. (Scrubbing the slider afterward rebuilds the working
+      // graph from raw attacks, clearing the plan and re-deriving failsInDay — documented.)
+      const failsInDay = integrity(workingGraph) >= CRATER_THRESHOLD
+        ? null
+        : deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, applyContextWeights);
       set({
         workingGraph,
         attacks: effective,
         loadApplied: true,
         failures: detectFailures(workingGraph),
         reinforcementPlan: plan,
+        failsInDay,
+      });
+    },
+    // V3-7 · TIME-AXIS SCRUB. Re-derive effective attacks for `day` (temporal
+    // adjustments recomputed via adjustmentsAt, then the same frozen reweight seam
+    // applyLoad uses) and re-run the engine live on a clean baseline clone. Mirrors
+    // setApplyContextWeights' pattern. Only shifts the outcome when loadApplied &&
+    // applyContextWeights && a pack is present; RAW mode is day-invariant.
+    setTimelineDay: (day) => {
+      const { loadApplied, rawAttacks, baseGraph, decisionContextPack, applyContextWeights } = get();
+      if (!loadApplied || !baseGraph || rawAttacks.length === 0) {
+        set({ timelineDay: day });
+        return;
+      }
+      const effective =
+        applyContextWeights && decisionContextPack
+          ? reweightAttacksByContext(rawAttacks, adjustmentsAt(decisionContextPack, day))
+          : rawAttacks;
+      const workingGraph = applyAttacks(cloneGraph(baseGraph), effective);
+      set({
+        timelineDay: day,
+        workingGraph,
+        attacks: effective,
+        failures: detectFailures(workingGraph),
+        // Scrubbing rebuilds the working graph from the raw attacks, discarding any
+        // applied reinforcement — drop the stale plan (mirrors the A/B toggle) and
+        // re-derive the (un-reinforced) failure horizon so the chip stays coherent.
+        reinforcementPlan: null,
+        failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, applyContextWeights),
       });
     },
   }));

@@ -186,6 +186,55 @@ describe("StressTab (R4)", () => {
     expect(screen.queryByRole("button", { name: /reinforce/i })).toBeNull();
   });
 
+  // ── V3-7 · TIMELINE scrub + FAILS/SURVIVES chip ───────────────────────
+  it("renders the TIMELINE scrub slider + FAILS IN N DAYS chip when grounded", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().setContext(
+      fixtureCompanyContext(),
+      fixtureDecisionContextPack(),
+      "fixture",
+    );
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    const slider = screen.getByTestId("timeline-slider") as HTMLInputElement;
+    expect(slider.getAttribute("type")).toBe("range");
+    expect(slider.getAttribute("max")).toBe("30");
+    expect(slider.className).toContain("ledger-range"); // zero-radius track
+
+    // Hero A grounded → craters below the crater line at day 8.
+    const chip = screen.getByTestId("timeline-chip");
+    expect(chip.textContent).toMatch(/FAILS IN 8 DAYS/i);
+
+    // Dragging re-runs the engine live: day 13 craters (deadline imminent),
+    // day 0 holds (deadline a fortnight out) — pressure builds as the horizon advances.
+    fireEvent.change(slider, { target: { value: "13" } });
+    expect(keystoneStore.getState().timelineDay).toBe(13);
+    expect(screen.getByText(/T\+13D/)).toBeDefined();
+    const collapsed = integrity(keystoneStore.getState().workingGraph!);
+    expect(collapsed).toBeLessThan(10);
+
+    fireEvent.change(slider, { target: { value: "0" } });
+    expect(keystoneStore.getState().timelineDay).toBe(0);
+    const healthy = integrity(keystoneStore.getState().workingGraph!);
+    expect(healthy).toBeGreaterThan(collapsed);
+  });
+
+  it("hides the TIMELINE section in RAW (ungrounded) mode", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().setContext(
+      fixtureCompanyContext(),
+      fixtureDecisionContextPack(),
+      "fixture",
+    );
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setApplyContextWeights(false);
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(screen.queryByTestId("timeline-section")).toBeNull();
+  });
+
   // ── W2-2 · deterministic re-run beat ──────────────────────────────────
   it("re-run leaves the verdict identical and flashes the determinism chip", () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());
