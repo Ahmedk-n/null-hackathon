@@ -8,6 +8,10 @@ import { StructuralNode, type StructuralNodeData } from "./StructuralNode";
 
 const nodeTypes = { structural: StructuralNode };
 
+// Staggered bottom-up collapse (§8): the foundation cracks first, then claims
+// tilt, then the thesis buckles — assumption 0s → claim 0.25s → thesis 0.5s.
+const COLLAPSE_DELAY = { assumption: 0, claim: 0.25, thesis: 0.5 } as const;
+
 export function KeystoneCanvas({
   graph,
   keystoneId,
@@ -29,6 +33,7 @@ export function KeystoneCanvas({
         confidence: n.confidence,
         isKeystone: n.id === keystoneId,
         isFailed: failures.has(n.id),
+        collapseDelay: COLLAPSE_DELAY[n.type],
       },
     }));
     const rfEdges: Edge[] = [];

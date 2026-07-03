@@ -39,6 +39,8 @@ export default function KeystoneApp() {
         decisionContextPack: DecisionContextPack;
         source: "live" | "fixture";
       };
+      // Reveal sequencing: surface the Context Used panel first (it fades in),
+      // then a short beat before the graph assembles on the canvas second.
       keystoneStore.getState().setContext(companyContext, pack, source);
 
       const exRes = await fetch("/api/extract", {
@@ -47,6 +49,7 @@ export default function KeystoneApp() {
         body: JSON.stringify({ decision: input.decisionText, pack }),
       });
       const graph = (await exRes.json()) as Graph;
+      await new Promise((resolve) => setTimeout(resolve, 800));
       keystoneStore.getState().setGraph(graph);
     } finally {
       setBuilding(false);
