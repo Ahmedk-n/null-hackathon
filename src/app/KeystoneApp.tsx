@@ -1,5 +1,6 @@
 "use client";
 import { useRef, useState } from "react";
+import Link from "next/link";
 import type { Attack, Graph } from "@/engine";
 import type { CompanyContext, ContextInput, DecisionContextPack } from "@/context";
 import type { GatherFinding, GatherKind } from "@/agents/types";
@@ -237,6 +238,15 @@ export default function KeystoneApp({
               Fit
             </Button>
             <Button onClick={() => keystoneStore.getState().reset()}>Reset</Button>
+            {/* V5-2 — PRINT MEMO: SPA Link (preserves the in-memory store) to the
+                drawing-sheet memo. Disabled-looking until a verdict exists. */}
+            {workingGraph ? (
+              <Link href="/studio/memo" className="btn" style={{ textDecoration: "none" }}>
+                Print Memo
+              </Link>
+            ) : (
+              <Button disabled>Print Memo</Button>
+            )}
           </>
         }
       />

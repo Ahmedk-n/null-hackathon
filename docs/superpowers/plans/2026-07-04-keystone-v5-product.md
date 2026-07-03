@@ -35,7 +35,7 @@
 - [ ] Migrate: e2e/rehearsal.mjs (goto /studio), shell.test/route tests that assume /; T9 contract (TopBar ISO timestamp etc.) applies to the STUDIO page.
 - Files: src/app/page.tsx, src/app/studio/page.tsx, src/landing/** (new), e2e/rehearsal.mjs, affected tests.
 
-### V5-2 · Decision memo — engineering drawing sheet  ← cut last but one
+### V5-2 · Decision memo — engineering drawing sheet ✅ (server page stamps startedAt — T8-clean; SPA Link preserves the store; blocks: verdict banner → sensitivity → de-risking → constraint register → evidence register → timeline → attack ledger → title block; @media print A4; provenance helper pre-wired for V5-3's modified state; 6 tests)
 - [ ] PRINT MEMO action in the studio TopBar (enabled when a verdict exists) → opens `/studio/memo` (client route reading the live store; if store empty → "NO ANALYSIS — RETURN TO STUDIO").
 - [ ] Sheet layout (print-optimized, @media print clean, A4): **title block** (bottom-right, CAD-style: decision title, ISO date from server-passed startedAt, scenario/source, INTEGRITY stamp with status word, SHEET 1/1, drawn-by KEYSTONE v0.1) · thesis + verdict banner · KNOCK-OUT SENSITIVITY table · DE-RISKING PLAN (minimal set, before→after) · CONSTRAINT REGISTER (planes + VIOLATED states) · EVIDENCE REGISTER (assumption → fact → source, provenance states) · FAILS-IN-N-DAYS line · attack ledger.
 - [ ] window.print() button on the sheet ("PRINT / SAVE AS PDF"). No new deps.
