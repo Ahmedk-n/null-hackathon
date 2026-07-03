@@ -2,9 +2,36 @@
 // CONTEXT USED panel — ledger re-skin (plan §2 / §1). Same props/data binding as before
 // (StressTab consumes it): { pack, source }. Shows the relevant business/technical/temporal
 // facts, the weight adjustments that reshaped the analysis (magnitude-sorted, ▲ increase /
-// ▼ decrease), missing information, and a demo-fallback chip when the pack is fixture data.
+// ▼ decrease), missing information, and a source chip (LIVE / CACHED) for the pack's provenance.
 import type { DecisionContextPack, WeightCategory } from "@/context";
-import { Chip, LedgerRow, SectionHeader } from "@/ui/primitives";
+import { LedgerRow, SectionHeader } from "@/ui/primitives";
+
+// Terminal source chip: uppercase, tracked, monospace, zero-radius. LIVE (real compile,
+// green ok tone) vs CACHED (offline/fixture data, calm neutral tone) — a factual
+// provenance tag, not an apology.
+function SourceChip({ source }: { source: "live" | "fixture" }) {
+  const live = source === "live";
+  const color = live ? "var(--ok)" : "var(--muted)";
+  return (
+    <span
+      className="mono"
+      data-testid="context-source-chip"
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        padding: "2px 8px",
+        border: `1px solid ${color}`,
+        borderRadius: 0,
+        color,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {live ? "LIVE" : "CACHED"}
+    </span>
+  );
+}
 
 const CATEGORY_LABEL: Record<WeightCategory, string> = {
   market: "market",
@@ -67,7 +94,7 @@ export function ContextUsedPanel({
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <SectionHeader>Context Used</SectionHeader>
         <div style={{ flex: 1 }} />
-        {source === "fixture" && <Chip tone="warn">⚠ demo fallback</Chip>}
+        <SourceChip source={source} />
       </div>
 
       <FactList title="Business facts" items={pack.relevantBusinessFacts} />

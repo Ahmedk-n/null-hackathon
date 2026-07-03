@@ -103,8 +103,9 @@ export default function KeystoneApp({
     },
     {
       key: "Source",
-      value: contextSource ?? "—",
-      accent: contextSource === "fixture" ? "var(--warn)" : undefined,
+      // Factual provenance, not an apology: LIVE (real compile) vs CACHED (offline/fixture).
+      value: contextSource ? (contextSource === "live" ? "LIVE" : "CACHED") : "—",
+      accent: contextSource === "live" ? "var(--ok)" : undefined,
     },
   ];
 

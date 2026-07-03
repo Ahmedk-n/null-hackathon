@@ -35,8 +35,8 @@
 - [x] While here, honor the "retry once then fixture" guardrail (single retry wrapper). *(Done: src/agents/retry.ts retryOnce with SDK maxRetries:0 on business/temporal; toolRunner uses SDK maxRetries:1 — intentional, runner is stateful.)*
 
 ### W0-4 · Truthful SOURCE labeling (credibility with judges)
-- [ ] `/api/context` (`src/app/api/context/route.ts:9`) claims `"live"` while `compile.ts`/`llm/client.ts` are fixture-only stubs → StatusStrip shows "SOURCE live" falsely. Label from actual call outcome (or `"fixture"` until real compile lands).
-- [ ] Rename UI chip `⚠ demo fallback` → `OFFLINE` / `CACHED` (`src/ui/ContextUsedPanel.tsx`) — stop apologizing at the climax.
+- [x] `/api/context` now reports `"fixture"` truthfully (compile.ts confirmed stub); route test proves label independent of key presence.
+- [x] Chips: `⚠ demo fallback` → `LIVE` (--ok) / `CACHED` (neutral) SourceChip in ContextUsedPanel + AgentGather; StatusStrip maps the same vocabulary. testids: context-source-chip, gather-source-chip.
 
 ## Wave 1 — The money shot (collapse spectacle; parallelizable after W0)
 

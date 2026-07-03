@@ -6,13 +6,39 @@
 import { useEffect, useRef, useState } from "react";
 import type { GatherKind, GatherSource } from "@/agents/types";
 import { useAgentStream } from "@/lib/useAgentStream";
-import { Button, Chip, Field, LedgerRow, SectionHeader } from "@/ui/primitives";
+import { Button, Field, LedgerRow, SectionHeader } from "@/ui/primitives";
 
 // muted provenance tag rendered on the right of a finding/log value.
 function Source({ children }: { children: React.ReactNode }) {
   return (
     <span className="label" style={{ marginLeft: 8, fontSize: 10, color: "var(--muted)" }}>
       {children}
+    </span>
+  );
+}
+
+// Terminal source chip for the finished run: LIVE (real agent, green ok tone) vs
+// CACHED (offline/fixture data, calm neutral tone) — factual provenance, not an apology.
+function SourceChip({ source }: { source: "live" | "fixture" }) {
+  const live = source === "live";
+  const color = live ? "var(--ok)" : "var(--muted)";
+  return (
+    <span
+      className="mono"
+      data-testid="gather-source-chip"
+      style={{
+        fontSize: 10,
+        fontWeight: 600,
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        padding: "2px 8px",
+        border: `1px solid ${color}`,
+        borderRadius: 0,
+        color,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {live ? "LIVE" : "CACHED"}
     </span>
   );
 }
@@ -59,9 +85,9 @@ export function AgentGather({
     return { notes: notes.trim() };
   }
 
-  // Is the finished run a scripted (offline) fixture? The `done`/last event carries it.
+  // Provenance of the finished run — the `done`/last event carries the source.
   const lastDone = [...events].reverse().find((e) => e.type === "done");
-  const isFixture = lastDone?.type === "done" && lastDone.source === "fixture";
+  const doneSource = lastDone?.type === "done" ? lastDone.source : undefined;
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
@@ -101,7 +127,7 @@ export function AgentGather({
           <Button onClick={() => void run(kind, buildSource())} disabled={running}>
             {running ? "RUNNING…" : "RUN AGENT"}
           </Button>
-          {isFixture && <Chip tone="warn">⚠ demo fallback</Chip>}
+          {doneSource && <SourceChip source={doneSource} />}
         </div>
       </div>
 
