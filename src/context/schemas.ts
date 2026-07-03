@@ -148,3 +148,73 @@ export const ContextCompileSchema = z.object({
   decisionContextPack: DecisionContextPackSchema,
 });
 export type ContextCompileOutput = z.infer<typeof ContextCompileSchema>;
+
+/* ---------- Post-parse clamping ---------------------------------------------
+ * zod validates the SHAPE; it deliberately does NOT `.min(0).max(1)` the score
+ * fields, because a hard refusal on a slightly-off model value (e.g. 1.02) would
+ * throw the whole compile into the fixture fallback. Instead we tolerate the
+ * value and clamp it here, so a valid-shaped-but-slightly-out-of-range live
+ * response is still usable. Walks every 0..1 field across CompanyContext + the
+ * DecisionContextPack, and forces teamSize to a non-negative integer.
+ * Pure: returns a NEW object, never mutates the input. */
+const clamp01 = (n: number): number => Math.min(1, Math.max(0, n));
+
+export function postClamp(result: ContextCompileOutput): ContextCompileOutput {
+  const { companyContext: cc, decisionContextPack: pack } = result;
+
+  return {
+    companyContext: {
+      business: { ...cc.business },
+      technical: {
+        ...cc.technical,
+        teamSize:
+          cc.technical.teamSize === undefined
+            ? undefined
+            : Math.max(0, Math.round(cc.technical.teamSize)),
+      },
+      temporal: {
+        upcomingEvents: cc.temporal.upcomingEvents.map((e) => ({
+          ...e,
+          importance: clamp01(e.importance),
+        })),
+        deadlines: cc.temporal.deadlines.map((d) => ({
+          ...d,
+          severity: clamp01(d.severity),
+        })),
+        urgencyLevel: clamp01(cc.temporal.urgencyLevel),
+      },
+      constraints: cc.constraints.map((c) => ({ ...c, severity: clamp01(c.severity) })),
+      objectives: cc.objectives.map((o) => ({ ...o, priority: clamp01(o.priority) })),
+      knownRisks: cc.knownRisks.map((r) => ({
+        ...r,
+        likelihood: clamp01(r.likelihood),
+        severity: clamp01(r.severity),
+      })),
+      missingInfo: [...cc.missingInfo],
+    },
+    decisionContextPack: {
+      ...pack,
+      relevantBusinessFacts: [...pack.relevantBusinessFacts],
+      relevantTechnicalFacts: [...pack.relevantTechnicalFacts],
+      relevantTemporalFacts: [...pack.relevantTemporalFacts],
+      relevantConstraints: pack.relevantConstraints.map((c) => ({
+        ...c,
+        severity: clamp01(c.severity),
+      })),
+      relevantObjectives: pack.relevantObjectives.map((o) => ({
+        ...o,
+        priority: clamp01(o.priority),
+      })),
+      relevantKnownRisks: pack.relevantKnownRisks.map((r) => ({
+        ...r,
+        likelihood: clamp01(r.likelihood),
+        severity: clamp01(r.severity),
+      })),
+      contextWeightAdjustments: pack.contextWeightAdjustments.map((w) => ({
+        ...w,
+        magnitude: clamp01(w.magnitude),
+      })),
+      missingInformation: [...pack.missingInformation],
+    },
+  };
+}

@@ -37,9 +37,13 @@ describe("POST /api/context", () => {
     expect(data.source).toBe("fixture");
   });
 
-  it("reports source=fixture even when ANTHROPIC_API_KEY is present (compile is a fixture-only stub, makes no live calls)", async () => {
+  it("reports source=fixture when a scenario is pinned even with ANTHROPIC_API_KEY present (fixtures always win)", async () => {
+    // A scenario short-circuits before the live branch, so the rehearsed demo stays
+    // byte-deterministic regardless of key presence.
     process.env.ANTHROPIC_API_KEY = "sk-test-not-a-real-key";
-    const res = await contextPOST(jsonReq("http://x/api/context", HERO_CONTEXT_INPUT));
+    const res = await contextPOST(
+      jsonReq("http://x/api/context", { ...HERO_CONTEXT_INPUT, scenario: "A" }),
+    );
     const data = (await res.json()) as { source: string };
     expect(data.source).toBe("fixture");
   });

@@ -155,9 +155,10 @@ export interface ContextCompileResult {
 }
 
 /* ---------- What POST /api/context returns over the wire ---------- */
-// The route wraps the compiler output with a provenance flag so the UI can show
-// a "demo fallback" chip. `source` is set by the ROUTE (live vs fixture), never
-// by `compileContext` (which stays a pure {companyContext, decisionContextPack}).
+// The compiler stamps the provenance flag itself (v3: compileContext returns
+// ContextRouteResponse), because only it knows whether the live model answered or
+// the fixture fallback fired. The UI shows a "demo fallback" chip when source==="fixture".
+// The route just forwards compileContext's `source` verbatim.
 export interface ContextRouteResponse extends ContextCompileResult {
   source: "live" | "fixture";
 }

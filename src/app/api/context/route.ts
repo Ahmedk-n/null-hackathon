@@ -5,12 +5,10 @@ import type { ContextInput } from "@/context";
 export async function POST(req: Request) {
   const body = (await req.json()) as ContextInput & { scenario?: unknown };
   const scenario = isScenarioId(body.scenario) ? body.scenario : undefined;
-  const { companyContext, decisionContextPack } = await compileContext(body, scenario);
-  // compileContext (src/context/compile.ts) is a fixture-only stub that makes ZERO
-  // Anthropic API calls, so the output is always cached fixture data regardless of key
-  // presence. Reporting "live" here would be false advertising in the StatusStrip.
-  // Report "fixture" until a real live compile lands; then gate the label on the actual
-  // call outcome (compileContext should return its own source signal at that point).
-  const source = "fixture" as const;
+  // compileContext (src/context/compile.ts) does the real Claude call when a key is present
+  // and no scenario is pinned, and stamps `source` itself ("live" on a validated live answer,
+  // "fixture" on the scenario short-circuit / no-key / any failure). The route forwards it
+  // verbatim so the StatusStrip label reflects the actual call outcome.
+  const { companyContext, decisionContextPack, source } = await compileContext(body, scenario);
   return NextResponse.json({ companyContext, decisionContextPack, source });
 }
