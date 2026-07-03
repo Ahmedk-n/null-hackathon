@@ -4,8 +4,8 @@
 // HERO_CONTEXT_INPUT, appended when the agent emits a summary). DECISION = one textarea.
 // The four textareas compose the ContextInput handed to onAnalyse.
 import { useState } from "react";
-import type { ContextInput } from "@/context";
-import { HERO_CONTEXT_INPUT } from "@/context";
+import type { ContextInput, ScenarioId } from "@/context";
+import { HERO_CONTEXT_INPUT, SCENARIOS } from "@/context";
 import type { GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
@@ -28,19 +28,79 @@ function mergeSummary(prev: string, summary: string): string {
 const COL: React.CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--gap)" };
 const PANE: React.CSSProperties = { display: "flex", gap: "var(--pad)", alignItems: "flex-start" };
 
+// SCENARIO selector — a terminal segmented control (NOT the Tabs primitive, so it
+// carries no `data-tab`). Picking B re-seeds the textareas and routes the whole
+// fixture chain (context → extract → attacks) to the reinforce decision that HOLDS.
+function ScenarioSelect({
+  scenario,
+  onChange,
+}: {
+  scenario: ScenarioId;
+  onChange: (s: ScenarioId) => void;
+}) {
+  const ids: ScenarioId[] = ["A", "B"];
+  const seg = (active: boolean): React.CSSProperties => ({
+    flex: 1,
+    padding: "8px 10px",
+    fontFamily: "var(--mono)",
+    fontSize: 10,
+    letterSpacing: "0.12em",
+    textTransform: "uppercase",
+    textAlign: "left",
+    cursor: "pointer",
+    border: "none",
+    borderRadius: 0,
+    background: active ? "var(--ink)" : "transparent",
+    color: active ? "var(--bg)" : "var(--muted)",
+  });
+  return (
+    <div>
+      <span className="label" style={{ display: "block", marginBottom: 5 }}>
+        Scenario
+      </span>
+      <div
+        data-testid="scenario-select"
+        style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
+      >
+        {ids.map((id) => (
+          <button
+            key={id}
+            type="button"
+            data-scenario={id}
+            aria-pressed={scenario === id}
+            onClick={() => onChange(id)}
+            style={seg(scenario === id)}
+          >
+            {SCENARIOS[id].label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ContextTab({
   onAnalyse,
   analysing,
+  scenario = "A",
+  onScenarioChange,
+  seed = HERO_CONTEXT_INPUT,
 }: {
   onAnalyse: (input: ContextInput) => void;
   analysing: boolean;
+  scenario?: ScenarioId;
+  onScenarioChange?: (s: ScenarioId) => void;
+  seed?: ContextInput;
 }) {
   const [active, setActive] = useState("business");
 
-  const [businessContextText, setBusiness] = useState(HERO_CONTEXT_INPUT.businessContextText);
-  const [technicalContextText, setTechnical] = useState(HERO_CONTEXT_INPUT.technicalContextText);
-  const [temporalContextText, setTemporal] = useState(HERO_CONTEXT_INPUT.temporalContextText);
-  const [decisionText, setDecision] = useState(HERO_CONTEXT_INPUT.decisionText);
+  // Seeded from the active scenario's pre-filled input. The parent remounts this tab
+  // (key={scenario}) when the scenario flips, so these initializers re-run with the
+  // new seed — no effect needed, no stale text.
+  const [businessContextText, setBusiness] = useState(seed.businessContextText);
+  const [technicalContextText, setTechnical] = useState(seed.technicalContextText);
+  const [temporalContextText, setTemporal] = useState(seed.temporalContextText);
+  const [decisionText, setDecision] = useState(seed.decisionText);
 
   const MANUAL: Record<GatherKind, { value: string; set: (v: string) => void }> = {
     business: { value: businessContextText, set: setBusiness },
@@ -82,6 +142,10 @@ export function ContextTab({
         background: "var(--panel)",
       }}
     >
+      {onScenarioChange && (
+        <ScenarioSelect scenario={scenario} onChange={onScenarioChange} />
+      )}
+
       <Tabs tabs={SUB_TABS} active={active} onChange={setActive} />
 
       <div style={{ flex: 1, minWidth: 0 }}>

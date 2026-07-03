@@ -4,14 +4,31 @@
 // the offline hero demo shows the grounded context graph/attacks; otherwise return the base fixtures.
 import type { Attack, Graph } from "@/engine";
 import { fixtureAttacks, fixtureGraph } from "./fixture";
-import { fixtureContextAttacks, fixtureContextGraph } from "@/context";
+import type { ScenarioId } from "@/context";
+import {
+  fixtureContextAttacks,
+  fixtureContextAttacksB,
+  fixtureContextGraph,
+  fixtureContextGraphB,
+} from "@/context";
 
-export async function extractStructure(decisionText: string, pack?: unknown): Promise<Graph> {
+export async function extractStructure(
+  decisionText: string,
+  pack?: unknown,
+  scenario?: ScenarioId,
+): Promise<Graph> {
   void decisionText;
-  return pack ? fixtureContextGraph() : fixtureGraph();
+  if (!pack) return fixtureGraph();
+  // Scenario B routes to the "reinforce first" graph that holds; A (default) → hero.
+  return scenario === "B" ? fixtureContextGraphB() : fixtureContextGraph();
 }
 
-export async function generateAttacks(graph: Graph, pack?: unknown): Promise<Attack[]> {
+export async function generateAttacks(
+  graph: Graph,
+  pack?: unknown,
+  scenario?: ScenarioId,
+): Promise<Attack[]> {
   void graph;
-  return pack ? fixtureContextAttacks() : fixtureAttacks();
+  if (!pack) return fixtureAttacks();
+  return scenario === "B" ? fixtureContextAttacksB() : fixtureContextAttacks();
 }

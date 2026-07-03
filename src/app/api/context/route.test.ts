@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { POST as contextPOST } from "./route";
-import { HERO_CONTEXT_INPUT } from "@/context";
+import { HERO_CONTEXT_INPUT, REINFORCE_CONTEXT_INPUT } from "@/context";
 import { ContextCompileSchema } from "@/context";
+import type { DecisionContextPack } from "@/context";
 
 beforeEach(() => {
   delete process.env.ANTHROPIC_API_KEY;
@@ -41,5 +42,26 @@ describe("POST /api/context", () => {
     const res = await contextPOST(jsonReq("http://x/api/context", HERO_CONTEXT_INPUT));
     const data = (await res.json()) as { source: string };
     expect(data.source).toBe("fixture");
+  });
+
+  // ── W2-3 · scenario selection ────────────────────────────────────────
+  it("defaults to the hero migrate context (no scenario field)", async () => {
+    const res = await contextPOST(jsonReq("http://x/api/context", HERO_CONTEXT_INPUT));
+    const data = (await res.json()) as { decisionContextPack: DecisionContextPack };
+    expect(data.decisionContextPack.decision).toBe(HERO_CONTEXT_INPUT.decisionText);
+  });
+
+  it("routes scenario 'B' to the reinforce context pack", async () => {
+    const res = await contextPOST(
+      jsonReq("http://x/api/context", { ...REINFORCE_CONTEXT_INPUT, scenario: "B" }),
+    );
+    const data = (await res.json()) as { decisionContextPack: DecisionContextPack };
+    expect(data.decisionContextPack.decision).toBe(REINFORCE_CONTEXT_INPUT.decisionText);
+    // The reinforce pack's execution nudge is modest (0.3) vs the hero's maximal 1.0 —
+    // this is what keeps scenario B holding under the same context shape.
+    const exec = data.decisionContextPack.contextWeightAdjustments.find(
+      (a) => a.targetCategory === "execution",
+    );
+    expect(exec?.magnitude).toBe(0.3);
   });
 });

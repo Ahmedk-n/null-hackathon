@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
 import type { Attack, Graph } from "@/engine";
-import type { CompanyContext, ContextInput, DecisionContextPack } from "@/context";
+import type { CompanyContext, ContextInput, DecisionContextPack, ScenarioId } from "@/context";
+import { SCENARIOS } from "@/context";
 import {
   keystoneStore,
   useKeystone,
@@ -29,6 +30,10 @@ export default function KeystoneApp({
   const [activeTab, setActiveTab] = useState("context");
   const [building, setBuilding] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Which pre-filled scenario the CONTEXT tab is driving. A (default) = the hero
+  // migrate decision that collapses; B = the reinforce decision that holds. Held here
+  // (not the store) so the SAME id plumbs through context → extract → attacks.
+  const [scenario, setScenario] = useState<ScenarioId>("A");
   // Bumped by the TopBar FIT action → drives KeystoneCanvas.fitView via GraphTab.
   const [fitSignal, setFitSignal] = useState(0);
 
@@ -45,7 +50,7 @@ export default function KeystoneApp({
       const ctxRes = await fetch("/api/context", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify(input),
+        body: JSON.stringify({ ...input, scenario }),
       });
       const { companyContext, decisionContextPack: pack, source } = (await ctxRes.json()) as {
         companyContext: CompanyContext;
@@ -59,7 +64,7 @@ export default function KeystoneApp({
       const exRes = await fetch("/api/extract", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ decision: input.decisionText, pack }),
+        body: JSON.stringify({ decision: input.decisionText, pack, scenario }),
       });
       const graph = (await exRes.json()) as Graph;
       await new Promise((resolve) => setTimeout(resolve, 800));
@@ -77,7 +82,7 @@ export default function KeystoneApp({
       const res = await fetch("/api/attacks", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ graph: workingGraph, pack: decisionContextPack ?? undefined }),
+        body: JSON.stringify({ graph: workingGraph, pack: decisionContextPack ?? undefined, scenario }),
       });
       const { attacks: generated } = (await res.json()) as { attacks: Attack[] };
       keystoneStore.getState().applyLoad(generated);
@@ -128,7 +133,16 @@ export default function KeystoneApp({
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
       <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-        {activeTab === "context" && <ContextTab onAnalyse={analyse} analysing={building} />}
+        {activeTab === "context" && (
+          <ContextTab
+            key={scenario}
+            scenario={scenario}
+            onScenarioChange={setScenario}
+            seed={SCENARIOS[scenario].input}
+            onAnalyse={analyse}
+            analysing={building}
+          />
+        )}
         {activeTab === "graph" && <GraphTab fitSignal={fitSignal} />}
         {activeTab === "stress" && (
           <StressTab

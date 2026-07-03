@@ -58,4 +58,65 @@ describe("ContextTab (R3-UI static structure)", () => {
       expect(container.querySelectorAll("textarea").length).toBeGreaterThanOrEqual(1);
     }
   });
+
+  // ── W2-3 · scenario selection ──────────────────────────────────────────
+  it("renders a SCENARIO selector (A/B) only when onScenarioChange is provided", () => {
+    // No handler → no selector (keeps the bare-props usage untouched).
+    const bare = render(<ContextTab onAnalyse={() => {}} analysing={false} />);
+    expect(bare.container.querySelector('[data-testid="scenario-select"]')).toBeNull();
+    // The scenario buttons carry no data-tab, so the sub-tab count stays 4.
+    expect(bare.container.querySelectorAll("[data-tab]").length).toBe(4);
+    cleanup();
+
+    const { container } = render(
+      <ContextTab
+        onAnalyse={() => {}}
+        analysing={false}
+        scenario="A"
+        onScenarioChange={() => {}}
+      />,
+    );
+    const select = container.querySelector('[data-testid="scenario-select"]');
+    expect(select).toBeTruthy();
+    expect(container.querySelector('[data-scenario="A"]')).toBeTruthy();
+    expect(container.querySelector('[data-scenario="B"]')).toBeTruthy();
+    expect(container.querySelectorAll("[data-tab]").length).toBe(4);
+  });
+
+  it("clicking scenario B calls onScenarioChange('B')", () => {
+    let picked: string | null = null;
+    const { container } = render(
+      <ContextTab
+        onAnalyse={() => {}}
+        analysing={false}
+        scenario="A"
+        onScenarioChange={(s) => (picked = s)}
+      />,
+    );
+    fireEvent.click(container.querySelector('[data-scenario="B"]')!);
+    expect(picked).toBe("B");
+  });
+
+  it("seeds the decision textarea from the provided scenario seed", () => {
+    const seed = {
+      businessContextText: "biz-B",
+      technicalContextText: "tech-B",
+      temporalContextText: "temp-B",
+      decisionText: "REINFORCE-DECISION-MARKER",
+    };
+    const { container } = render(
+      <ContextTab
+        onAnalyse={() => {}}
+        analysing={false}
+        scenario="B"
+        onScenarioChange={() => {}}
+        seed={seed}
+      />,
+    );
+    fireEvent.click(container.querySelector('[data-tab="decision"]')!);
+    const decision = [...container.querySelectorAll("textarea")].find((t) =>
+      (t as HTMLTextAreaElement).value.includes("REINFORCE-DECISION-MARKER"),
+    );
+    expect(decision).toBeTruthy();
+  });
 });

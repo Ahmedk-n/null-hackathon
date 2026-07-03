@@ -11,8 +11,12 @@ import {
   fixtureContextGraph,
   fixtureContextAttacks,
   fixtureDecisionContextPack,
+  fixtureContextGraphB,
+  fixtureContextAttacksB,
+  fixtureDecisionContextPackB,
 } from "./fixtures";
 import { reweightAttacksByContext } from "./weights";
+import { pickLayoutMode } from "@/canvas/layout";
 
 describe("context hero fixture", () => {
   it("produces a graph that validates against GraphSchema", () => {
@@ -85,5 +89,71 @@ describe("context hero fixture", () => {
     // The keystone survives the raw assault but fails once grounded in context.
     expect(detectFailures(raw).has("k_credible")).toBe(false);
     expect(detectFailures(reweighted).has("k_credible")).toBe(true);
+  });
+});
+
+// ── Scenario B — the contrasting decision that HOLDS ──────────────────────
+// Same company + same "meeting tomorrow" context SHAPE, but the conservative
+// "reinforce first" decision survives the reweighted assault. This proves the
+// tool DISCRIMINATES — it doesn't just collapse whatever graph it's handed.
+describe("scenario B (reinforce) fixture — holds under load", () => {
+  it("produces a graph that validates against GraphSchema", () => {
+    expect(() => GraphSchema.parse(fixtureContextGraphB())).not.toThrow();
+  });
+
+  it("is a 7-node structure in the simple-2d band (contrast with the 9-node hero)", () => {
+    const g = fixtureContextGraphB();
+    expect(g.nodes.length).toBe(7);
+    expect(pickLayoutMode(g.nodes.length)).toBe("simple-2d");
+  });
+
+  it("has a healthy baseline integrity (~69%) with k_sre as a dominant keystone", () => {
+    const g = fixtureContextGraphB();
+    expect(integrity(g)).toBeCloseTo(69.04, 1);
+    expect(keystone(g)?.id).toBe("k_sre");
+    const ranked = rankLoadBearing(g);
+    // Keystone feeds both claims → strictly dominant over the next assumption.
+    expect(ranked[0].id).toBe("k_sre");
+    expect(ranked[0].impact).toBeGreaterThanOrEqual(5 * ranked[1].impact);
+  });
+
+  it("RAW attacks (context ignored): survives with zero failures", () => {
+    const raw = applyAttacks(fixtureContextGraphB(), fixtureContextAttacksB());
+    expect(detectFailures(raw).size).toBe(0);
+    expect(integrity(raw)).toBeCloseTo(49.21, 1);
+  });
+
+  // The differentiator, inverted: the SAME hero-shaped reweight (▲ execution/
+  // reliability) only mildly stresses this plan — integrity stays in the 45–60%
+  // band, no node fails, and the keystone holds. Discrimination, not collapse.
+  it("REWEIGHTED attacks (grounded in context): STILL holds, integrity 45–60%, keystone survives", () => {
+    const pack = fixtureDecisionContextPackB();
+    const reweighted = reweightAttacksByContext(
+      fixtureContextAttacksB(),
+      pack.contextWeightAdjustments,
+    );
+    const attacked = applyAttacks(fixtureContextGraphB(), reweighted);
+    const value = integrity(attacked);
+    expect(value).toBeGreaterThan(45);
+    expect(value).toBeLessThan(60);
+    expect(value).toBeCloseTo(47.59, 1);
+    const failures = detectFailures(attacked);
+    expect(failures.size).toBe(0);
+    expect(failures.has("k_sre")).toBe(false);
+    expect(failures.has("T")).toBe(false);
+    // The keystone remains identifiable (still the top load-bearing node) but intact.
+    expect(keystone(attacked)?.id).toBe("k_sre");
+  });
+
+  it("context stays comfortably above the 0.35 failure threshold either way", () => {
+    const raw = applyAttacks(fixtureContextGraphB(), fixtureContextAttacksB());
+    const pack = fixtureDecisionContextPackB();
+    const reweighted = applyAttacks(
+      fixtureContextGraphB(),
+      reweightAttacksByContext(fixtureContextAttacksB(), pack.contextWeightAdjustments),
+    );
+    // Reweighting lowers integrity (context makes it harder) but never breaks it.
+    expect(integrity(reweighted)).toBeLessThan(integrity(raw));
+    expect(detectFailures(reweighted).size).toBe(0);
   });
 });
