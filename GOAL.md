@@ -54,6 +54,37 @@ timeline/auditability). Meetings and deadlines are first-class (`UpcomingEvent`,
 - Non-goals (context-layer plan §15): no OpenKB/RAG, no persistence, no uploads, no auth,
   no context forms, no real Band-3 clustering unless time remains.
 
+## v2 — Redesign goals (supersede the visual layer; logic/engine unchanged)
+
+Full plan: `docs/superpowers/plans/2026-07-03-keystone-redesign.md`.
+
+1. **Professional terminal/CAD-ledger UI** matching the reference (`/tmp/keystone-inspo.jpg`):
+   light warm paper, 1px hairline grid, UPPERCASE tracked labels, monospace tabular
+   numerals, ledger key/value rows, top action bar with ISO timestamp, bottom status
+   strip, selection detail panel. Zero rounded corners. No dark toy chrome.
+2. **Tabbed workflow:** CONTEXT → GRAPH → STRESS, persistent shell + contextual rail/panel.
+3. **Agent-driven context aggregation** (with manual override on top):
+   - Technical agent clones & explores the repo (scoped read-only tools) → tech context.
+   - Business agent crawls website + competitors (web search/fetch) → business context.
+   - Temporal agent parses notes/agenda → meetings & deadlines.
+   - Live streamed AGENT LOG + FINDINGS ledger (source-attributed); offline via scripted fixtures.
+4. **3D-feeling adaptive graph:** Band-2 perspective assembly (`translateZ` elevation per
+   layer, parallax, staggered 3D collapse, TILT toggle); `pickLayoutMode` drives the band.
+5. Still deterministic + offline-safe; engine decides integrity/keystone/failures; **zero
+   client console errors** (hydration/loop fix stays).
+
+### v2 testing metrics (machine gates — loop exits only when all green)
+
+- **T1** `vitest run` 100% pass, ≥65 tests · **T2** `tsc --noEmit` 0 errors · **T3** `npm run build` exit 0
+- **T5** offline `/api/gather` SSE emits `status`+`done`, findings schema-valid, `source="fixture"`, first event <2s
+- **T6** full offline chain (gather→context→extract→attacks) all 200 + schema-valid + 9-node `k_credible`, integrity <10% post-load
+- **T7** key-safety guard green (no client import of `@/agents/*`, `@/context/compile`, `@/llm/client`, `@anthropic-ai/sdk`, or `ANTHROPIC_API_KEY`)
+- **T8** no `Math.random`/`Date.now`/`new Date(` in client files; `selectFailures` stability test green
+- **T9** DOM: TopBar has ISO timestamp; exactly 3 primary tabs; ≥1 ledger row; numerals `.mono`; panel `border-radius:0px`
+- **T10** 9-node graph → canvas has `perspective`, band `layered-2-5d`; TILT toggles the rotate transform
+
+Human/rehearsal gates: T4 (0 console errors through full flow), T11 (agent findings ≥5 source-attributed facts each, with key), T12 (tab switch <100ms, smooth collapse).
+
 ## Reference docs
 
 - Base build plan: `docs/superpowers/plans/2026-07-03-keystone.md` (Tasks 1–14, exact code)
