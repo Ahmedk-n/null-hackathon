@@ -182,14 +182,19 @@ export async function extractStructureWithSource(
   scenario?: ScenarioId,
   findings?: ExtractFinding[],
 ): Promise<GraphWithSource> {
+  // Scenario routing takes precedence over pack presence: a pinned scenario must return ITS
+  // fixture even when the caller supplies no pack (judges curl the API with just a scenario).
+  // The base a_arch fixture remains the no-pack, no-scenario legacy path.
   const fallback = (): Graph =>
-    !pack
-      ? fixtureGraph()
-      : scenario === "R"
-        ? fixtureContextGraphR()
-        : scenario === "B"
-          ? fixtureContextGraphB()
-          : fixtureContextGraph();
+    scenario === "R"
+      ? fixtureContextGraphR()
+      : scenario === "B"
+        ? fixtureContextGraphB()
+        : scenario === "A"
+          ? fixtureContextGraph()
+          : !pack
+            ? fixtureGraph()
+            : fixtureContextGraph();
   // FIXTURES ALWAYS WIN when a scenario is pinned; live fires only with a key and no scenario.
   if (scenario) return { graph: fallback(), source: "fixture" };
   if (!hasApiKey()) return { graph: fallback(), source: "fixture" };
@@ -272,14 +277,17 @@ export async function generateAttacksWithSource(
   pack?: unknown,
   scenario?: ScenarioId,
 ): Promise<AttacksWithSource> {
+  // Scenario routing precedes pack presence (see extractStructureWithSource).
   const fallback = (): Attack[] =>
-    !pack
-      ? fixtureAttacks()
-      : scenario === "R"
-        ? fixtureContextAttacksR()
-        : scenario === "B"
-          ? fixtureContextAttacksB()
-          : fixtureContextAttacks();
+    scenario === "R"
+      ? fixtureContextAttacksR()
+      : scenario === "B"
+        ? fixtureContextAttacksB()
+        : scenario === "A"
+          ? fixtureContextAttacks()
+          : !pack
+            ? fixtureAttacks()
+            : fixtureContextAttacks();
   if (scenario) return { attacks: fallback(), source: "fixture" };
   if (!hasApiKey()) return { attacks: fallback(), source: "fixture" };
   try {
