@@ -129,8 +129,10 @@ async function main() {
       await page.waitForSelector('[data-testid="mode-chip"][data-mode="A"]', { timeout: 10000 });
     });
 
-    await step("A: click Analyse", async () => {
+    await step("A: click Analyse → LIVE PIPELINE overlay appears", async () => {
       await clickText("ANALYSE").click();
+      // The live pipeline overlay mounts the moment the run starts (bound to the real run).
+      await page.waitForSelector('[data-testid="live-pipeline"]', { timeout: 10000 });
     });
 
     await step(
@@ -145,6 +147,16 @@ async function main() {
       },
       { tabSwitch: true },
     );
+
+    await step("A: LIVE PIPELINE overlay auto-dismisses (run continues → GRAPH handoff)", async () => {
+      // The overlay holds a minimum cinematic beat then auto-dismisses (fade) and hands off to the
+      // GRAPH tab. It must be GONE once GRAPH is active (generous ceiling for a live run's real
+      // durations). This is the "gone after the GRAPH tab is active" assertion.
+      await page.waitForSelector('[data-testid="live-pipeline"]', {
+        state: "detached",
+        timeout: 15000,
+      });
+    });
 
     await step(
       "A: switch to STRESS tab",

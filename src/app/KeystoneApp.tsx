@@ -26,6 +26,9 @@ import { DesignTab, type OpenCandidate } from "@/ui/tabs/DesignTab";
 import { GraphTab } from "@/ui/tabs/GraphTab";
 import { StressTab } from "@/ui/tabs/StressTab";
 import { TopBar, Tabs, StatusStrip, Button, type TabDef } from "@/ui/primitives";
+// LIVE PIPELINE — the dismissable "system at work" overlay. Mounts while a run is in flight and
+// reflects the REAL run (stage + stageSource + the store's graph/attacks + the pure engine MATH).
+import { LivePipeline } from "@/ui/pipeline/LivePipeline";
 // V6-1 · design OPEN IN STUDIO seeds the studio store with scenario R's context (pure fixtures,
 // deep path — never the @/context barrel, so the key-safety boundary stays green).
 import { fixtureCompanyContextR, fixtureDecisionContextPackR, SCENARIOS } from "@/context/fixtures";
@@ -49,6 +52,10 @@ export default function KeystoneApp({
   const [activeTab, setActiveTab] = useState("context");
   const [building, setBuilding] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Whether the LIVE PIPELINE overlay is showing. Turned on when a run STARTS (analyse / applyLoad);
+  // the overlay turns itself off (auto-dismiss on real `stage==="done"` after a min beat, or SKIP).
+  // Dismissing NEVER cancels the run — the fetch chain continues independently in the background.
+  const [showPipeline, setShowPipeline] = useState(false);
   // Which mode the CONTEXT tab is driving. R (default) = the REAL sample — Excalidraw, generated
   // live from the actual repo/site and pinned; A = the hero migrate decision that collapses;
   // B = the reinforce decision that holds; "custom" = the JUDGE mode — drop the scenario pin so
@@ -167,6 +174,7 @@ export default function KeystoneApp({
   // Orchestration reaches the model ONLY over HTTP — never imports server modules.
   async function analyse(input: ContextInput) {
     setBuilding(true);
+    setShowPipeline(true);
     // Fresh run → clear last run's provenance (attacks stays null until Apply Load fires).
     setStageSource({ context: null, extract: null, attacks: null });
     try {
@@ -234,6 +242,7 @@ export default function KeystoneApp({
   async function applyLoad() {
     if (!workingGraph) return;
     setLoading(true);
+    setShowPipeline(true);
     // Stage 3 — GENERATE ATTACKS (same scenario gating as the compile/extract stages).
     setStage("attacks");
     try {
@@ -413,6 +422,21 @@ export default function KeystoneApp({
       </main>
 
       <StatusStrip items={statusItems} />
+
+      {/* LIVE PIPELINE overlay — bound to the REAL run. `stage` is "done"/"idle" between runs, so the
+          overlay only ever shows while showPipeline is on (started by analyse/applyLoad). gatherFacts
+          is a plain snapshot lifted from the finished agent runs (no @/agents import crosses here). */}
+      {showPipeline && (
+        <LivePipeline
+          stage={stage}
+          stageSource={stageSource}
+          running={running}
+          gatherFacts={Object.values(gatherFactsRef.current)
+            .flat()
+            .map((f) => ({ label: f.label, value: f.value, source: f.source }))}
+          onDismiss={() => setShowPipeline(false)}
+        />
+      )}
     </div>
   );
 }
