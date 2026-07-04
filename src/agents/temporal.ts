@@ -1,20 +1,14 @@
 // Temporal agent: one Claude call turning free-text notes/agenda into findings
-// (upcoming meetings, deadlines, urgency). No external tools. Falls back to the
-// scripted fixture on no key / empty notes / any error. Never throws.
-import Anthropic from "@anthropic-ai/sdk";
+// (upcoming meetings, deadlines, urgency). No external tools, so it goes DIRECTLY through the
+// forced-tool-call transport (Wave B: structuredCall with `emit_findings` + GatherFindingsSchema,
+// validated by zod on return) — replacing the old free-text JSON scraping (collectText +
+// extractFindings). Falls back to the scripted fixture on no key / empty notes / thin reply
+// (< MIN_FACTS) / any error. Never throws. Streaming emit/now shape is UNCHANGED.
 import type { Emit, GatherFindings, Now, TemporalSource } from "./types";
-import { collectText, extractFindings } from "./schemas";
+import { GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
 import { retryOnce } from "./retry";
-
-const MODEL = "claude-opus-4-8";
-// Hard per-request deadline so a slow live call can never freeze the demo. The SDK rejects
-// with APIConnectionTimeoutError, which the existing catch → fixture fallback handles.
-const REQUEST_TIMEOUT_MS = 30_000;
-
-function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
+import { hasApiKey, structuredCall } from "@/llm/structured";
 
 const TEMPORAL_SYSTEM = `You are Keystone's temporal context agent. From the founder's pasted notes/agenda, extract the
 near-term time pressure relevant to a decision: upcoming meetings/events, deadlines, and overall
@@ -42,23 +36,21 @@ export async function gatherTemporal(
 
   try {
     emit({ type: "status", message: "Parsing agenda / notes…", ts: now() });
-    // maxRetries: 0 — retryOnce below owns the single guardrail retry (see business.ts).
-    const client = new Anthropic({ maxRetries: 0 });
-    const res = await retryOnce(() =>
-      client.messages.create(
-        {
-          model: MODEL,
-          max_tokens: 8_000,
-          system: TEMPORAL_SYSTEM,
-          messages: [{ role: "user", content: source.notes }],
-        },
-        { timeout: REQUEST_TIMEOUT_MS },
-      ),
+    const findings: GatherFindings = await retryOnce(() =>
+      structuredCall({
+        system: TEMPORAL_SYSTEM,
+        user: source.notes,
+        schema: GatherFindingsSchema,
+        toolName: "emit_findings",
+        toolDescription:
+          "Emit the temporal findings (upcoming events, deadlines, urgency) as one structured object.",
+      }),
     );
 
     emit({ type: "status", message: "Extracting events, deadlines, and urgency…", ts: now() });
-    const findings = extractFindings(collectText(res.content));
-    if (findings) {
+    // MIN_FACTS gate preserved: a thin live reply looks sparse in the ledger, so fall through to
+    // the fixture (every fixture ships >= MIN_FACTS) rather than rendering it.
+    if (findings.facts.length >= MIN_FACTS) {
       findings.kind = "temporal";
       for (const f of findings.facts) emit({ type: "finding", finding: f, ts: now() });
       emit({ type: "done", findings, source: "live", ts: now() });

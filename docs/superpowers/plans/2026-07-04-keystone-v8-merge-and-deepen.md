@@ -34,7 +34,7 @@
 
 ---
 
-## WAVE B — Adopt forced-tool-call transport everywhere (reliability foundation)
+## WAVE B ✅ — forced-tool-call transport on all single-shot calls (compile/extract/attacks/design/reinforce/temporal/tunnel); repair wall+provenance+scenario+fixture kept on top; mocks migrated to tool_use blocks; live :3002 probe source:"live"; technical/business deferred to C5. 508 pass +1 skip, build 0, e2e PASS.
 
 ### V8-B1 · Route all live LLM calls through `structuredCall`
 Replace `messages.create` + `collectText` + `extractJson`/`extractFindings` + `safeParse` with `structuredCall({schema, toolName, system, user, ...})` in each live path, KEEPING our downstream stack on top: the `validateGraph`/`validateAttacks` repair wall, `source:"live"/"fixture"` provenance, A/B/R scenario short-circuit, timeouts, `retryOnce`, and fixture fallback. Same prompts, same zod schemas — just a reliable transport.

@@ -1,6 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
-import type { ZodType } from "zod";
+import type { ZodType, ZodTypeDef } from "zod";
 
 /**
  * SERVER-ONLY structured-output transport (absorbed from founder-a, Wave A).
@@ -30,7 +30,10 @@ export function hasApiKey(): boolean {
 export interface StructuredCallArgs<T> {
   system: string;
   user: string;
-  schema: ZodType<T>;
+  // Input generic left OPEN (`unknown`) so schemas with `.transform()` / `.default()` (e.g. the
+  // GraphSchema evidence coercion) infer T as the schema's OUTPUT type — what `.parse` returns —
+  // rather than collapsing to the pre-transform input shape.
+  schema: ZodType<T, ZodTypeDef, unknown>;
   toolName: string;
   toolDescription: string;
 }

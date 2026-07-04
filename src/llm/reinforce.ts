@@ -1,24 +1,21 @@
 // Harvested from origin/founder-a/context-core (src/llm/reinforce.ts) — THEIR idea (one concrete
-// cheap experiment to validate the keystone, tailored to imminent temporal events), rewritten on
-// OUR proven-live pattern (the one client.ts uses): new Anthropic({ maxRetries: 0 }) →
-// messages.create(..., { timeout }) → collectText → first-line extract → retryOnce → fixture.
+// cheap experiment to validate the keystone, tailored to imminent temporal events).
 //
-// INVARIANTS (mirror client.ts):
+// TRANSPORT (Wave B): the live call now goes through the forced-tool-call transport
+// (src/llm/structured.ts::structuredCall) — a single FORCED `emit_reinforcement` tool call whose
+// input is a tiny { suggestion: string } schema, validated by zod on return. This replaces the old
+// free-text first-line scraping. Everything downstream is UNCHANGED — retryOnce + fixture fallback.
+//
+// INVARIANTS:
 //  - Never throws / never 500s: every path catches everything and falls back to a fixture string.
 //  - Live fires ONLY when hasApiKey(); offline-with-no-key returns a sensible tailored fixture.
-//  - Model id is exactly claude-opus-4-8; 30s hard per-request timeout.
-//  - THEIR original used messages.parse + zodOutputFormat + a forced tool call (structured.ts);
-//    those APIs do not exist in @anthropic-ai/sdk@0.68.0 (see GOAL.md v3 guardrail amendment),
-//    so this is a plain one-sentence completion parsed off the text blocks — no schema needed.
-import Anthropic from "@anthropic-ai/sdk";
+//  - `source` is "live" only when the model produced a non-empty suggestion; every fallback → "fixture".
+import { z } from "zod";
 import type { Graph } from "@/engine";
 import { keystone } from "@/engine";
 import type { DecisionContextPack } from "@/context";
 import { retryOnce } from "@/agents/retry";
-
-const MODEL = "claude-opus-4-8";
-const MAX_TOKENS = 400;
-const REQUEST_TIMEOUT_MS = 30_000;
+import { hasApiKey, structuredCall } from "./structured";
 
 export type Source = "live" | "fixture";
 export interface ReinforcementSuggestion {
@@ -26,36 +23,8 @@ export interface ReinforcementSuggestion {
   source: Source;
 }
 
-function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
-
-/** Concatenate the text of all `text` content blocks (mirrors client.ts::collectText). */
-function collectText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  const out: string[] = [];
-  for (const block of content) {
-    if (
-      block &&
-      typeof block === "object" &&
-      (block as { type?: unknown }).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string"
-    ) {
-      out.push((block as { text: string }).text);
-    }
-  }
-  return out.join("\n");
-}
-
-/** First non-empty line of the model reply, trimmed of markdown/bullet noise. Throws if empty. */
-function firstSentence(text: string): string {
-  const line = text
-    .split("\n")
-    .map((l) => l.replace(/^[\s>*\-•\d.]+/, "").trim())
-    .find((l) => l.length > 0);
-  if (!line) throw new Error("empty reinforcement reply");
-  return line;
-}
+// Tiny tool schema: the model returns ONE concrete de-risking experiment as a single sentence.
+const ReinforcementSchema = z.object({ suggestion: z.string() });
 
 // Scenario-tailored fixture strings, keyed by the keystone assumption id so the rehearsed
 // (offline) demo shows a concrete, decision-specific experiment WITHOUT needing a scenario
@@ -92,21 +61,20 @@ const SYSTEM = [
 
 /** One live attempt: throws on any network/empty failure so retryOnce can retry once. */
 async function reinforceRun(keystoneLabel: string, pack?: DecisionContextPack): Promise<string> {
-  const client = new Anthropic({ maxRetries: 0 });
   const temporal =
     pack && pack.relevantTemporalFacts.length > 0
       ? `\n\nIMMINENT TEMPORAL CONTEXT:\n${pack.relevantTemporalFacts.map((f) => `- ${f}`).join("\n")}`
       : "";
-  const res = await client.messages.create(
-    {
-      model: MODEL,
-      max_tokens: MAX_TOKENS,
-      system: SYSTEM,
-      messages: [{ role: "user", content: `KEYSTONE ASSUMPTION: ${keystoneLabel}${temporal}` }],
-    },
-    { timeout: REQUEST_TIMEOUT_MS },
-  );
-  return firstSentence(collectText(res.content));
+  const { suggestion } = await structuredCall({
+    system: SYSTEM,
+    user: `KEYSTONE ASSUMPTION: ${keystoneLabel}${temporal}`,
+    schema: ReinforcementSchema,
+    toolName: "emit_reinforcement",
+    toolDescription: "Emit ONE concrete, cheap de-risking experiment as a single sentence.",
+  });
+  const trimmed = suggestion.trim();
+  if (!trimmed) throw new Error("empty reinforcement reply");
+  return trimmed;
 }
 
 /**

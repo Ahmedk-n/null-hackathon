@@ -11,7 +11,8 @@ import {
 
 // Module-mock the SDK so the live path never touches the network. `create` is a hoisted
 // vi.fn we drive per-test; `new Anthropic({...})` returns an instance whose messages.create
-// is that mock (mirrors the shape src/agents/business.ts calls: client.messages.create(...)).
+// is that mock. Wave B: compileContext now goes through structuredCall (a FORCED tool call), so
+// a live payload is a `tool_use` content block whose `input` is the schema-shaped object.
 const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
@@ -25,8 +26,8 @@ function liveMessage() {
   const companyContext = fixtureCompanyContext();
   companyContext.business.companyStage = "LIVE-STAGE";
   const decisionContextPack = fixtureDecisionContextPack("Live decision text");
-  const obj = { companyContext, decisionContextPack };
-  return { content: [{ type: "text", text: JSON.stringify(obj) }] };
+  const input = { companyContext, decisionContextPack };
+  return { content: [{ type: "tool_use", id: "toolu_1", name: "emit_context", input }] };
 }
 
 beforeEach(() => {
@@ -93,9 +94,7 @@ describe("compileContext — live path (mocked SDK)", () => {
   it("clamps out-of-range live scores rather than falling back", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
     const msg = liveMessage();
-    const obj = JSON.parse(msg.content[0].text);
-    obj.companyContext.temporal.urgencyLevel = 4;
-    msg.content[0].text = JSON.stringify(obj);
+    msg.content[0].input.companyContext.temporal.urgencyLevel = 4;
     createMock.mockResolvedValue(msg);
 
     const res = await compileContext(HERO_CONTEXT_INPUT);
@@ -103,22 +102,23 @@ describe("compileContext — live path (mocked SDK)", () => {
     expect(res.companyContext.temporal.urgencyLevel).toBe(1);
   });
 
-  it("malformed (non-JSON) response → fixture fallback, never throws", async () => {
+  it("no-tool_use (garbage text) response → fixture fallback, never throws", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
     createMock.mockResolvedValue({ content: [{ type: "text", text: "sorry, no JSON here" }] });
 
     const res = await compileContext(HERO_CONTEXT_INPUT);
     expect(res.source).toBe("fixture");
-    // The call RESOLVED (just with unusable text), so retryOnce does not retry — the
-    // post-parse fixture fallback fires. retryOnce only re-runs on a rejected promise.
-    expect(createMock).toHaveBeenCalledTimes(1);
+    // Wave B: no tool_use block → structuredCall THROWS → retryOnce retries once (2 calls) →
+    // the catch → fixture fallback. (Previously a resolved-but-unusable text reply did not throw,
+    // so retryOnce did not re-run; the forced-tool transport routes malformed output through throw.)
+    expect(createMock).toHaveBeenCalledTimes(2);
     expect(res.decisionContextPack.decision).toBe(HERO_CONTEXT_INPUT.decisionText);
   });
 
-  it("schema-invalid JSON → fixture fallback", async () => {
+  it("schema-invalid tool input → fixture fallback", async () => {
     process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
     createMock.mockResolvedValue({
-      content: [{ type: "text", text: JSON.stringify({ companyContext: {}, nope: 1 }) }],
+      content: [{ type: "tool_use", id: "toolu_1", name: "emit_context", input: { companyContext: {}, nope: 1 } }],
     });
 
     const res = await compileContext(HERO_CONTEXT_INPUT);

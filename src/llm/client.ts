@@ -1,20 +1,23 @@
-// Live LLM chain (V3-4). extractStructure + generateAttacks are REAL calls using the repo's
-// proven-live pattern (business agent, verified live 2026-07-04): messages.parse/zodOutputFormat
-// do NOT exist in @anthropic-ai/sdk@0.68.0, so we use
-//   new Anthropic({ maxRetries: 0 }) → client.messages.create(..., { timeout })
-//   → collectText → first-balanced-JSON extract → zod safeParse → validate wall → retryOnce → fixture.
+// Live LLM chain (V3-4). extractStructure + generateAttacks are REAL calls.
+//
+// TRANSPORT (Wave B): each live call now goes through the forced-tool-call transport
+// (src/llm/structured.ts::structuredCall) — a single FORCED tool call (`emit_graph` /
+// `emit_attacks`) whose input schema is GraphSchema / AttacksSchema, validated by zod on return.
+// This replaces the old free-text JSON scraping (messages.create → collectText →
+// first-balanced-JSON → safeParse): the API returns schema-shaped `tool_use.input`. Everything
+// downstream is UNCHANGED — the validate.ts repair wall, retryOnce, and fixture fallback.
 //
 // INVARIANTS (keystone-v3 §"Non-negotiable"):
 //  - FIXTURES ALWAYS WIN when a `scenario` is passed (short-circuit precedes the live branch).
 //  - Live fires ONLY when hasApiKey() AND no scenario. Offline-with-no-key demo stays byte-identical.
 //  - Never 500 / never throw: every live path catches everything → fixture. fixture.ts is frozen.
 //  - The validation wall (validate.ts) shape-checks/repairs live output before the pure engine sees it;
-//    on any parse/validate failure the run() throws so retryOnce retries once, then the catch → fixture.
-import Anthropic from "@anthropic-ai/sdk";
+//    on any transport/validate failure the run() throws so retryOnce retries once, then catch → fixture.
 import type { Attack, Graph } from "@/engine";
 import { fixtureAttacks, fixtureGraph } from "./fixture";
 import { AttacksSchema, GraphSchema } from "./schemas";
 import { validateAttacks, validateGraph } from "./validate";
+import { hasApiKey, structuredCall } from "./structured";
 import type { ScenarioId } from "@/context";
 import type { DecisionContextPack } from "@/context";
 import {
@@ -26,41 +29,6 @@ import {
   fixtureContextGraphR,
 } from "@/context";
 import { retryOnce } from "@/agents/retry";
-
-const MODEL = "claude-opus-4-8";
-const MAX_TOKENS = 16_000;
-// Hard per-request deadline so a slow live call can never freeze the demo. The SDK rejects with
-// APIConnectionTimeoutError past this; the existing try/catch → fixture fallback handles it.
-const REQUEST_TIMEOUT_MS = 45_000;
-
-function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
-
-/** Concatenate the text of all `text` content blocks (mirrors src/agents/schemas.ts::collectText). */
-function collectText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  const out: string[] = [];
-  for (const block of content) {
-    if (
-      block &&
-      typeof block === "object" &&
-      (block as { type?: unknown }).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string"
-    ) {
-      out.push((block as { text: string }).text);
-    }
-  }
-  return out.join("\n");
-}
-
-/** First balanced JSON object from a free-text reply (first `{` … last `}`). Throws if none/invalid. */
-function extractJson(text: string): unknown {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) throw new Error("no JSON object in reply");
-  return JSON.parse(text.slice(start, end + 1)) as unknown;
-}
 
 /** Compact rendering of the decision-context pack for the live prompts. Tolerant of partial shapes. */
 function renderPack(pack: unknown): string {
@@ -179,7 +147,6 @@ async function extractRun(
   pack: unknown,
   findings?: ExtractFinding[],
 ): Promise<Graph> {
-  const client = new Anthropic({ maxRetries: 0 });
   const packSummary = renderPack(pack);
   const findingsSummary = renderFindings(findings);
   const user = [
@@ -189,13 +156,14 @@ async function extractRun(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const res = await client.messages.create(
-    { model: MODEL, max_tokens: MAX_TOKENS, system: EXTRACT_SYSTEM, messages: [{ role: "user", content: user }] },
-    { timeout: REQUEST_TIMEOUT_MS },
-  );
-  const parsed = GraphSchema.safeParse(extractJson(collectText(res.content)));
-  if (!parsed.success) throw new Error("graph failed schema");
-  const validated = validateGraph(parsed.data);
+  const parsed = await structuredCall({
+    system: EXTRACT_SYSTEM,
+    user,
+    schema: GraphSchema,
+    toolName: "emit_graph",
+    toolDescription: "Emit the decision dependency graph (thesis / claims / assumptions).",
+  });
+  const validated = validateGraph(parsed);
   if (!validated) throw new Error("graph failed validation wall");
   return validated;
 }
@@ -273,7 +241,6 @@ HARD RULES:
 
 /** One live attack-gen attempt: throws on any network/parse/schema/validate failure (retryOnce retries). */
 async function attacksRun(graph: Graph, pack: unknown): Promise<Attack[]> {
-  const client = new Anthropic({ maxRetries: 0 });
   const assumptionIds = graph.nodes.filter((n) => n.type === "assumption").map((n) => n.id);
   const assumptionLines = graph.nodes
     .filter((n) => n.type === "assumption")
@@ -288,13 +255,14 @@ async function attacksRun(graph: Graph, pack: unknown): Promise<Attack[]> {
   ]
     .filter(Boolean)
     .join("\n\n");
-  const res = await client.messages.create(
-    { model: MODEL, max_tokens: MAX_TOKENS, system: ATTACK_SYSTEM, messages: [{ role: "user", content: user }] },
-    { timeout: REQUEST_TIMEOUT_MS },
-  );
-  const parsed = AttacksSchema.safeParse(extractJson(collectText(res.content)));
-  if (!parsed.success) throw new Error("attacks failed schema");
-  const validated = validateAttacks(graph, parsed.data.attacks);
+  const parsed = await structuredCall({
+    system: ATTACK_SYSTEM,
+    user,
+    schema: AttacksSchema,
+    toolName: "emit_attacks",
+    toolDescription: "Emit the strongest realistic attacks on the vulnerable assumptions.",
+  });
+  const validated = validateAttacks(graph, parsed.attacks);
   if (!validated) throw new Error("attacks failed validation wall");
   return validated;
 }

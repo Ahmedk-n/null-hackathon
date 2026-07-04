@@ -50,7 +50,11 @@ import {
   generateAttacksWithSource,
 } from "./client";
 
-const msg = (obj: unknown) => ({ content: [{ type: "text", text: JSON.stringify(obj) }] });
+// Wave B transport: the live paths now issue a FORCED tool call, so the mocked SDK returns a
+// `tool_use` content block whose `input` is the schema-shaped object (structuredCall validates it
+// with zod). A "malformed" reply is a text block with NO tool_use → structuredCall throws → the
+// caller's retryOnce + fixture fallback fire, exactly as free-text scraping used to.
+const msg = (obj: unknown) => ({ content: [{ type: "tool_use", id: "toolu_1", name: "emit", input: obj }] });
 const pack = { relevantBusinessFacts: ["x"], contextWeightAdjustments: [] };
 
 const VALID_GRAPH = {

@@ -1,21 +1,22 @@
 // compileContext: one live Claude call that turns the four context textareas into a
 // { companyContext, decisionContextPack } pair, with a deterministic fixture fallback.
 //
-// GUARDRAIL AMENDMENT (documented in docs/.../2026-07-04-keystone-v3.md): GOAL.md mandates
-// messages.parse + zodOutputFormat, but NEITHER exists in @anthropic-ai/sdk@0.68.0. So this
-// mirrors the repo's proven-live pattern (src/agents/business.ts, verified live 2026-07-04):
-//   new Anthropic({ maxRetries: 0 }) → messages.create (timeout) → collectText →
-//   first-balanced-JSON extract → zod safeParse → postClamp → retryOnce → fixture fallback.
+// TRANSPORT (Wave B): the live call now goes through the forced-tool-call transport
+// (src/llm/structured.ts::structuredCall) — a single FORCED `emit_context` tool call whose
+// input schema is ContextCompileSchema, validated by zod on return. This replaces the old
+// free-text JSON scraping (messages.create → collectText → first-balanced-JSON → safeParse):
+// the API returns schema-shaped `tool_use.input`, killing the prose-wrap / truncated-brace /
+// markdown-fence silent-fallback failures. Everything downstream is UNCHANGED:
+//   structuredCall → postClamp → source:"live"; retryOnce owns the single retry; catch → fixture.
 //
 // INVARIANTS:
 //   • FIXTURES ALWAYS WIN when a `scenario` is passed (pinned demo). Scenario short-circuit
 //     precedes the live branch, so scenario A/B stay byte-deterministic (T5/T6).
 //   • Live fires ONLY when there is an API key AND no scenario.
-//   • Never throws: ANY failure (no key, timeout, malformed JSON, schema miss) → fixture.
+//   • Never throws: ANY failure (no key, timeout, schema miss, no tool_use) → fixture.
 //   • No wall clock: this module never calls `new Date()`/`Date.now()`. The temporal text the
 //     user pastes carries its own dates ("tomorrow", explicit calendar dates); we never inject
 //     a "today", so nothing here is time-dependent and the offline demo stays deterministic.
-import Anthropic from "@anthropic-ai/sdk";
 import type { ContextInput, ContextRouteResponse } from "./types";
 import type { ScenarioId } from "./fixtures";
 import { ContextCompileSchema, postClamp } from "./schemas";
@@ -28,16 +29,7 @@ import {
   fixtureDecisionContextPackR,
 } from "./fixtures";
 import { retryOnce } from "@/agents/retry";
-
-const MODEL = "claude-opus-4-8";
-// Hard per-request deadline. One compile is a single (non-tool) reasoning turn producing a
-// medium JSON object; 45s gives Opus comfortable headroom and retryOnce fires a second fresh
-// attempt if the first overruns. On timeout the SDK rejects → catch → fixture fallback.
-const REQUEST_TIMEOUT_MS = 45_000;
-
-function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
+import { hasApiKey, structuredCall } from "@/llm/structured";
 
 // Combined §6.1 (compileCompanyContext) + §6.2 (buildDecisionContextPack) + grounding rules +
 // an explicit field skeleton, so the one call returns a single ContextCompileSchema-valid object.
@@ -106,23 +98,6 @@ function renderContextUser(input: ContextInput): string {
   ].join("\n");
 }
 
-/** Concatenated text of all `text` content blocks (mirrors src/agents/schemas.ts::collectText). */
-function collectText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  const out: string[] = [];
-  for (const block of content) {
-    if (
-      block &&
-      typeof block === "object" &&
-      (block as { type?: unknown }).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string"
-    ) {
-      out.push((block as { text: string }).text);
-    }
-  }
-  return out.join("\n");
-}
-
 // Scenario short-circuit + every failure path lands here. FIXTURES ALWAYS WIN under a scenario.
 function fixtureResult(input: ContextInput, scenario?: ScenarioId): ContextRouteResponse {
   if (scenario === "R") {
@@ -154,33 +129,19 @@ export async function compileContext(
   if (scenario) return fixtureResult(input, scenario);
   if (!hasApiKey()) return fixtureResult(input, scenario);
 
-  // (c) Live: single reasoning call, retried once, validated + clamped, else fixture.
+  // (c) Live: single FORCED-tool call, retried once, validated + clamped, else fixture.
   try {
-    // maxRetries: 0 — retryOnce owns the single guardrail retry; the SDK's default auto-retry
-    // would otherwise stack multiple 45s timeouts and blow the deadline.
-    const client = new Anthropic({ maxRetries: 0 });
-    const res = await retryOnce(() =>
-      client.messages.create(
-        {
-          model: MODEL,
-          max_tokens: 16_000,
-          system: CONTEXT_SYSTEM,
-          messages: [{ role: "user", content: renderContextUser(input) }],
-        },
-        { timeout: REQUEST_TIMEOUT_MS },
-      ),
+    const parsed = await retryOnce(() =>
+      structuredCall({
+        system: CONTEXT_SYSTEM,
+        user: renderContextUser(input),
+        schema: ContextCompileSchema,
+        toolName: "emit_context",
+        toolDescription:
+          "Emit the compiled companyContext + decisionContextPack as ONE structured object.",
+      }),
     );
-
-    const text = collectText(res.content);
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1 || end < start) return fixtureResult(input, scenario);
-
-    const parsed: unknown = JSON.parse(text.slice(start, end + 1));
-    const check = ContextCompileSchema.safeParse(parsed);
-    if (!check.success) return fixtureResult(input, scenario);
-
-    const clamped = postClamp(check.data);
+    const clamped = postClamp(parsed);
     return { ...clamped, source: "live" };
   } catch {
     return fixtureResult(input, scenario);

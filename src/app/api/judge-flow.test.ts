@@ -28,8 +28,10 @@ import {
 } from "@/context";
 import type { Graph, Attack } from "@/engine";
 
-// The model's reply shape the live paths parse: content[].text carrying the JSON object.
-const msg = (obj: unknown) => ({ content: [{ type: "text", text: JSON.stringify(obj) }] });
+// Wave B transport: the live paths issue a FORCED tool call, so a valid reply is a `tool_use`
+// content block whose `input` is the schema-shaped object; `garbage` (a text block with NO
+// tool_use) makes structuredCall throw → the route's retryOnce + fixture fallback fire.
+const msg = (obj: unknown) => ({ content: [{ type: "tool_use", id: "toolu_1", name: "emit", input: obj }] });
 const garbage = { content: [{ type: "text", text: "sorry — no json here" }] };
 
 function jsonReq(url: string, body: unknown): Request {

@@ -1,20 +1,22 @@
 // V6-2 · ADVERSARIAL WIND TUNNEL — the live duel driver (server-only; never imported by a client).
 //
 // runTunnel streams a PROSECUTOR ⟷ ADVOCATE duel over ONE structure, refereed EVERY round by the
-// pure solver (src/context/tunnel). Two lightweight agents run on the proven live pattern
-// (messages.create + first-balanced-JSON + zod-free safe parse + 30s timeout + retryOnce, transcript
-// threaded into each prompt so the argument escalates). Agents only PROPOSE — applyProposal /
-// applyCounter (pure) are the only things that move numbers.
+// pure solver (src/context/tunnel). Two lightweight agents run through the forced-tool-call transport
+// (Wave B: structuredCall with `emit_proposal` / `emit_counter` + their zod schemas, validated on
+// return), replacing the old free-text JSON scraping; the transcript is threaded into each prompt so
+// the argument escalates. Agents only PROPOSE — applyProposal / applyCounter (pure) are the only
+// things that move numbers.
 //
 // INVARIANTS (mirror the gather / design guardrails):
 //  - NEVER throws. Scenario OR no key → the SCRIPTED 5-round fixture duel for scenario R.
 //  - Any agent failure MID-DUEL → emit a "scripted continuation" notice, then finish from the script.
 //  - `ts` is supplied by the caller (`now`) — this module owns no wall-clock.
-import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
 import type { DecisionContextPack } from "@/context";
 import type { Graph } from "@/engine";
 import { integrity } from "@/engine";
+import { hasApiKey, structuredCall } from "@/llm/structured";
 import {
   applyCounter,
   applyProposal,
@@ -29,36 +31,21 @@ import {
   type TunnelNow,
 } from "@/context/tunnel";
 
-const MODEL = "claude-opus-4-8";
-const MAX_TOKENS = 1_500;
-const REQUEST_TIMEOUT_MS = 30_000;
-
-function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
-
-function collectText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  const out: string[] = [];
-  for (const block of content) {
-    if (
-      block &&
-      typeof block === "object" &&
-      (block as { type?: unknown }).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string"
-    ) {
-      out.push((block as { text: string }).text);
-    }
-  }
-  return out.join("\n");
-}
-
-function extractJson(text: string): unknown {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) throw new Error("no JSON object in reply");
-  return JSON.parse(text.slice(start, end + 1)) as unknown;
-}
+// Tool schemas for the two duel agents. Optional/defaulted fields preserve the old lenient parse
+// (missing severity → 0.3, missing rationale/citation → ""), so a slightly-thin live reply still
+// lands instead of aborting the duel; kind defaults to "restore" (matches the old coercion).
+const ProposalSchema = z.object({
+  targetId: z.string(),
+  category: z.string(),
+  severity: z.number().default(0.3),
+  rationale: z.string().default(""),
+});
+const CounterSchema = z.object({
+  kind: z.enum(["restore", "rebuttal"]).catch("restore"),
+  targetId: z.string().optional(),
+  value: z.number().default(0),
+  citation: z.string().default(""),
+});
 
 // ── Prompt rendering ─────────────────────────────────────────────────────────
 function renderAssumptions(graph: Graph): string {
@@ -97,7 +84,6 @@ async function prosecute(
   attacked: string[],
   transcript: string[],
 ): Promise<Proposal> {
-  const client = new Anthropic({ maxRetries: 0 });
   const user = [
     "STRUCTURE ASSUMPTIONS:",
     renderAssumptions(graph),
@@ -107,18 +93,18 @@ async function prosecute(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const res = await client.messages.create(
-    { model: MODEL, max_tokens: MAX_TOKENS, system: PROSECUTOR_SYSTEM, messages: [{ role: "user", content: user }] },
-    { timeout: REQUEST_TIMEOUT_MS },
-  );
-  const raw = extractJson(collectText(res.content)) as Record<string, unknown>;
-  if (typeof raw.targetId !== "string" || typeof raw.category !== "string")
-    throw new Error("prosecutor: malformed proposal");
+  const raw = await structuredCall({
+    system: PROSECUTOR_SYSTEM,
+    user,
+    schema: ProposalSchema,
+    toolName: "emit_proposal",
+    toolDescription: "Emit ONE novel, realistic attack on the weakest unattacked assumption.",
+  });
   return {
     targetId: raw.targetId,
     category: raw.category,
-    severity: typeof raw.severity === "number" ? raw.severity : 0.3,
-    rationale: typeof raw.rationale === "string" ? raw.rationale : "",
+    severity: raw.severity,
+    rationale: raw.rationale,
   };
 }
 
@@ -128,7 +114,6 @@ async function advocate(
   proposal: Proposal,
   transcript: string[],
 ): Promise<Counter> {
-  const client = new Anthropic({ maxRetries: 0 });
   const user = [
     `PROSECUTOR ATTACKED: ${proposal.targetId} (${proposal.category}, severity ${proposal.severity}) — ${proposal.rationale}`,
     "STRUCTURE ASSUMPTIONS:",
@@ -138,17 +123,18 @@ async function advocate(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const res = await client.messages.create(
-    { model: MODEL, max_tokens: MAX_TOKENS, system: ADVOCATE_SYSTEM, messages: [{ role: "user", content: user }] },
-    { timeout: REQUEST_TIMEOUT_MS },
-  );
-  const raw = extractJson(collectText(res.content)) as Record<string, unknown>;
-  const kind = raw.kind === "rebuttal" ? "rebuttal" : "restore";
+  const raw = await structuredCall({
+    system: ADVOCATE_SYSTEM,
+    user,
+    schema: CounterSchema,
+    toolName: "emit_counter",
+    toolDescription: "Emit the advocate's counter (restore or rebuttal) to the latest attack.",
+  });
   return {
-    kind,
-    targetId: typeof raw.targetId === "string" ? raw.targetId : proposal.targetId,
-    value: typeof raw.value === "number" ? raw.value : 0,
-    citation: typeof raw.citation === "string" ? raw.citation : "",
+    kind: raw.kind,
+    targetId: raw.targetId ?? proposal.targetId,
+    value: raw.value,
+    citation: raw.citation,
   };
 }
 

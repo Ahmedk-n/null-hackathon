@@ -2,28 +2,25 @@
 //
 // designCandidates(goal, constraints, pack?, scenario?) synthesizes THREE rival Structures for the
 // SAME goal — one per STRATEGY LENS (AGGRESSIVE / CONSERVATIVE / HYBRID) — and attacks each one so
-// the pure engine (client-side) can pick the survivor. It follows the proven live pattern (see
-// src/llm/client.ts): messages.create + first-balanced-JSON + zod safeParse + validateGraph wall +
-// retryOnce, and it reuses the EXISTING attack path (generateAttacksWithSource) with the SAME pack
-// so the three candidates are comparable BY CONSTRUCTION (same categories, same reweight, same wall).
+// the pure engine (client-side) can pick the survivor. Each lens extraction goes through the
+// forced-tool-call transport (Wave B: structuredCall with `emit_graph` + GraphSchema →
+// validateGraph wall → retryOnce), and it reuses the EXISTING attack path (generateAttacksWithSource)
+// with the SAME pack so the three candidates are comparable BY CONSTRUCTION (same categories, same
+// reweight, same wall).
 //
 // INVARIANTS (mirror the v3 live-chain guardrails):
 //  - FIXTURES ALWAYS WIN when a scenario is passed (short-circuit before the live branch).
 //  - Live fires ONLY when hasApiKey() AND no scenario. Offline/keyless demo → the pinned candidates.
 //  - NEVER 500, NEVER fewer than 3 candidates: any lens that fails live → its pinned stand-in.
 //  - The LLM never ranks; it only proposes shapes + attacks. Verdicts are the engine's, client-side.
-import Anthropic from "@anthropic-ai/sdk";
 import type { Attack, Graph } from "@/engine";
 import { GraphSchema } from "./schemas";
 import { validateGraph } from "./validate";
 import { generateAttacksWithSource, type Source } from "./client";
+import { hasApiKey, structuredCall } from "./structured";
 import { retryOnce } from "@/agents/retry";
 import type { DecisionContextPack, ScenarioId } from "@/context";
 import { fixtureDesignCandidatesR, type DesignLens } from "@/context/fixtures";
-
-const MODEL = "claude-opus-4-8";
-const MAX_TOKENS = 16_000;
-const REQUEST_TIMEOUT_MS = 45_000;
 
 export interface DesignCandidate {
   lens: DesignLens;
@@ -38,35 +35,6 @@ export interface DesignResult {
   candidates: DesignCandidate[];
   /** Overall header provenance: "live" only when EVERY candidate is live. */
   source: Source;
-}
-
-function hasApiKey(): boolean {
-  return Boolean(process.env.ANTHROPIC_API_KEY);
-}
-
-/** Concatenate the text of all `text` content blocks (mirrors client.ts::collectText). */
-function collectText(content: unknown): string {
-  if (!Array.isArray(content)) return "";
-  const out: string[] = [];
-  for (const block of content) {
-    if (
-      block &&
-      typeof block === "object" &&
-      (block as { type?: unknown }).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string"
-    ) {
-      out.push((block as { text: string }).text);
-    }
-  }
-  return out.join("\n");
-}
-
-/** First balanced JSON object from a free-text reply. Throws if none/invalid. */
-function extractJson(text: string): unknown {
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end === -1 || end < start) throw new Error("no JSON object in reply");
-  return JSON.parse(text.slice(start, end + 1)) as unknown;
 }
 
 /** Compact rendering of the pack for the design prompt (tolerant of partial shapes). */
@@ -146,7 +114,6 @@ async function extractLensRun(
   constraints: string,
   pack: unknown,
 ): Promise<Graph> {
-  const client = new Anthropic({ maxRetries: 0 });
   const packSummary = renderPack(pack);
   const user = [
     `GOAL:\n${goal}`,
@@ -155,13 +122,14 @@ async function extractLensRun(
   ]
     .filter(Boolean)
     .join("\n\n");
-  const res = await client.messages.create(
-    { model: MODEL, max_tokens: MAX_TOKENS, system: DESIGN_SYSTEM(lens, stanza), messages: [{ role: "user", content: user }] },
-    { timeout: REQUEST_TIMEOUT_MS },
-  );
-  const parsed = GraphSchema.safeParse(extractJson(collectText(res.content)));
-  if (!parsed.success) throw new Error("graph failed schema");
-  const validated = validateGraph(parsed.data);
+  const parsed = await structuredCall({
+    system: DESIGN_SYSTEM(lens, stanza),
+    user,
+    schema: GraphSchema,
+    toolName: "emit_graph",
+    toolDescription: `Emit ONE candidate decision Structure under the ${lens.toUpperCase()} strategy lens.`,
+  });
+  const validated = validateGraph(parsed);
   if (!validated) throw new Error("graph failed validation wall");
   return validated;
 }
