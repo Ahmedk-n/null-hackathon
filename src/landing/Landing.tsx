@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { SectionHeader } from "@/ui/primitives";
 import { MiniCollapseHero } from "./MiniCollapseHero";
+import { SystemAtWork } from "./SystemAtWork";
 import { RecentDecisions } from "./RecentDecisions";
 
 // V5-1 · LANDING (/) — the concept explainer. Terminal/CAD aesthetic throughout
@@ -164,6 +165,17 @@ export default function Landing({ startedAt }: { startedAt: string }) {
             The real solver on the pinned hero fixture: tomorrow&apos;s enterprise meeting grounds the
             attacks, the keystone crosses its failure threshold, and the De-risking plan restores it.
           </p>
+        </section>
+
+        {/* THE SYSTEM AT WORK — the auto-playing pipeline. See it move, then read the steps. */}
+        <section>
+          <SectionHeader>The system at work</SectionHeader>
+          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 12px", maxWidth: 640 }}>
+            Every agent, doing its job: gather evidence &rarr; compile context &rarr; design rivals &rarr;
+            interrogate the survivor. Auto-playing and deterministic &mdash; hover any lane or stage to
+            pause and inspect what that agent does.
+          </p>
+          <SystemAtWork />
         </section>
 
         {/* HOW IT WORKS. */}
