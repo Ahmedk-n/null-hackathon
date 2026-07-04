@@ -4,3 +4,4 @@ export * from "./propagation";
 export * from "./sensitivity";
 export * from "./load";
 export * from "./reinforce";
+export * from "./explain";

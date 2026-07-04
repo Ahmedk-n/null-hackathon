@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Attack, Graph } from "@/engine";
 import { rankLoadBearing } from "@/engine";
 import {
@@ -16,7 +16,7 @@ import { constraintPlanes } from "@/context/constraints";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
 import { SectionHeader, Button, EmptyCanvas, LedgerRow } from "@/ui/primitives";
-import type { ContextWeightAdjustment } from "@/context";
+import type { ContextWeightAdjustment, DecisionContextPack } from "@/context";
 import type { ReinforcementPlan } from "@/engine";
 
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
@@ -218,14 +218,49 @@ function RerunControl() {
 function ReinforcementPanel({
   plan,
   baseGraph,
+  pack,
 }: {
   plan: ReinforcementPlan;
   baseGraph: Graph | null;
+  pack: DecisionContextPack | null;
 }) {
   const labelFor = (id: string) =>
     baseGraph?.nodes.find((n) => n.id === id)?.label ?? id;
   const before = plan.integrityBefore.toFixed(1);
   const after = plan.integrityAfter.toFixed(1);
+
+  // Harvested idea (founder-a): a VALIDATE-BY line — ONE concrete cheap experiment to prove the
+  // keystone, tailored to imminent temporal events. Fetched AFTER mount from /api/reinforce
+  // (POST graph+pack → {suggestion, source}); offline / no-key → a deterministic fixture string.
+  // NEVER blocks the panel render: nothing shows until the suggestion resolves, and any error is
+  // swallowed (the line simply stays hidden).
+  const [validateBy, setValidateBy] = useState<string | null>(null);
+  useEffect(() => {
+    if (!baseGraph) return;
+    let live = true;
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const res = await fetch("/api/reinforce", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ graph: baseGraph, pack: pack ?? undefined }),
+          signal: ctrl.signal,
+        });
+        if (!res.ok) return;
+        const { suggestion } = (await res.json()) as { suggestion?: string };
+        if (live && typeof suggestion === "string" && suggestion.length > 0) {
+          setValidateBy(suggestion);
+        }
+      } catch {
+        /* offline / aborted — leave the line hidden, panel already rendered */
+      }
+    })();
+    return () => {
+      live = false;
+      ctrl.abort();
+    };
+  }, [baseGraph, pack]);
   return (
     <div data-testid="derisking-plan">
       <SectionHeader>De-Risking Plan</SectionHeader>
@@ -269,6 +304,19 @@ function ReinforcementPanel({
       ) : (
         <div className="label" style={{ padding: "8px 0", color: "var(--bad)" }}>
           Unreachable — proving every assumption still fails ({after}%)
+        </div>
+      )}
+      {validateBy && (
+        <div
+          data-testid="validate-by"
+          style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid var(--hair)" }}
+        >
+          <span className="label" style={{ color: "var(--ok)", display: "block", marginBottom: 3 }}>
+            Validate By
+          </span>
+          <span className="mono" style={{ fontSize: 11, color: "var(--ink-2)", lineHeight: 1.5 }}>
+            {validateBy}
+          </span>
         </div>
       )}
       <div
@@ -425,7 +473,7 @@ export function StressTab({
 
         {/* V3-2 — minimum-reinforcement prescription (the inverse of sensitivity) */}
         {reinforcementPlan && (
-          <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} />
+          <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} pack={pack} />
         )}
 
         {/* V3-7 — time-axis stress (grounded only; RAW has no temporal dimension) */}
