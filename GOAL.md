@@ -132,6 +132,23 @@ Keystone becomes the full CAD loop for thinking. All items green (442 tests, e2e
 - Landing rewritten to the DESIGN·TEST·ASSEMBLE arc with full vocabulary; founder-a's explain/purity-
   guard/reinforce harvested (merge-disposition in docs/founder-a/contracts.md).
 
+## v7 — Substance pass (2026-07-04; depth, stress value, real bug fixes)
+
+Plan `docs/superpowers/plans/2026-07-04-keystone-v7-depth.md`. Answered founder feedback that the
+project had been over-indexed on visualization while graphs stayed shallow, stress thin, agents
+shallow, and UI bugs (crack-readout overflow) unfixed.
+- **Depth math:** product-AND collapsed depth to ~0 integrity. New TYPE-AWARE AND aggregation
+  (`propagation.ts`) — geometric mean over corroborating leaf-assumptions (depth-robust) / product
+  with any internal child (keystone still craters). Fixtures rebuilt DEEP: A 13-node/5-layer,
+  R 13/5, B 9/4, with sub-assumptions + evidence-support nodes. All beats re-pinned.
+- **Stress value:** STRESS now surfaces the engine's reasoning (was one number + bars) — attack
+  rationale, before→after + ordered failure cascade, keystone dominance ratio, support breakdown,
+  and new pure `marginalReinforcement` (+N% firm-up) / `failureCascade`.
+- **Agent depth:** `renderPack` feeds the full pack (constraints/objectives/risks/missing-info);
+  node evidence single→array (supporting + contradicting); GatherFinding gains detail + quantified
+  specifics; gather loops deepened.
+- **UI:** `.ledger-row` overflow fixed at the source (crack readout + SelectionPanel + canvas labels).
+
 ## Reference docs
 
 - Base build plan: `docs/superpowers/plans/2026-07-03-keystone.md` (Tasks 1–14, exact code)

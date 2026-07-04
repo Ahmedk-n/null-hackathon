@@ -36,7 +36,7 @@ The interlocking core — new math + deeper structure + re-authored fixtures mus
 
 ## WAVE 2 — after V7-1 lands (stable deep graphs + math)
 
-### V7-3 · Stress value — surface the hidden engine insight
+### V7-3 · Stress value — surface the hidden engine insight ✅ (attack rationale+label; Load Result before→after+keystone shift+ordered cascade; keystone dominance sentence+ratio; support breakdown per stratum; new pure marginalReinforcement "+N% firm-up" + failureCascade; 11 engine + 8 stress tests)
 - [ ] **Attack rationale** in `AttackRow` (`StressTab.tsx`): render `attack.rationale` + a target LABEL (not just id) under the severity — the specific "why it breaks". Biggest single win.
 - [ ] **Load-result summary** panel via `summariseLoadResult`: `baseline → post-load (−drop)`, failed-node labels, `keystone before → after` shift. Gated on `loadApplied`.
 - [ ] **Keystone explanation** via `explainKeystone`: the deterministic sentence + `impactRatio` ("30× more load-bearing than the next assumption") on/above the sensitivity bars.
@@ -46,7 +46,7 @@ The interlocking core — new math + deeper structure + re-authored fixtures mus
 - [ ] Tests derive/range-assert (don't hard-pin brittle integers where the value is incidental). Terminal styling; fix any overflow using the V7-2 primitives.
 - Files: `src/ui/tabs/StressTab.tsx`, `src/engine/{reinforce or new marginal helper, cascade helper}.ts` (+tests), reuse `@/engine/explain`.
 
-### V7-4 · Agent + context richness (parallel with V7-3 — client/agents, disjoint from StressTab)
+### V7-4 · Agent + context richness ✅ (renderPack feeds full pack — constraints/objectives/risks/missing-info; evidence single→NodeEvidence[] supporting+contradicting, backward-compat coercion, UI renders 2; GatherFinding gains detail+specifics with real quantified data; gather loops deepened within timeout; engine-inert, 480 green)
 - [ ] **Feed the full pack** into extract + attack prompts: `renderPack` (`client.ts`) currently drops `relevantConstraints/relevantObjectives/relevantKnownRisks/missingInformation` — render them so the model extracts against real constraints/risks. Live path; engine-inert.
 - [ ] **Multi-citation evidence**: `node.evidence` single → `evidence[]` (supporting + contradicting), so the ~12 discarded findings surface. `EvidenceSchema`→array, `NodeEvidence`, extract prompt cites multiple, `validate.ts` clone passes it through, evidence-plate UI renders 1-2 (engine-inert — no integrity change). Re-pin fixture evidence shape + SelectionPanel/plate tests.
 - [ ] **Structured findings**: extend `GatherFinding` with optional typed specifics (`detail`/`metrics`/`entities` or populate the unused `raw`); agents instructed to extract quantified specifics (numbers, dates, named entities) not vague prose. Update agent fixtures + `GatherFindingsSchema` + route tests.
