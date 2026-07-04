@@ -1,12 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import {
-  keystoneStore,
-  useKeystone,
-  selectIntegrity,
-  selectKeystoneId,
-  selectFailures,
-} from "@/store/useKeystone";
+import { keystoneStore, useKeystone } from "@/store/useKeystone";
+// GRAPH shows the CLEAN STANDING structure — baseline numbers come straight from the
+// pure engine on the base graph, never the store's post-stress (workingGraph) selectors.
+import { integrity, keystone } from "@/engine";
 import { pickLayoutMode } from "@/canvas/layout";
 import { analysisDepth, presentStrata } from "@/canvas/depth";
 // V4-2 — constraint planes: pure derivation from the pack (deep import; barrel guard).
@@ -20,6 +17,10 @@ import type { ContextWeightAdjustment } from "@/context";
 
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
 const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
+// GRAPH is always the standing structure: no failures, no applied load, no attacks. Stable
+// module-level references keep the memoized canvas from churning on every render.
+const EMPTY_SET: ReadonlySet<string> = new Set();
+const NO_ATTACKS: readonly [] = [];
 
 const RAIL: React.CSSProperties = {
   width: 340,
@@ -161,18 +162,26 @@ function StratumFocus({
 }
 
 export function GraphTab({ fitSignal }: { fitSignal?: number }) {
-  const graph = useKeystone((s) => s.workingGraph);
-  const keystoneId = useKeystone(selectKeystoneId);
-  const failures = useKeystone(selectFailures);
-  const integrityValue = useKeystone(selectIntegrity);
+  const workingGraph = useKeystone((s) => s.workingGraph);
+  const baseGraph = useKeystone((s) => s.baseGraph);
+  // GRAPH always renders the CLEAN STANDING structure. The store's workingGraph holds the
+  // attacked/collapsed state after a STRESS run (Apply Load); driving the GRAPH view from
+  // the base graph keeps it standing at baseline. The collapse view lives on STRESS only.
+  const displayGraph = baseGraph ?? workingGraph;
+  // Baseline numbers straight from the pure engine on the standing graph — never the
+  // post-stress store selectors (selectIntegrity/selectKeystoneId/selectFailures).
+  const keystoneId = useMemo(
+    () => (displayGraph ? keystone(displayGraph)?.id ?? null : null),
+    [displayGraph],
+  );
+  const integrityValue = useMemo(
+    () => (displayGraph ? integrity(displayGraph) : 0),
+    [displayGraph],
+  );
+  // Standing structure carries no failures — the GRAPH is un-collapsed by construction.
+  const failures = EMPTY_SET;
   const tilt = useKeystone((s) => s.tilt);
   const selectedNodeId = useKeystone((s) => s.selectedNodeId);
-  // W1-5/W1-6 — sourced from the store so the causal callout reads real pack data and
-  // the force arrows / build-in key off load + base-graph identity.
-  const attacks = useKeystone((s) => s.attacks);
-  const rawAttacks = useKeystone((s) => s.rawAttacks);
-  const loadApplied = useKeystone((s) => s.loadApplied);
-  const baseGraph = useKeystone((s) => s.baseGraph);
   const editError = useKeystone((s) => s.editError);
   const pack = useKeystone((s) => s.decisionContextPack);
   const contextAdjustments = pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS;
@@ -186,12 +195,12 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const [focusLayer, setFocusLayer] = useState<number | null>(null);
 
   // V4-1 — DEPTH metric + the strata actually present (drives the focus buttons).
-  const depth = useMemo(() => (graph ? analysisDepth(graph) : null), [graph]);
-  const strata = useMemo(() => (graph ? presentStrata(graph) : []), [graph]);
+  const depth = useMemo(() => (displayGraph ? analysisDepth(displayGraph) : null), [displayGraph]);
+  const strata = useMemo(() => (displayGraph ? presentStrata(displayGraph) : []), [displayGraph]);
 
   const stats = useMemo(() => {
-    if (!graph) return null;
-    const nodes = graph.nodes;
+    if (!displayGraph) return null;
+    const nodes = displayGraph.nodes;
     const links = nodes.reduce(
       (acc, n) => acc + n.groups.reduce((a, g) => a + g.childIds.length, 0),
       0,
@@ -207,21 +216,21 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
       weakest,
       mode: pickLayoutMode(nodes.length),
     };
-  }, [graph]);
+  }, [displayGraph]);
 
   // Minimal but functional filter: count nodes matching every active predicate.
   const matches = useMemo(() => {
-    if (!graph) return [];
+    if (!displayGraph) return [];
     const q = search.trim().toLowerCase();
-    return graph.nodes.filter(
+    return displayGraph.nodes.filter(
       (n) =>
         (q === "" || n.label.toLowerCase().includes(q)) &&
         (!failedOnly || failures.has(n.id)) &&
         n.confidence >= minConf,
     );
-  }, [graph, search, failedOnly, minConf, failures]);
+  }, [displayGraph, search, failedOnly, minConf, failures]);
 
-  if (!graph || !stats) {
+  if (!displayGraph || !stats) {
     return <EmptyCanvas />;
   }
 
@@ -352,14 +361,16 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
       {/* CENTER — 3D adaptive canvas */}
       <div style={{ flex: 1, minWidth: 0 }}>
         <KeystoneCanvas
-          graph={graph}
+          graph={displayGraph}
           keystoneId={keystoneId}
-          failures={failures}
+          // Standing structure: no failures, no glow/buckle/LOAD arrows, no constraint
+          // STRIKES. Planes still render as un-violated standing datums (on-brand).
+          failures={EMPTY_SET}
           tilt={tilt}
           focusLayer={focusLayer}
-          loadApplied={loadApplied}
-          attacks={attacks}
-          rawAttacks={rawAttacks}
+          loadApplied={false}
+          attacks={NO_ATTACKS}
+          rawAttacks={NO_ATTACKS}
           contextAdjustments={contextAdjustments}
           constraintPlanes={planes}
           buildKey={baseGraph}
@@ -371,7 +382,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
       {/* RIGHT — SELECTION + ENCODING */}
       <div style={RIGHT}>
         <SelectionPanel
-          graph={graph}
+          graph={displayGraph}
           selectedNodeId={selectedNodeId}
           keystoneId={keystoneId}
           editError={editError}

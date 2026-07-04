@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Attack, Graph } from "@/engine";
+import { integrity } from "@/engine";
 import type { CompanyContext, ContextInput, DecisionContextPack } from "@/context";
 import type { GatherFinding, GatherKind } from "@/agents/types";
 import {
@@ -91,9 +92,15 @@ export default function KeystoneApp({
   const scenarioArg = mode === "custom" ? undefined : mode;
 
   const workingGraph = useKeystone((s) => s.workingGraph);
+  const baseGraph = useKeystone((s) => s.baseGraph);
   const decisionContextPack = useKeystone((s) => s.decisionContextPack);
   const integrityValue = useKeystone(selectIntegrity);
   const keystoneId = useKeystone(selectKeystoneId);
+  // Footer integrity is tab-aware: STRESS shows the live post-load session verdict; every other
+  // tab (CONTEXT/DESIGN/GRAPH) shows the STANDING baseline, so the strip never contradicts the
+  // GRAPH tab's own standing ledger (which reads baseGraph).
+  const footerIntegrity =
+    activeTab === "stress" ? integrityValue : baseGraph ? integrity(baseGraph) : integrityValue;
 
   // V5-4 · the current live verdict SUMMARY, read straight off the store (post-engine). Used to
   // stamp a new snapshot and to patch it after Apply Load / Reinforce.
@@ -347,12 +354,12 @@ export default function KeystoneApp({
     { key: "Keystone", value: keystoneId ?? "—" },
     {
       key: "Integrity",
-      value: workingGraph ? `${Math.round(integrityValue)}%` : "—",
+      value: workingGraph ? `${Math.round(footerIntegrity)}%` : "—",
       accent: !workingGraph
         ? undefined
-        : integrityValue >= 60
+        : footerIntegrity >= 60
           ? "var(--ok)"
-          : integrityValue >= 35
+          : footerIntegrity >= 35
             ? "var(--warn)"
             : "var(--bad)",
     },

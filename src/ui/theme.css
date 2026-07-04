@@ -262,3 +262,36 @@ body {
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* ── React Flow zoom controls (FIX 2) ───────────────────────────────── */
+/* Override React Flow's default rounded/shadowed control chrome to match the
+   terminal/CAD ledger aesthetic: zero radius, hairline frame, paper ground,
+   mono glyphs. Buttons call the flow API so zoom works even in SECTION mode. */
+.keystone-controls {
+  border: 1px solid var(--hair-strong);
+  border-radius: 0;
+  box-shadow: none;
+  background: var(--panel);
+  overflow: hidden;
+}
+.keystone-controls .react-flow__controls-button {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px solid var(--hair);
+  background: var(--panel);
+  color: var(--ink);
+  width: 26px;
+  height: 26px;
+  box-sizing: border-box;
+}
+.keystone-controls .react-flow__controls-button:last-child {
+  border-bottom: none;
+}
+.keystone-controls .react-flow__controls-button:hover {
+  background: var(--panel-2);
+}
+.keystone-controls .react-flow__controls-button svg {
+  fill: var(--ink);
+  max-width: 12px;
+  max-height: 12px;
+}

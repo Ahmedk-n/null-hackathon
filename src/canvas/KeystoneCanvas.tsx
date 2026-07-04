@@ -3,6 +3,7 @@ import {
   ReactFlow,
   Background,
   BackgroundVariant,
+  Controls,
   useReactFlow,
   type Edge,
   type Node,
@@ -136,13 +137,21 @@ function fitPaddingFor(hasPlanes: boolean) {
     : ("12%" as const);
 }
 
+// FIX 2 — let smaller graphs fit LARGER (comfortable default text) while the padding that
+// keeps the keystone from clipping (left 12% / right gutter 15%) is untouched. The Controls
+// + wheel zoom are the real lever for the width-bound 13-node case.
+const FIT_MAX_ZOOM = 1.4;
+function fitOptionsFor(hasPlanes: boolean) {
+  return { padding: fitPaddingFor(hasPlanes), maxZoom: FIT_MAX_ZOOM } as const;
+}
+
 // Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action).
 // Lives inside <ReactFlow> so useReactFlow() resolves the flow instance context.
 function FitController({ fitSignal, hasPlanes }: { fitSignal?: number; hasPlanes: boolean }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
     if (fitSignal === undefined) return;
-    fitView({ padding: fitPaddingFor(hasPlanes), duration: 400 });
+    fitView({ ...fitOptionsFor(hasPlanes), duration: 400 });
   }, [fitSignal, fitView, hasPlanes]);
   return null;
 }
@@ -409,8 +418,14 @@ export function KeystoneCanvas({
             nodeTypes={nodeTypes}
             onNodeClick={onNodeClick}
             fitView
-            // Reserve the right gutter for the constraint rail so nodes never sit under it.
-            fitViewOptions={{ padding: fitPaddingFor(hasPlanes) }}
+            // Reserve the right gutter for the constraint rail so nodes never sit under it;
+            // maxZoom lets smaller graphs fit larger for comfortable default text (FIX 2).
+            fitViewOptions={fitOptionsFor(hasPlanes)}
+            // FIX 2 — comfortable wheel-zoom range. zoomOnScroll stays on (default) so the
+            // width-bound 13-node case can be scrolled up for readability; the Controls use
+            // the flow API (zoomIn/zoomOut/fitView) so they work even in SECTION mode.
+            minZoom={0.3}
+            maxZoom={2.5}
             // A tilted (transformed) ancestor breaks React Flow's pointer math, so pan
             // and node-drag are disabled whenever the SECTION view is active (W3-4).
             panOnDrag={!section}
@@ -426,6 +441,14 @@ export function KeystoneCanvas({
               color={HAIR_STRONG}
             />
             <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} />
+            {/* FIX 2 — zoom in/out/fit buttons, restyled to the terminal/CAD aesthetic
+                (zero radius, hairline border, mono, paper ground). They call the flow API,
+                so zoom works even in SECTION mode where pointer-based pan is disabled. */}
+            <Controls
+              showInteractive={false}
+              className="keystone-controls"
+              fitViewOptions={fitOptionsFor(hasPlanes)}
+            />
           </ReactFlow>
           {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
           <StratumChrome strata={strata} focusLayer={focusLayer} />
