@@ -24,9 +24,13 @@ Return a single JSON object and nothing else, matching exactly:
 {
   "kind": "temporal",
   "summary": "<2-4 sentences suitable to paste into a context textarea>",
-  "facts": [ { "label": "...", "value": "...", "source": "notes" } ]
+  "facts": [ { "label": "...", "value": "<terse headline>", "source": "notes",
+               "detail": "<1-2 sentences elaborating the event/deadline and its stakes>",
+               "specifics": ["<quantified: dates verbatim, counts, named parties — e.g. 'tomorrow', 'in 2 days'>"] } ]
 }
-Produce at least 3 facts. Do not invent dates or events that are not in the notes.`;
+Populate "detail" and "specifics" for every fact — put QUANTIFIED data in specifics (dates verbatim
+from the notes, counts, named parties), not vague prose. Produce at least 3 facts. Do not invent
+dates or events that are not in the notes.`;
 
 export async function gatherTemporal(
   source: TemporalSource,

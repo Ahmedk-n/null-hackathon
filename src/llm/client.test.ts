@@ -132,13 +132,38 @@ describe("extractStructure — evidence provenance (V3-6)", () => {
     ),
   };
 
-  it("live graph carries assumption evidence through the validation wall", async () => {
+  it("live graph carries assumption evidence (coerced to the multi-citation array) through the wall", async () => {
     createMock.mockResolvedValue(msg(GRAPH_WITH_EVIDENCE));
     const graph = await extractStructure("Should we migrate?", pack);
     const aLoad = graph.nodes.find((n) => n.id === "a_load")!;
     const aDev = graph.nodes.find((n) => n.id === "a_dev")!;
-    expect(aLoad.evidence).toEqual({ source: "pyproject.toml", fact: "FastAPI monolith" });
+    // V7-4 · a lone {source,fact} object from the model is coerced to a 1-element array.
+    expect(aLoad.evidence).toEqual([{ source: "pyproject.toml", fact: "FastAPI monolith" }]);
     expect(aDev.evidence).toBeNull();
+  });
+
+  it("live graph carries a multi-citation evidence ARRAY (supporting + contradicting)", async () => {
+    const MULTI = {
+      ...VALID_GRAPH,
+      nodes: VALID_GRAPH.nodes.map((n) =>
+        n.id === "a_load"
+          ? {
+              ...n,
+              evidence: [
+                { source: "pyproject.toml", fact: "FastAPI monolith", stance: "supports" },
+                { source: "src/", fact: "No tracing wiring", stance: "contradicts" },
+              ],
+            }
+          : n,
+      ),
+    };
+    createMock.mockResolvedValue(msg(MULTI));
+    const graph = await extractStructure("Should we migrate?", pack);
+    const aLoad = graph.nodes.find((n) => n.id === "a_load")!;
+    expect(aLoad.evidence).toEqual([
+      { source: "pyproject.toml", fact: "FastAPI monolith", stance: "supports" },
+      { source: "src/", fact: "No tracing wiring", stance: "contradicts" },
+    ]);
   });
 
   it("threads gathered findings into the extraction prompt (citable sources)", async () => {

@@ -75,12 +75,37 @@ function renderPack(pack: unknown): string {
   list("RELEVANT BUSINESS FACTS", p.relevantBusinessFacts);
   list("RELEVANT TECHNICAL FACTS", p.relevantTechnicalFacts);
   list("RELEVANT TEMPORAL FACTS", p.relevantTemporalFacts);
+  // V7-4 · feed the FULL pack. renderPack previously dropped the compiled constraints/
+  // objectives/known-risks/missing-info before the model ever saw them — so extraction and
+  // attacks reasoned against a hollow context. Rendering them lets the model ground assumptions
+  // in the real constraints (and set them LOWER where a known risk stresses them) and lets the
+  // adversary target the risks the company actually carries. Live-path only; engine-inert; no
+  // fixture numbers move (fixtures short-circuit before any live call).
+  if (p.relevantConstraints && p.relevantConstraints.length > 0) {
+    lines.push("RELEVANT CONSTRAINTS:");
+    for (const c of p.relevantConstraints) {
+      lines.push(`- [${c.type}] ${c.statement} (severity ${c.severity})`);
+    }
+  }
+  if (p.relevantObjectives && p.relevantObjectives.length > 0) {
+    lines.push("RELEVANT OBJECTIVES:");
+    for (const o of p.relevantObjectives) {
+      lines.push(`- ${o.statement} (priority ${o.priority})`);
+    }
+  }
+  if (p.relevantKnownRisks && p.relevantKnownRisks.length > 0) {
+    lines.push("RELEVANT KNOWN RISKS:");
+    for (const r of p.relevantKnownRisks) {
+      lines.push(`- [${r.category}] ${r.statement} (likelihood ${r.likelihood}, severity ${r.severity})`);
+    }
+  }
   if (p.contextWeightAdjustments && p.contextWeightAdjustments.length > 0) {
     lines.push("CONTEXT WEIGHT ADJUSTMENTS:");
     for (const w of p.contextWeightAdjustments) {
       lines.push(`- ${w.targetCategory}: ${w.direction} ${w.magnitude} — ${w.reason}`);
     }
   }
+  list("MISSING INFORMATION (unknowns — treat cited assumptions as weaker)", p.missingInformation);
   return lines.join("\n");
 }
 
@@ -110,7 +135,9 @@ graph matching this JSON shape EXACTLY and return ONLY that JSON object (no pros
     { "id": "snake_case_id", "type": "thesis" | "claim" | "assumption",
       "label": "<= 8 words", "confidence": 0.0-1.0,
       "groups": [ { "kind": "AND" | "OR", "childIds": ["<other node ids>"] } ],
-      "evidence": { "source": "<file path / url / notes, VERBATIM from a finding>", "fact": "<the cited finding>" } | null }
+      "evidence": [ { "source": "<file path / url / notes, VERBATIM from a finding>",
+                      "fact": "<the cited finding>",
+                      "stance": "supports" | "contradicts" } ] | null }
   ]
 }
 
@@ -131,11 +158,14 @@ HARD RULES:
   context pack: set it LOWER for assumptions the pack's facts actually stress, HIGHER where facts support them.
 
 EVIDENCE & CONFIDENCE PROVENANCE (disarms "you invented these numbers"):
-- When GATHERED FINDINGS are supplied below, each ASSUMPTION SHOULD cite the SINGLE most relevant
-  finding as "evidence": { "source": <the finding's source VERBATIM — file path, url, or "notes">,
-  "fact": <the finding text> }. Never fabricate a source; copy one from the findings list exactly.
-- Set confidence HIGHER (0.7–0.9) when the cited finding DIRECTLY supports the assumption; LOWER
-  (0.3–0.55) when findings are ABSENT or CONTRADICT it.
+- "evidence" is an ARRAY. When GATHERED FINDINGS are supplied below, each ASSUMPTION SHOULD cite
+  the 1-3 MOST RELEVANT findings, each as { "source": <the finding's source VERBATIM — file path,
+  url, or "notes">, "fact": <the finding text>, "stance": "supports" | "contradicts" }. Prefer
+  1-2 SUPPORTING citations; ADD a "contradicts" citation whenever a real finding argues AGAINST
+  the assumption (conflicting evidence must surface, not be dropped). Never fabricate a source;
+  copy one from the findings list exactly.
+- Set confidence HIGHER (0.7–0.9) when the cited findings DIRECTLY support the assumption; LOWER
+  (0.3–0.55) when findings are ABSENT or when a "contradicts" citation applies.
 - An assumption with NO relevant finding MUST set "evidence": null. thesis/claim nodes set "evidence": null.
 
 GROUND THE STRUCTURE IN CONTEXT. Make the assumptions COMPANY-SPECIFIC, not generic — prefer
@@ -155,7 +185,7 @@ async function extractRun(
   const user = [
     `DECISION:\n${decisionText}`,
     packSummary ? `CONTEXT PACK:\n${packSummary}` : "",
-    findingsSummary ? `GATHERED FINDINGS (cite the single most relevant as evidence):\n${findingsSummary}` : "",
+    findingsSummary ? `GATHERED FINDINGS (cite the 1-3 most relevant per assumption; add a contradicting one where they conflict):\n${findingsSummary}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");

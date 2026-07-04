@@ -34,9 +34,15 @@ function hasApiKey(): boolean {
 // web_search_20250305 is in the SDK's non-beta ToolUnion, but web_fetch_20250910 lives only in
 // the beta namespace, so the single boundary cast below is still required (task R2: kept only
 // because it's still needed, and now verified safe). This code only runs with a key present.
+// V7-4 · deepened the tool budget (search 3→5, fetch 2→3) so the agent researches the site AND
+// several competitors instead of just one — more sources → richer, quantified findings. The basic
+// _20250305 / _20250910 variants run at ~30-38s for a full turn; each extra tool call adds only a
+// few seconds, and the 60s REQUEST_TIMEOUT_MS + retryOnce still bound one attempt. Kept modest (5/3,
+// not 8/6) so a live gather doesn't routinely overrun 60s; on timeout the catch → fixture fallback
+// protects the demo. Trade-off: more competitor coverage vs. a slightly higher tail latency.
 const SERVER_TOOLS = [
-  { type: "web_search_20250305", name: "web_search", max_uses: 3 },
-  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 2 },
+  { type: "web_search_20250305", name: "web_search", max_uses: 5 },
+  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 3 },
 ];
 
 const BUSINESS_SYSTEM = `You are Keystone's business context agent. Using web search and web fetch, research the
@@ -48,9 +54,14 @@ After researching, STOP and return a single JSON object and nothing else, matchi
 {
   "kind": "business",
   "summary": "<3-5 sentences suitable to paste into a context textarea>",
-  "facts": [ { "label": "...", "value": "...", "source": "<the url you found it on>" } ]
+  "facts": [ { "label": "...", "value": "<terse headline>", "source": "<the url you found it on>",
+               "detail": "<1-2 sentences elaborating the fact and its relevance to the decision>",
+               "specifics": ["<quantified: $ amounts, dates, headcounts, named competitors/certs>"] } ]
 }
-Every fact's "source" MUST be a url you actually fetched. Produce at least 5 facts. Do not fabricate.`;
+Every fact's "source" MUST be a url you actually fetched. Populate "detail" and "specifics" for
+every fact — put QUANTIFIED data in specifics (e.g. "$17.5B valuation", "Series A $10M", "SOC 2
+Type II", "founded 2019"), not vague prose. Produce at least 5 facts across the site and competitors.
+Do not fabricate.`;
 
 function renderUser(source: BusinessSource): string {
   const parts: string[] = [];

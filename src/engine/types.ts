@@ -18,6 +18,13 @@ export interface NodeEvidence {
   source: string;
   /** The cited fact text supporting (or contradicting) the assumption. */
   fact: string;
+  /**
+   * V7-4 · which way this citation cuts. "supports" (default) corroborates the assumption;
+   * "contradicts" is a real finding that argues AGAINST it (surfaced so the ~12 discarded
+   * conflicting findings are visible, not silently dropped). Engine-inert like the rest of
+   * evidence — the pure solver never reads it; the UI renders a contradicting plate in --warn/--bad.
+   */
+  stance?: "supports" | "contradicts";
 }
 
 export interface GraphNode {
@@ -28,8 +35,15 @@ export interface GraphNode {
   confidence: number;
   /** Dependency groups. Empty for leaf assumptions. */
   groups: DepGroup[];
-  /** Optional confidence provenance. Engine-inert; UI-only. null = ungrounded assumption. */
-  evidence?: NodeEvidence | null;
+  /**
+   * Optional confidence provenance. Engine-inert; UI-only. null = ungrounded assumption.
+   * V7-4 · an ARRAY of citations (1-3): supporting findings, plus optionally a contradicting
+   * one where gathered findings conflict — so the ~12 discarded findings surface instead of
+   * one-per-node. The engine NEVER reads this; it stays a pure display annotation. A single
+   * live/legacy `{source,fact}` object is coerced to a 1-element array at the validation wall
+   * (validate.ts) for backward-compat with the frozen fixtures and any single-evidence reply.
+   */
+  evidence?: NodeEvidence[] | null;
   /**
    * V5-3 · human-edit provenance. OPTIONAL, purely additive, ENGINE-INERT (like `evidence`):
    * the pure engine never reads it. `"modified"` marks a node a human edited via the studio

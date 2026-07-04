@@ -46,6 +46,17 @@ describe("SelectionPanel — confidence provenance (V3-6)", () => {
     expect(getByText(/\[notes\]/)).toBeTruthy();
   });
 
+  it("surfaces a CONTRADICTING citation alongside the supporting one (V7-4 multi-citation)", () => {
+    const { container, getByText } = render(
+      <SelectionPanel graph={graph} selectedNodeId="k_credible" keystoneId="k_credible" />,
+    );
+    // Both stances render; the supporting one is present and the contradicting one is flagged.
+    expect(container.querySelector('[data-evidence-stance="supports"]')).not.toBeNull();
+    expect(container.querySelector('[data-evidence-stance="contradicts"]')).not.toBeNull();
+    expect(getByText(/CONTRADICTS/)).toBeTruthy();
+    expect(getByText(/No tracing\/metrics wiring found/)).toBeTruthy();
+  });
+
   it("renders an UNGROUNDED — ASSUMED row for an assumption with null evidence", () => {
     const { container, getByText } = render(
       <SelectionPanel graph={graph} selectedNodeId="a_load" keystoneId="k_credible" />,

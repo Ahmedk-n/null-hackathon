@@ -50,12 +50,14 @@ export interface StructuralNodeData {
   /** Resting elevation in px (layer Z + keystone bump) — passed from the canvas. */
   translateZ?: number;
   /**
-   * V4-1 · confidence provenance for the evidence stratum. An assumption with an
-   * evidence object renders a source-plate BELOW it in the L3 stratum; an assumption
+   * V4-1 · confidence provenance for the evidence stratum. An assumption with
+   * evidence renders a source-plate BELOW it in the L3 stratum; an assumption
    * whose evidence is `null` is ungrounded and visibly FLOATS (a dashed drop-line to
    * nothing + an UNGROUNDED hover hint). Thesis/claims carry no evidence.
+   * V7-4 · evidence is a multi-citation ARRAY — the plate shows the primary supporting fact
+   * plus, when present, a contradicting one styled in --bad. Engine-inert.
    */
-  evidence?: NodeEvidence | null;
+  evidence?: NodeEvidence[] | null;
   /**
    * V5-3 · human-edit provenance. When "modified", the evidence plate DETACHES (the cited fact
    * no longer backs the edited belief) — the node reads MODIFIED — UNVERIFIED in the inspector.
@@ -218,7 +220,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       {/* V4-1 — evidence stratum (L3). A grounded assumption drops a source-plate onto
           the evidence plane below it; an ungrounded assumption floats over nothing.
           V5-3 — a human-MODIFIED node detaches its plate: the cited fact no longer backs it. */}
-      {data.type === "assumption" && data.evidence != null && data.provenance !== "modified" && (
+      {data.type === "assumption" && data.evidence != null && data.evidence.length > 0 && data.provenance !== "modified" && (
         <EvidencePlate
           evidence={data.evidence}
           zDelta={plateZDelta}
@@ -386,7 +388,7 @@ function EvidencePlate({
   dropDelay,
   dimmed,
 }: {
-  evidence: NodeEvidence;
+  evidence: NodeEvidence[];
   zDelta: number;
   isFailed: boolean;
   entrance: boolean;
@@ -394,7 +396,13 @@ function EvidencePlate({
   dropDelay: number;
   dimmed: boolean;
 }) {
-  const fact = evidence.fact.length > 72 ? evidence.fact.slice(0, 69) + "…" : evidence.fact;
+  // V7-4 · a multi-citation plate. Primary = first SUPPORTING citation (else the first). A
+  // CONTRADICTING citation, when present, is stacked below in --bad — surfacing conflicting
+  // evidence instead of dropping it. One plate wrapper per node (data-testid=evidence-plate).
+  const primary = evidence.find((e) => e.stance !== "contradicts") ?? evidence[0];
+  const contra = evidence.find((e) => e.stance === "contradicts");
+  const clip = (s: string) => (s.length > 72 ? s.slice(0, 69) + "…" : s);
+  const fact = clip(primary.fact);
   return (
     <div
       style={{
@@ -453,9 +461,25 @@ function EvidencePlate({
             textOverflow: "ellipsis",
           }}
         >
-          {evidence.source}
+          {primary.source}
         </div>
         <div style={{ fontSize: 9, color: INK_2, lineHeight: 1.3, marginTop: 1 }}>{fact}</div>
+        {contra && (
+          <div
+            data-testid="evidence-contradicts"
+            style={{ marginTop: 3, paddingTop: 3, borderTop: `1px solid ${BAD_BG}` }}
+          >
+            <div
+              className="mono"
+              style={{ fontSize: 8, letterSpacing: "0.1em", color: BAD }}
+            >
+              CONTRADICTS · {contra.source}
+            </div>
+            <div style={{ fontSize: 9, color: BAD, lineHeight: 1.3, marginTop: 1 }}>
+              {clip(contra.fact)}
+            </div>
+          </div>
+        )}
       </motion.div>
     </div>
   );

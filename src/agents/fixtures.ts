@@ -20,13 +20,62 @@ const TECHNICAL_FINDINGS: GatherFindings = {
     "Dockerfile present (single service); pytest suite under tests/; GitHub Actions CI runs lint + pytest. " +
     "A distributed rewrite would raise operational complexity without a platform team to run it.",
   facts: [
-    { label: "Framework", value: "FastAPI monolith (Python)", source: "pyproject.toml" },
-    { label: "Dependencies", value: "fastapi, uvicorn, sqlalchemy, pytest", source: "pyproject.toml" },
-    { label: "Containerization", value: "Dockerfile present (single service)", source: "Dockerfile" },
-    { label: "CI", value: "GitHub Actions: lint + pytest on push", source: ".github/workflows/ci.yml" },
-    { label: "Tests", value: "pytest suite under tests/", source: "tests/" },
-    { label: "Observability", value: "No tracing/metrics wiring found", source: "src/" },
-    { label: "Team signal", value: "No platform/infra owner in CODEOWNERS", source: "src/" },
+    {
+      label: "Framework",
+      value: "FastAPI monolith (Python)",
+      source: "pyproject.toml",
+      detail:
+        "A single FastAPI application serving all domains from one process — no service boundaries exist yet, so a distributed rewrite starts from zero.",
+      specifics: ["FastAPI", "Python", "single deployable"],
+    },
+    {
+      label: "Dependencies",
+      value: "fastapi, uvicorn, sqlalchemy, pytest",
+      source: "pyproject.toml",
+      detail:
+        "The dependency set is a conventional sync web stack with no message bus, service mesh, or RPC framework — the plumbing a services split would require is absent.",
+      specifics: ["fastapi", "uvicorn", "sqlalchemy", "pytest", "no message broker"],
+    },
+    {
+      label: "Containerization",
+      value: "Dockerfile present (single service)",
+      source: "Dockerfile",
+      detail:
+        "One Dockerfile builds the whole app as a single image; there is no per-service build or orchestration manifest.",
+      specifics: ["1 Dockerfile", "no k8s/compose manifests"],
+    },
+    {
+      label: "CI",
+      value: "GitHub Actions: lint + pytest on push",
+      source: ".github/workflows/ci.yml",
+      detail:
+        "CI runs lint and the pytest suite on every push, but has no deploy, integration, or load-test stage — release maturity is basic.",
+      specifics: ["GitHub Actions", "lint + pytest", "no deploy stage"],
+    },
+    {
+      label: "Tests",
+      value: "pytest suite under tests/",
+      source: "tests/",
+      detail:
+        "A unit-level pytest suite exists under tests/, but there is no end-to-end or contract-test coverage for cross-service calls.",
+      specifics: ["pytest", "unit-level only"],
+    },
+    {
+      label: "Observability",
+      value: "No tracing/metrics wiring found",
+      source: "src/",
+      detail:
+        "No OpenTelemetry, Prometheus, or structured-logging wiring was found in src/ — distributed operations would be effectively blind on day one.",
+      specifics: ["no tracing", "no metrics", "no dashboards"],
+    },
+    {
+      label: "Team signal",
+      value: "No platform/infra owner in CODEOWNERS",
+      source: "src/",
+      detail:
+        "CODEOWNERS lists no platform or infrastructure owner, signalling there is no dedicated team to run a distributed system if one were built.",
+      specifics: ["0 platform owners", "no SRE function"],
+    },
   ],
 };
 
@@ -55,12 +104,54 @@ const BUSINESS_FINDINGS: GatherFindings = {
     "bottleneck. Competitors include Ledgerline (incumbent) and Northgate (fast-growing challenger). " +
     "Buyers demand auditability and reliability before they commit.",
   facts: [
-    { label: "Industry", value: "Enterprise fintech (regulated finance)", source: "https://company.example.com/about" },
-    { label: "Segment", value: "Sells to regulated fintech and enterprise finance teams", source: "https://company.example.com" },
-    { label: "Growth bottleneck", value: "Enterprise onboarding speed", source: "https://company.example.com/customers" },
-    { label: "Competitor", value: "Ledgerline — incumbent platform", source: "https://ledgerline.example.com" },
-    { label: "Competitor", value: "Northgate — fast-growing challenger", source: "https://northgate.example.com" },
-    { label: "Buyer requirements", value: "Auditability and reliability required to close", source: "https://company.example.com/security" },
+    {
+      label: "Industry",
+      value: "Enterprise fintech (regulated finance)",
+      source: "https://company.example.com/about",
+      detail:
+        "The company sells compliance-sensitive financial software into regulated finance teams, so reliability and audit posture are gating purchase criteria.",
+      specifics: ["regulated finance", "enterprise segment"],
+    },
+    {
+      label: "Segment",
+      value: "Sells to regulated fintech and enterprise finance teams",
+      source: "https://company.example.com",
+      detail:
+        "Buyers are enterprise finance and fintech teams with procurement and security review gates, lengthening the sales cycle.",
+      specifics: ["enterprise finance buyers", "security-gated procurement"],
+    },
+    {
+      label: "Growth bottleneck",
+      value: "Enterprise onboarding speed",
+      source: "https://company.example.com/customers",
+      detail:
+        "Slow enterprise onboarding is the stated primary constraint on growth — deals stall in implementation, not in the funnel.",
+      specifics: ["onboarding is #1 bottleneck"],
+    },
+    {
+      label: "Competitor",
+      value: "Ledgerline — incumbent platform",
+      source: "https://ledgerline.example.com",
+      detail:
+        "Ledgerline is the entrenched incumbent with deep enterprise install base; displacing it demands a clear reliability/audit edge.",
+      specifics: ["incumbent", "large install base"],
+    },
+    {
+      label: "Competitor",
+      value: "Northgate — fast-growing challenger",
+      source: "https://northgate.example.com",
+      detail:
+        "Northgate is a fast-growing challenger competing on speed of delivery, pressuring the company's own timeline to differentiate.",
+      specifics: ["fast-growing challenger", "competes on delivery speed"],
+    },
+    {
+      label: "Buyer requirements",
+      value: "Auditability and reliability required to close",
+      source: "https://company.example.com/security",
+      detail:
+        "Enterprise buyers require demonstrable auditability and reliability (e.g. SOC 2, uptime evidence) before they commit — these are hard close gates, not nice-to-haves.",
+      specifics: ["SOC 2 expected", "audit trail required", "uptime SLAs"],
+    },
   ],
 };
 
@@ -88,11 +179,46 @@ const TEMPORAL_FINDINGS: GatherFindings = {
     "Major enterprise customer meeting tomorrow focused on reliability, auditability, and implementation timeline. " +
     "A credible near-term technical plan is needed before the meeting; near-term urgency is high.",
   facts: [
-    { label: "Upcoming meeting", value: "Enterprise customer meeting — tomorrow", source: "notes" },
-    { label: "Meeting focus", value: "Reliability, auditability, implementation timeline", source: "notes" },
-    { label: "Deadline", value: "Credible near-term technical plan by the meeting", source: "notes" },
-    { label: "Urgency", value: "High (near-term pressure ~0.85)", source: "notes" },
-    { label: "Follow-up", value: "Security & reliability review scheduled next week", source: "notes" },
+    {
+      label: "Upcoming meeting",
+      value: "Enterprise customer meeting — tomorrow",
+      source: "notes",
+      detail:
+        "A major enterprise customer meeting is scheduled for tomorrow; the decision's near-term credibility will be judged there.",
+      specifics: ["tomorrow", "enterprise customer"],
+    },
+    {
+      label: "Meeting focus",
+      value: "Reliability, auditability, implementation timeline",
+      source: "notes",
+      detail:
+        "The agenda centres on reliability, auditability, and the implementation timeline — precisely the categories a distributed rewrite puts at risk.",
+      specifics: ["reliability", "auditability", "implementation timeline"],
+    },
+    {
+      label: "Deadline",
+      value: "Credible near-term technical plan by the meeting",
+      source: "notes",
+      detail:
+        "A credible, explainable near-term technical plan must be ready by the meeting — there is no slack to defer the story.",
+      specifics: ["due by tomorrow's meeting"],
+    },
+    {
+      label: "Urgency",
+      value: "High (near-term pressure ~0.85)",
+      source: "notes",
+      detail:
+        "Overall near-term time pressure is high (~0.85), which raises the weight on execution and timeline risk categories.",
+      specifics: ["urgency ~0.85"],
+    },
+    {
+      label: "Follow-up",
+      value: "Security & reliability review scheduled next week",
+      source: "notes",
+      detail:
+        "A security and reliability review follows next week, so any commitments made tomorrow will be scrutinised within days.",
+      specifics: ["next week", "security & reliability review"],
+    },
   ],
 };
 

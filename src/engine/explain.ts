@@ -35,8 +35,8 @@ export interface NodeSupport {
   dependencyFactor: number;
   support: number;
   failed: boolean;
-  /** Passed through from the source node, engine-inert (see file header). */
-  evidence?: NodeEvidence | null;
+  /** Passed through from the source node, engine-inert (see file header). V7-4 · multi-citation array. */
+  evidence?: NodeEvidence[] | null;
   /** Passed through from the source node, engine-inert (see file header). */
   provenance?: "modified";
 }

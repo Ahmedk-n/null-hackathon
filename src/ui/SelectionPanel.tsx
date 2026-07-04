@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import type { Graph, GraphNode } from "@/engine";
 import { computeSupport, rankLoadBearing } from "@/engine";
-import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, HAIR_STRONG, OK, WARN } from "@/ui/tokens";
+import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, HAIR_STRONG, OK, WARN, BAD } from "@/ui/tokens";
 import { LedgerRow, SectionHeader, Field, Button, Chip } from "@/ui/primitives";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 
@@ -47,20 +47,41 @@ function ConfidenceRow({ node }: { node: GraphNode }) {
   if (node.type !== "assumption") {
     return <LedgerRow label="Confidence" value={conf} />;
   }
+  // V7-4 · evidence is a multi-citation array. Order supporting first, then contradicting; show
+  // up to 2 so a conflicting finding surfaces alongside the corroboration instead of being dropped.
   const evidence = node.evidence ?? null;
-  if (evidence) {
+  if (evidence && evidence.length > 0) {
+    const ordered = [...evidence].sort(
+      (a, b) => (a.stance === "contradicts" ? 1 : 0) - (b.stance === "contradicts" ? 1 : 0),
+    );
+    const shown = ordered.slice(0, 2);
     return (
       <div data-evidence="grounded">
         <LedgerRow label="Confidence" value={`${conf} · GROUNDED`} accent={OK} />
-        <div
-          className="mono"
-          style={{ fontSize: 11, lineHeight: 1.5, marginTop: 2, color: "var(--ink-2)" }}
-        >
-          {evidence.fact}
-        </div>
-        <div className="mono" style={{ fontSize: 11, lineHeight: 1.5, color: "var(--muted)" }}>
-          [{evidence.source}]
-        </div>
+        {shown.map((e, i) => {
+          const contradicts = e.stance === "contradicts";
+          return (
+            <div key={i} data-evidence-stance={contradicts ? "contradicts" : "supports"} style={{ marginTop: 3 }}>
+              {contradicts ? (
+                <div
+                  className="label"
+                  style={{ fontSize: 10, letterSpacing: "0.1em", color: BAD }}
+                >
+                  CONTRADICTS
+                </div>
+              ) : null}
+              <div
+                className="mono"
+                style={{ fontSize: 11, lineHeight: 1.5, color: contradicts ? BAD : "var(--ink-2)" }}
+              >
+                {e.fact}
+              </div>
+              <div className="mono" style={{ fontSize: 11, lineHeight: 1.5, color: "var(--muted)" }}>
+                [{e.source}]
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }

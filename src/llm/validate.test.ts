@@ -267,16 +267,35 @@ describe("validateGraph — explicit opts override the caps", () => {
   });
 });
 
-describe("validateGraph — evidence provenance (V3-6) survives repair", () => {
-  it("preserves an assumption's evidence object through the deep-copy repair path", () => {
+describe("validateGraph — evidence provenance (V3-6 · V7-4 multi-citation) survives repair", () => {
+  it("preserves an assumption's evidence ARRAY (with stance) through the deep-copy repair path", () => {
     const g = makeGraph(5);
-    g.nodes[1].evidence = { source: "pyproject.toml", fact: "FastAPI monolith (Python)." };
+    g.nodes[1].evidence = [
+      { source: "pyproject.toml", fact: "FastAPI monolith (Python).", stance: "supports" },
+      { source: "src/", fact: "No tracing wiring found.", stance: "contradicts" },
+    ];
     const out = validateGraph(g);
     expect(out).not.toBeNull();
     const a1 = out!.nodes.find((n) => n.id === "a1")!;
-    expect(a1.evidence).toEqual({ source: "pyproject.toml", fact: "FastAPI monolith (Python)." });
+    expect(a1.evidence).toEqual([
+      { source: "pyproject.toml", fact: "FastAPI monolith (Python).", stance: "supports" },
+      { source: "src/", fact: "No tracing wiring found.", stance: "contradicts" },
+    ]);
     // deep copy, not the same reference
     expect(a1.evidence).not.toBe(g.nodes[1].evidence);
+  });
+
+  it("BACKWARD-COMPAT: coerces a lone {source,fact} object into a 1-element array", () => {
+    const g = makeGraph(5);
+    // A legacy / single-evidence value reaching the wall un-coerced (bypasses the schema).
+    (g.nodes[1] as { evidence?: unknown }).evidence = {
+      source: "pyproject.toml",
+      fact: "FastAPI monolith (Python).",
+    };
+    const out = validateGraph(g);
+    expect(out).not.toBeNull();
+    const a1 = out!.nodes.find((n) => n.id === "a1")!;
+    expect(a1.evidence).toEqual([{ source: "pyproject.toml", fact: "FastAPI monolith (Python)." }]);
   });
 
   it("preserves an explicit null evidence (ungrounded assumption)", () => {
@@ -296,7 +315,7 @@ describe("validateGraph — evidence provenance (V3-6) survives repair", () => {
 
   it("does not mutate the input graph's evidence", () => {
     const g = makeGraph(5);
-    g.nodes[1].evidence = { source: "notes", fact: "meeting tomorrow" };
+    g.nodes[1].evidence = [{ source: "notes", fact: "meeting tomorrow" }];
     const snapshot = JSON.parse(JSON.stringify(g));
     validateGraph(g);
     expect(g).toEqual(snapshot);

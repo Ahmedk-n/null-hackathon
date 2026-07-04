@@ -135,16 +135,16 @@ export function fixtureContextGraph(): Graph {
       { id: "c_roi", type: "claim", label: "Migration ROI justifies it now", confidence: 1.0, groups: [{ kind: "OR", childIds: ["a_bound", "a_load"] }] },
       // KEYSTONE — leaf on the single-child spine feeding c_exec AND c_reliab. Evidence
       // sourced VERBATIM from the scripted gather fixtures (src/agents/fixtures.ts).
-      { id: "k_credible", type: "assumption", label: "Can explain safe staged migration by meeting", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Credible near-term technical plan needed by the meeting (tomorrow)." } },
+      { id: "k_credible", type: "assumption", label: "Can explain safe staged migration by meeting", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Credible near-term technical plan needed by the meeting (tomorrow).", stance: "supports" }, { source: "src/", fact: "No tracing/metrics wiring found — a staged migration is hard to prove operationally safe.", stance: "contradicts" }] },
       // a_obs decomposes into two evidence-support leaves (all-leaf AND → geometric mean).
       { id: "a_obs", type: "assumption", label: "Enough observability for distributed ops", confidence: 1.0, groups: [{ kind: "AND", childIds: ["s_tracing", "s_metrics"] }] },
-      { id: "s_tracing", type: "assumption", label: "Distributed tracing is wired", confidence: 0.85, groups: [], evidence: { source: "src/", fact: "No tracing wiring found (observability is limited)." } },
-      { id: "s_metrics", type: "assumption", label: "Per-service metrics exist", confidence: 0.85, groups: [], evidence: { source: "src/", fact: "No metrics/dashboards found for distributed ops." } },
-      { id: "a_audit", type: "assumption", label: "Enterprise values auditability over purity", confidence: 0.8, groups: [], evidence: { source: "https://company.example.com/security", fact: "Auditability and reliability required to close." } },
+      { id: "s_tracing", type: "assumption", label: "Distributed tracing is wired", confidence: 0.85, groups: [], evidence: [{ source: "src/", fact: "No tracing wiring found (observability is limited)." }] },
+      { id: "s_metrics", type: "assumption", label: "Per-service metrics exist", confidence: 0.85, groups: [], evidence: [{ source: "src/", fact: "No metrics/dashboards found for distributed ops." }] },
+      { id: "a_audit", type: "assumption", label: "Enterprise values auditability over purity", confidence: 0.8, groups: [], evidence: [{ source: "https://company.example.com/security", fact: "Auditability and reliability required to close.", stance: "supports" }, { source: "https://northgate.example.com", fact: "Northgate wins deals on delivery speed, not architectural purity.", stance: "contradicts" }] },
       // a_bound decomposes too (depth in the ROI holding branch).
       { id: "a_bound", type: "assumption", label: "Services have clean boundaries", confidence: 1.0, groups: [{ kind: "AND", childIds: ["s_domain", "s_split"] }] },
-      { id: "s_domain", type: "assumption", label: "Domain modules are separable", confidence: 0.9, groups: [], evidence: { source: "pyproject.toml", fact: "FastAPI monolith (Python) — domain modules not yet separated." } },
-      { id: "s_split", type: "assumption", label: "Split lines are stable", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Service split lines are still shifting week to week." } },
+      { id: "s_domain", type: "assumption", label: "Domain modules are separable", confidence: 0.9, groups: [], evidence: [{ source: "pyproject.toml", fact: "FastAPI monolith (Python) — domain modules not yet separated." }] },
+      { id: "s_split", type: "assumption", label: "Split lines are stable", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Service split lines are still shifting week to week." }] },
       { id: "a_load", type: "assumption", label: "Load is uneven across features", confidence: 0.85, groups: [], evidence: null }, // no relevant finding → ungrounded
     ],
   };
@@ -316,7 +316,7 @@ export function fixtureContextGraphB(): Graph {
       { id: "c_reliab", type: "claim", label: "Reliability improves enough for the pilot", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_sre"] }, { kind: "OR", childIds: ["a_runbook", "a_oncall"] }] },
       { id: "c_ready", type: "claim", label: "Team is operationally ready by the pilot", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_sre"] }, { kind: "OR", childIds: ["a_oncall", "a_budget"] }] },
       // evidence where natural (the operational-ownership gap grounds the SRE keystone), null elsewhere.
-      { id: "k_sre", type: "assumption", label: "2 SREs hired & onboarded before the pilot", confidence: 0.95, groups: [], evidence: { source: "src/", fact: "No platform/infra owner in CODEOWNERS — operational ownership gap." } }, // KEYSTONE — feeds c_reliab AND c_ready
+      { id: "k_sre", type: "assumption", label: "2 SREs hired & onboarded before the pilot", confidence: 0.95, groups: [], evidence: [{ source: "src/", fact: "No platform/infra owner in CODEOWNERS — operational ownership gap." }] }, // KEYSTONE — feeds c_reliab AND c_ready
       { id: "a_runbook", type: "assumption", label: "Runbooks cover the main incident classes", confidence: 1.0, groups: [{ kind: "AND", childIds: ["s_incident", "s_drill"] }] },
       { id: "s_incident", type: "assumption", label: "Incident classes are catalogued", confidence: 0.85, groups: [], evidence: null },
       { id: "s_drill", type: "assumption", label: "Runbooks are drilled", confidence: 0.85, groups: [], evidence: null },
@@ -589,16 +589,16 @@ export function fixtureContextGraphR(): Graph {
       { id: "backend_drives_conversion", type: "claim", label: "Own backend improves paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["conversion_is_collab_limited"] }, { kind: "OR", childIds: ["enterprise_auditability_wins", "enterprise_pipeline_real"] }] },
       { id: "differentiates_vs_competitors", type: "claim", label: "Backend keeps pace with rivals", confidence: 1.0, groups: [{ kind: "OR", childIds: ["competitive_urgency_real", "enterprise_auditability_wins"] }] },
       // KEYSTONE — the load-bearing "a 6-person team has spare capacity" assumption (leaf on the spine).
-      { id: "team_has_backend_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.8, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno, Czech Republic." } },
-      { id: "can_reimplement_e2e_collab", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; local-first with idb-keyval and jotai for state." } },
-      { id: "reliability_observability_ready", type: "assumption", label: "Reliability and observability adequate", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability: Sentry browser error tracking (@sentry/browser 9.0.1); disabled in Docker builds." } },
+      { id: "team_has_backend_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.8, groups: [], evidence: [{ source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno, Czech Republic." }] },
+      { id: "can_reimplement_e2e_collab", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: [{ source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; local-first with idb-keyval and jotai for state." }] },
+      { id: "reliability_observability_ready", type: "assumption", label: "Reliability and observability adequate", confidence: 0.95, groups: [], evidence: [{ source: "excalidraw-app/package.json", fact: "Observability: Sentry browser error tracking (@sentry/browser 9.0.1); disabled in Docker builds." }] },
       // conversion assumption decomposes into two evidence-support leaves (geometric-mean AND).
       { id: "conversion_is_collab_limited", type: "assumption", label: "Collab quality gates paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["conv_flat_growth", "conv_gated_by_collab"] }] },
-      { id: "conv_flat_growth", type: "assumption", label: "Paid growth is flat", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
-      { id: "conv_gated_by_collab", type: "assumption", label: "Collab is the conversion lever", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "Teams cite live collaboration as the reason they upgrade to Excalidraw+." } },
-      { id: "enterprise_auditability_wins", type: "assumption", label: "Own backend enables enterprise auditability", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs." } },
-      { id: "enterprise_pipeline_real", type: "assumption", label: "Enterprise pipeline is real", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Several enterprise trials are waiting on an own-backend compliance story." } },
-      { id: "competitive_urgency_real", type: "assumption", label: "tldraw funding pressures collab timeline", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively." } },
+      { id: "conv_flat_growth", type: "assumption", label: "Paid growth is flat", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." }] },
+      { id: "conv_gated_by_collab", type: "assumption", label: "Collab is the conversion lever", confidence: 0.9, groups: [], evidence: [{ source: "https://www.g2.com/products/excalidraw/reviews", fact: "Teams cite live collaboration as the reason they upgrade to Excalidraw+." }] },
+      { id: "enterprise_auditability_wins", type: "assumption", label: "Own backend enables enterprise auditability", confidence: 0.9, groups: [], evidence: [{ source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs." }] },
+      { id: "enterprise_pipeline_real", type: "assumption", label: "Enterprise pipeline is real", confidence: 0.85, groups: [], evidence: [{ source: "notes", fact: "Several enterprise trials are waiting on an own-backend compliance story." }] },
+      { id: "competitive_urgency_real", type: "assumption", label: "tldraw funding pressures collab timeline", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively." }] },
     ],
   };
 }
@@ -678,13 +678,13 @@ export function fixtureDesignCandidatesR(): DesignCandidateFixture[] {
           { id: "c_build", type: "claim", label: "Team can build and operate it", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_capacity"] }, { kind: "OR", childIds: ["a_e2e", "a_reliab"] }] },
           { id: "c_convert", type: "claim", label: "Own backend lifts paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["a_conversion"] }, { kind: "OR", childIds: ["a_audit", "a_conv2"] }] },
           { id: "c_compete", type: "claim", label: "Keeps pace with funded rivals", confidence: 1.0, groups: [{ kind: "OR", childIds: ["a_urgency", "a_audit"] }] },
-          { id: "k_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.7, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno." } },
-          { id: "a_e2e", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; E2E-encrypted." } },
-          { id: "a_reliab", type: "assumption", label: "Reliability/observability adequate", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability limited to Sentry browser error tracking." } },
-          { id: "a_conversion", type: "assumption", label: "Collab quality gates conversion", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
-          { id: "a_audit", type: "assumption", label: "Own backend enables enterprise audit", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place." } },
-          { id: "a_conv2", type: "assumption", label: "Enterprise pipeline is real", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Several enterprise trials await an own-backend compliance story." } },
-          { id: "a_urgency", type: "assumption", label: "tldraw funding pressures timeline", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "tldraw raised a $10M Series A and ships a realtime collab SDK aggressively." } },
+          { id: "k_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.7, groups: [], evidence: [{ source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno." }] },
+          { id: "a_e2e", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: [{ source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; E2E-encrypted." }] },
+          { id: "a_reliab", type: "assumption", label: "Reliability/observability adequate", confidence: 0.95, groups: [], evidence: [{ source: "excalidraw-app/package.json", fact: "Observability limited to Sentry browser error tracking." }] },
+          { id: "a_conversion", type: "assumption", label: "Collab quality gates conversion", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." }] },
+          { id: "a_audit", type: "assumption", label: "Own backend enables enterprise audit", confidence: 0.9, groups: [], evidence: [{ source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place." }] },
+          { id: "a_conv2", type: "assumption", label: "Enterprise pipeline is real", confidence: 0.85, groups: [], evidence: [{ source: "notes", fact: "Several enterprise trials await an own-backend compliance story." }] },
+          { id: "a_urgency", type: "assumption", label: "tldraw funding pressures timeline", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "tldraw raised a $10M Series A and ships a realtime collab SDK aggressively." }] },
         ],
       },
       attacks: [
@@ -708,11 +708,11 @@ export function fixtureDesignCandidatesR(): DesignCandidateFixture[] {
           { id: "T", type: "thesis", label: "Harden managed infra first", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_reliab", "c_focus"] }] },
           { id: "c_reliab", type: "claim", label: "Reliability improves without a rewrite", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_managed"] }, { kind: "OR", childIds: ["a_sentry", "a_firebase"] }] },
           { id: "c_focus", type: "claim", label: "Team stays on paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_managed"] }, { kind: "OR", childIds: ["a_roadmap", "a_budget"] }] },
-          { id: "k_managed", type: "assumption", label: "Managed stack stays reliable enough", confidence: 0.9, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Persistence on Firebase Firestore/Storage; realtime via open-source excalidraw-room." } },
-          { id: "a_sentry", type: "assumption", label: "Sentry-based ops catch incidents", confidence: 0.85, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability: @sentry/browser error tracking." } },
-          { id: "a_firebase", type: "assumption", label: "Firebase SLA covers pilot load", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Firebase Firestore/Storage is a managed, SLA-backed dependency." } },
-          { id: "a_roadmap", type: "assumption", label: "Roadmap defers own-backend safely", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Collaboration roadmap meeting in 2 days sets near-term stance." } },
-          { id: "a_budget", type: "assumption", label: "No infra spend frees conversion work", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Bootstrapped; must self-fund any infrastructure investment." } },
+          { id: "k_managed", type: "assumption", label: "Managed stack stays reliable enough", confidence: 0.9, groups: [], evidence: [{ source: "excalidraw-app/package.json", fact: "Persistence on Firebase Firestore/Storage; realtime via open-source excalidraw-room." }] },
+          { id: "a_sentry", type: "assumption", label: "Sentry-based ops catch incidents", confidence: 0.85, groups: [], evidence: [{ source: "excalidraw-app/package.json", fact: "Observability: @sentry/browser error tracking." }] },
+          { id: "a_firebase", type: "assumption", label: "Firebase SLA covers pilot load", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Firebase Firestore/Storage is a managed, SLA-backed dependency." }] },
+          { id: "a_roadmap", type: "assumption", label: "Roadmap defers own-backend safely", confidence: 0.85, groups: [], evidence: [{ source: "notes", fact: "Collaboration roadmap meeting in 2 days sets near-term stance." }] },
+          { id: "a_budget", type: "assumption", label: "No infra spend frees conversion work", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Bootstrapped; must self-fund any infrastructure investment." }] },
         ],
       },
       attacks: [
@@ -734,10 +734,10 @@ export function fixtureDesignCandidatesR(): DesignCandidateFixture[] {
           { id: "T", type: "thesis", label: "Stage a managed-to-own rollout", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_pilot", "c_value"] }] },
           { id: "c_pilot", type: "claim", label: "A staged pilot is deliverable", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_staged", "a_scope"] }] },
           { id: "c_value", type: "claim", label: "The pilot proves enterprise value", confidence: 1.0, groups: [{ kind: "AND", childIds: ["a_signal"] }, { kind: "OR", childIds: ["a_audit_pilot"] }] },
-          { id: "k_staged", type: "assumption", label: "Team can staff a staged pilot", confidence: 0.8, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "~6-person team; a staged pilot still competes for the same scarce capacity." } },
-          { id: "a_scope", type: "assumption", label: "Pilot scope stays small by meeting", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Roadmap meeting in 2 days forces a narrow near-term scope." } },
-          { id: "a_signal", type: "assumption", label: "Pilot yields a conversion signal", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Excalidraw+ conversion has been flat; a pilot must show it moves." } },
-          { id: "a_audit_pilot", type: "assumption", label: "Pilot satisfies enterprise audit", confidence: 0.85, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II + DPA expectations apply to any own-infra pilot." } },
+          { id: "k_staged", type: "assumption", label: "Team can staff a staged pilot", confidence: 0.8, groups: [], evidence: [{ source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "~6-person team; a staged pilot still competes for the same scarce capacity." }] },
+          { id: "a_scope", type: "assumption", label: "Pilot scope stays small by meeting", confidence: 0.9, groups: [], evidence: [{ source: "notes", fact: "Roadmap meeting in 2 days forces a narrow near-term scope." }] },
+          { id: "a_signal", type: "assumption", label: "Pilot yields a conversion signal", confidence: 0.85, groups: [], evidence: [{ source: "notes", fact: "Excalidraw+ conversion has been flat; a pilot must show it moves." }] },
+          { id: "a_audit_pilot", type: "assumption", label: "Pilot satisfies enterprise audit", confidence: 0.85, groups: [], evidence: [{ source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II + DPA expectations apply to any own-infra pilot." }] },
         ],
       },
       attacks: [

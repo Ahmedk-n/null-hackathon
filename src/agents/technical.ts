@@ -111,15 +111,20 @@ Determine the real technical context a founder would paste into a decision tool:
 and framework, architecture (monolith vs services), infrastructure, integrations, deployment
 process, observability maturity, testing/CI, technical-debt signals, and any team-size hints.
 
-Explore efficiently (a handful of tool calls), then STOP and return your answer as a single
-JSON object and nothing else, matching exactly:
+Explore thoroughly — open multiple files (manifests, CI config, Dockerfiles, source dirs, tests)
+and grep for real signals — then STOP and return your answer as a single JSON object and nothing
+else, matching exactly:
 {
   "kind": "technical",
   "summary": "<3-5 sentences suitable to paste into a context textarea>",
-  "facts": [ { "label": "...", "value": "...", "source": "<file path you found it in>" } ]
+  "facts": [ { "label": "...", "value": "<terse headline>", "source": "<file path you found it in>",
+               "detail": "<1-2 sentences elaborating the fact and why it matters to the decision>",
+               "specifics": ["<quantified: version numbers, counts, named deps/services/tools>"] } ]
 }
-Every fact's "source" MUST be a file path from the repo. Produce at least 5 facts. Do not invent
-files that do not exist.`;
+Every fact's "source" MUST be a file path from the repo. Populate "detail" and "specifics" for
+every fact — put QUANTIFIED data in specifics (e.g. "socket.io-client 4.7.2", "6 services",
+"pytest suite of 42 tests"), not vague prose. Produce at least 5 facts, digging for genuine depth.
+Do not invent files that do not exist.`;
 
 export async function gatherTechnical(
   source: TechnicalSource,
@@ -234,7 +239,14 @@ export async function gatherTechnical(
     const runner = client.beta.messages.toolRunner({
       model: MODEL,
       max_tokens: 8_000,
-      max_iterations: 8,
+      // V7-4 · deepened 8→12 so the agent can open more files (manifests + CI + Dockerfile +
+      // several source dirs + tests) and grep before answering, yielding richer per-fact detail/
+      // specifics. Each turn is bounded by REQUEST_TIMEOUT_MS (30s) and the whole loop by
+      // RUNNER_DEADLINE_MS (90s) via Promise.race — most turns are fast local tool calls, so the
+      // extra iterations rarely add wall-clock; on overrun the deadline rejects → fixture fallback
+      // (the demo is never at risk). Trade-off: more depth vs. a slightly higher chance of hitting
+      // the 90s ceiling on a huge repo — kept modest (12, not 20) to stay inside the envelope.
+      max_iterations: 12,
       system: TECH_SYSTEM,
       messages: [
         {

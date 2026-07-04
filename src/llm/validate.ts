@@ -6,8 +6,25 @@
 // Boundary: llm → engine is allowed, but we import engine TYPES only (never engine internals
 // like topoOrder). The acyclicity/reachability checks are self-contained here. normaliseCategory
 // is a pure context function (context is pure, no engine dependency the wrong way).
-import type { Attack, DepGroup, Graph, GraphNode } from "@/engine";
+import type { Attack, DepGroup, Graph, GraphNode, NodeEvidence } from "@/engine";
 import { normaliseCategory } from "@/context/weights";
+
+/**
+ * V7-4 · deep-copy + normalise a node's evidence to the MULTI-CITATION array shape. `null`/
+ * `undefined` pass through; a lone `{source,fact}` object (legacy / single-evidence) is coerced
+ * to a 1-element array. Each item's optional `stance` is preserved. Engine-inert.
+ */
+function cloneEvidence(
+  e: NodeEvidence | NodeEvidence[] | null,
+): NodeEvidence[] | null {
+  if (e == null) return e;
+  const arr = Array.isArray(e) ? e : [e];
+  return arr.map((it) =>
+    it.stance == null
+      ? { source: it.source, fact: it.fact }
+      : { source: it.source, fact: it.fact, stance: it.stance },
+  );
+}
 
 /** Local, total clamp (NaN → 0). Kept self-contained so validate.ts imports no engine functions. */
 function clamp01(n: number): number {
@@ -46,9 +63,11 @@ function cloneGraph(g: Graph): Graph {
       groups: n.groups.map((gr) => ({ kind: gr.kind, childIds: [...gr.childIds] })),
       // Preserve confidence provenance through the repair path (deep-copied; null/undefined
       // pass through untouched). Engine-inert, but the UI needs it to survive validation.
-      ...(n.evidence !== undefined
-        ? { evidence: n.evidence ? { source: n.evidence.source, fact: n.evidence.fact } : n.evidence }
-        : {}),
+      // V7-4 · evidence is a MULTI-CITATION array now: deep-copy each item (source/fact/stance).
+      // BACKWARD-COMPAT: a lone {source,fact} object (legacy / single-evidence live reply that
+      // reached here un-coerced) is wrapped into a 1-element array so the frozen single-evidence
+      // fixtures and any old single object still pass the wall unchanged.
+      ...(n.evidence !== undefined ? { evidence: cloneEvidence(n.evidence) } : {}),
       // V5-3 · preserve human-edit provenance through the manual-edit validation path too.
       ...(n.provenance !== undefined ? { provenance: n.provenance } : {}),
     })),

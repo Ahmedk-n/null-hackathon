@@ -196,11 +196,12 @@ describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial
 
   it("grounds ≥60% of assumptions in real evidence (here 8/9, real paths + urls)", () => {
     const assumptions = fixtureContextGraphR().nodes.filter((n) => n.type === "assumption");
-    const grounded = assumptions.filter((n) => n.evidence && n.evidence.source);
+    // V7-4 · evidence is a multi-citation array; grounded = at least one citation with a source.
+    const grounded = assumptions.filter((n) => n.evidence && n.evidence.length > 0 && n.evidence[0].source);
     expect(grounded.length / assumptions.length).toBeGreaterThanOrEqual(0.6);
     expect(grounded.length).toBe(8);
     // Provenance is real repo file paths + real urls (V4-3: judge-clickable).
-    const sources = grounded.map((n) => n.evidence!.source);
+    const sources = grounded.flatMap((n) => n.evidence!.map((e) => e.source));
     expect(sources).toContain("excalidraw-app/package.json");
     expect(sources.some((s) => s.startsWith("https://"))).toBe(true);
   });

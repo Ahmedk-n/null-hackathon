@@ -37,12 +37,16 @@ export function provenanceOf(node: GraphNode): ProvenanceReading {
   if (provenance === "modified") {
     return { state: "MODIFIED", phrase: "MODIFIED — UNVERIFIED" };
   }
-  if (node.evidence) {
+  // V7-4 · evidence is a multi-citation array. Ground on the primary SUPPORTING citation (first
+  // non-contradicting, else the first); an empty/null array is ungrounded.
+  const evidence = node.evidence;
+  if (evidence && evidence.length > 0) {
+    const primary = evidence.find((e) => e.stance !== "contradicts") ?? evidence[0];
     return {
       state: "GROUNDED",
       phrase: "GROUNDED",
-      fact: node.evidence.fact,
-      source: node.evidence.source,
+      fact: primary.fact,
+      source: primary.source,
     };
   }
   return { state: "UNGROUNDED", phrase: "UNGROUNDED — ASSUMED" };

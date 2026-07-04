@@ -10,6 +10,11 @@ export const GatherFindingSchema = z.object({
   label: z.string(),
   value: z.string(),
   source: z.string(),
+  // V7-4 · structured depth: an optional 1-2 sentence elaboration + quantified specifics
+  // (numbers / dates / named entities). Optional so a thin live reply still parses; agents are
+  // prompted to populate them (see technical/business/temporal system prompts).
+  detail: z.string().optional(),
+  specifics: z.array(z.string()).optional(),
 });
 
 export const GatherFindingsSchema = z.object({

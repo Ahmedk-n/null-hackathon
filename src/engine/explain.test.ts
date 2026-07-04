@@ -41,10 +41,19 @@ describe("supportBreakdown", () => {
     const bd = supportBreakdown(fixtureContextGraph());
     // k_credible carries a grounded evidence plate; a_load is explicitly ungrounded (null).
     const k = bd.nodes.find((n) => n.id === "k_credible")!;
-    expect(k.evidence).toEqual({
-      source: "notes",
-      fact: "Credible near-term technical plan needed by the meeting (tomorrow).",
-    });
+    // V7-4 · evidence is a multi-citation array (supporting + contradicting), passed through inert.
+    expect(k.evidence).toEqual([
+      {
+        source: "notes",
+        fact: "Credible near-term technical plan needed by the meeting (tomorrow).",
+        stance: "supports",
+      },
+      {
+        source: "src/",
+        fact: "No tracing/metrics wiring found — a staged migration is hard to prove operationally safe.",
+        stance: "contradicts",
+      },
+    ]);
     const aLoad = bd.nodes.find((n) => n.id === "a_load")!;
     expect(aLoad.evidence).toBeNull();
     // No node in the fixture is human-modified, so provenance stays undefined.

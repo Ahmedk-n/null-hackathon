@@ -110,7 +110,7 @@ describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
       { id: "T", type: "thesis", label: "Small decision", confidence: 1, groups: [{ kind: "AND", childIds: ["c1", "c2"] }] },
       { id: "c1", type: "claim", label: "Claim one", confidence: 1, groups: [{ kind: "AND", childIds: ["k"] }] },
       { id: "c2", type: "claim", label: "Claim two", confidence: 1, groups: [{ kind: "OR", childIds: ["a1", "a2"] }] },
-      { id: "k", type: "assumption", label: "keystone", confidence: 0.8, groups: [], evidence: { source: "notes", fact: "grounded fact" } },
+      { id: "k", type: "assumption", label: "keystone", confidence: 0.8, groups: [], evidence: [{ source: "notes", fact: "grounded fact" }] },
       { id: "a1", type: "assumption", label: "a1", confidence: 0.8, groups: [], evidence: null },
       { id: "a2", type: "assumption", label: "a2", confidence: 0.8, groups: [], evidence: null },
     ],

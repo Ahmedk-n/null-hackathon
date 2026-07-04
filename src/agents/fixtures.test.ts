@@ -30,6 +30,13 @@ describe("agent fixtures", () => {
         expect(f.source.length).toBeGreaterThan(0);
         expect(f.label.length).toBeGreaterThan(0);
       }
+
+      // V7-4 · structured depth: every fixture finding carries a detail elaboration + at least
+      // one quantified specific (so the ledger reads as real research, not headlines).
+      for (const f of fx.findings.facts) {
+        expect(f.detail && f.detail.length).toBeGreaterThan(0);
+        expect(f.specifics && f.specifics.length).toBeGreaterThan(0);
+      }
     });
   }
 });
