@@ -135,6 +135,12 @@ export function SkylineSvg({
         const maxC = Math.max(...centers);
         const selected = selectedFoundationId === f.id;
         const barColor = selected ? KEYSTONE : HAIR_STRONG;
+        // SVG <text> can't wrap; derive the label char-budget from the bar width so the
+        // label + " · N▲" suffix stays within its bar (which is always inside svgW) and
+        // can never overrun the drawing. ~5.4px per mono glyph at fontSize 9.
+        const barW = maxC - minC + 16;
+        const suffixLen = ` · ${f.count}▲`.length;
+        const labelBudget = Math.max(4, Math.floor(barW / 5.4) - suffixLen);
         return (
           <g
             key={f.id}
@@ -161,7 +167,7 @@ export function SkylineSvg({
             {/* the foundation column bar spanning its members */}
             <rect x={minC - 8} y={barY} width={maxC - minC + 16} height={14} fill={selected ? "#f6ecea" : PANEL} stroke={barColor} strokeWidth={selected ? 1.5 : 1} />
             <text x={minC - 8} y={barY + 27} fontSize={9} fill={selected ? KEYSTONE : MUTED} style={{ letterSpacing: "0.04em" }}>
-              {truncate(f.label, 30)} · {f.count}▲
+              {truncate(f.label, labelBudget)} · {f.count}▲
             </text>
           </g>
         );

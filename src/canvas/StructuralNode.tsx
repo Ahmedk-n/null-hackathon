@@ -184,7 +184,22 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
           {data.confidence.toFixed(2)}
         </span>
       </div>
-      <div style={{ fontFamily: "var(--sans)", fontSize: 12, marginTop: 6, lineHeight: 1.25 }}>
+      <div
+        style={{
+          fontFamily: "var(--sans)",
+          fontSize: 12,
+          marginTop: 6,
+          lineHeight: 1.25,
+          // Clamp to 2 lines so a long label can't spill past the 72px box toward the
+          // evidence plate below. Keep the clamp on the LABEL only — putting overflow
+          // on the node box would clip the absolutely-positioned plate/glow/callout.
+          display: "-webkit-box",
+          WebkitLineClamp: 2,
+          WebkitBoxOrient: "vertical",
+          overflow: "hidden",
+        }}
+        title={data.label}
+      >
         {data.label}
       </div>
 

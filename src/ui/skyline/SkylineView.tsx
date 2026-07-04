@@ -25,6 +25,12 @@ function accentFor(v: number): string {
   return v >= 35 ? OK : v >= 10 ? WARN : BAD;
 }
 
+// Building titles are full decision sentences; the ledger label truncates (root CSS also
+// ellipsis-clips) with the full title on hover so the crack rows can never overrun.
+function truncate(s: string, n: number): string {
+  return s.length > n ? `${s.slice(0, n - 1)}…` : s;
+}
+
 export function SkylineView() {
   // Resolve entries on the client only (avoids a hydration mismatch: the server has no library).
   const [entries, setEntries] = useState<LibraryEntry[] | null>(null);
@@ -157,7 +163,9 @@ export function SkylineView() {
                 {crackResults.map((r) => (
                   <div key={r.entryId} data-testid="crack-row">
                     <LedgerRow
-                      label={titleOf(r.entryId)}
+                      label={
+                        <span title={titleOf(r.entryId)}>{truncate(titleOf(r.entryId), 40)}</span>
+                      }
                       value={
                         <span>
                           <span style={{ color: accentFor(r.integrityBefore) }}>{Math.round(r.integrityBefore)}%</span>

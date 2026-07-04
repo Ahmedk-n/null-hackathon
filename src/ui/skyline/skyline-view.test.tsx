@@ -2,6 +2,7 @@
 import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { render, cleanup, fireEvent, within } from "@testing-library/react";
 import { SkylineView } from "./SkylineView";
+import { sampleSkylineEntries } from "@/lib/skyline";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -56,6 +57,31 @@ describe("SkylineView (V6-3 · the skyline)", () => {
     // The failed buildings are flagged in the SVG.
     const failed = getAllByTestId("skyline-building").filter((b) => b.getAttribute("data-failed") === "true");
     expect(failed).toHaveLength(2);
+  });
+
+  // V7-2 · BUG 1 regression — a building title is a full decision sentence; the crack-row
+  // ledger label must truncate (so it can't overrun / paint onto the next row) while keeping
+  // the full title reachable via a hover tooltip.
+  it("truncates a long building title in the crack readout and keeps the full title on hover", () => {
+    const longTitle = "Should we ".concat("rearchitect the whole platform onto event sourcing ".repeat(4)).trim();
+    expect(longTitle.length).toBeGreaterThan(120);
+    const entries = sampleSkylineEntries();
+    entries.find((e) => e.id === "sample-r")!.title = longTitle;
+    window.localStorage.setItem("keystone.library.v1", JSON.stringify({ counter: 3, entries }));
+
+    const { getAllByTestId, getByRole } = render(<SkylineView />);
+    fireEvent.click(getByRole("button", { name: /CRACK IT/i }));
+    const rows = getAllByTestId("crack-row");
+    const tip = rows
+      .map((r) => r.querySelector<HTMLElement>("[title]"))
+      .find((el) => el?.getAttribute("title") === longTitle);
+    expect(tip).toBeTruthy();
+    // Rendered label is truncated to ~40 chars + ellipsis, not the full 150-char sentence.
+    expect(tip!.textContent).not.toBe(longTitle);
+    expect(tip!.textContent!.length).toBeLessThanOrEqual(41);
+    expect(tip!.textContent!.endsWith("…")).toBe(true);
+
+    window.localStorage.clear();
   });
 
   it("RESET restores the pre-crack state", () => {

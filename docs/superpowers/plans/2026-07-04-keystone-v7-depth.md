@@ -24,7 +24,7 @@ The interlocking core — new math + deeper structure + re-authored fixtures mus
 - Files: `src/engine/propagation.ts` (+test), `src/engine/{sensitivity,load,explain,reinforce}.test.ts`, `src/llm/client.ts` (EXTRACT prompt only — NOT the render/live plumbing that V7-4 owns; coordinate: V7-1 edits the DEPTH RULES in the prompt, V7-4 edits renderPack — if both touch client.ts, V7-1 goes first and V7-4 rebases), `src/llm/validate.ts` (caps), `src/context/fixtures.ts`, related test files.
 - **This is the big one. Everything else waits on it.**
 
-### V7-2 · UI overflow/layout bug fixes (parallel — CSS/components only, no engine/fixtures)
+### V7-2 · UI overflow/layout bug fixes ✅ (root fix: .ledger-row min-height + .label ellipsis/min-width:0 + .ledger-value 13px flex:0 — kills crack-readout/SelectionPanel/every ledger overlap at source; crack title truncated 40 + tooltip; canvas label 2-line clamp; SVG foundation label bar-width budget; ContextTab segments ellipsis; 2 regression tests; 103 passed)
 - [ ] **Root fix** `src/ui/theme.css` `.ledger-row`: `.label { flex:1 1 auto; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }`, `.ledger-value { flex:0 0 auto; font-size:13px }`, and `.ledger-row { min-height:var(--row-h) }` (not fixed height) so nothing clips.
 - [ ] **BUG 1 crack readout** (`src/ui/skyline/SkylineView.tsx:160`): truncate the building-title label to ~40 chars + `title=` tooltip (titles are full decision sentences).
 - [ ] **BUG 2 SelectionPanel** confidence rows (`SelectionPanel.tsx`): covered by the root fix; verify the `— UNVERIFIED/ASSUMED` suffix doesn't overflow the 300px rail (move to a sub-line if needed).

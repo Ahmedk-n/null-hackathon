@@ -76,18 +76,30 @@ body {
 }
 
 /* ── Ledger row (the signature component) ───────────────────────────── */
+/* min-height (not fixed height) so a value that must wrap grows the row
+   instead of painting over the next one. The label truncates with an
+   ellipsis; the value keeps its natural width and never shrinks. */
 .ledger-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  height: var(--row-h);
+  min-height: var(--row-h);
   padding: 0 2px;
   border-bottom: 1px solid var(--hair);
   gap: var(--gap);
 }
-.ledger-row .ledger-value {
+.ledger-row > .label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ledger-row > .ledger-value {
+  flex: 0 0 auto;
   font-family: var(--mono);
   font-variant-numeric: tabular-nums;
+  font-size: 13px;
   color: var(--ink);
   text-align: right;
   white-space: nowrap;

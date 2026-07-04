@@ -72,6 +72,7 @@ function ModeSelect({
   ];
   const segStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
+    minWidth: 0,
     padding: "8px 10px",
     fontFamily: "var(--mono)",
     fontSize: 10,
@@ -81,6 +82,11 @@ function ModeSelect({
     cursor: "pointer",
     border: "none",
     borderRadius: 0,
+    // 4 equal segments; keep each on one line and ellipsis-clip so a long scenario
+    // label can't wrap raggedly and blow out the control's height (full text on hover).
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
     background: active ? "var(--ink)" : "transparent",
     color: active ? "var(--bg)" : "var(--muted)",
   });
@@ -100,6 +106,7 @@ function ModeSelect({
             data-scenario={s.id}
             aria-pressed={mode === s.id}
             onClick={() => onSelect(s.id)}
+            title={s.label}
             style={segStyle(mode === s.id)}
           >
             {s.label}

@@ -129,6 +129,30 @@ describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
   });
 });
 
+// V7-2 · BUG 3 regression — a long node label used to spill past the 72px box toward the
+// evidence plate. The label div clamps to 2 lines (webkit-box + overflow hidden) and carries
+// the full text as a hover title; the outer box keeps NO overflow clip so the plate/glow/callout
+// (absolutely positioned outside the box) are never cut off.
+describe("StructuralNode long-label clamp (V7-2 BUG 3)", () => {
+  it("clamps an overlong assumption label to 2 lines and exposes the full text on hover", () => {
+    const g = fixtureContextGraph();
+    const long =
+      "This assumption label is deliberately far too long to fit inside the node box in a single line and would otherwise spill downward.";
+    g.nodes.find((n) => n.id === "a_load")!.label = long;
+    const { container } = render(
+      <KeystoneCanvas graph={g} keystoneId="k_credible" failures={new Set()} />,
+    );
+    const el = Array.from(container.querySelectorAll<HTMLElement>("[title]")).find(
+      (e) => e.getAttribute("title") === long,
+    );
+    expect(el).toBeTruthy();
+    expect(el!.style.webkitLineClamp).toBe("2");
+    expect(el!.style.overflow).toBe("hidden");
+    // Full text still present in the DOM (clamp is visual only) — no data loss.
+    expect(el!.textContent).toBe(long);
+  });
+});
+
 describe("collapseDelayFor (W1-2 ripple stagger)", () => {
   it("fires the keystone FIRST (delay 0) regardless of its layer/index", () => {
     expect(collapseDelayFor({ isKeystone: true, layer: 2, indexInLayer: 3 })).toBe(0);
