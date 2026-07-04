@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { Attack, Graph } from "@/engine";
 import type { CompanyContext, ContextInput, DecisionContextPack } from "@/context";
@@ -10,6 +10,15 @@ import {
   selectIntegrity,
   selectKeystoneId,
 } from "@/store/useKeystone";
+// V5-4 · decision library (localStorage snapshot layer). Pure client module — no wall-clock,
+// no server imports (types only), SSR-safe. See src/lib/library.ts.
+import {
+  saveEntry,
+  updateEntryVerdict,
+  getEntry,
+  type LibraryEntry,
+  type LibraryVerdict,
+} from "@/lib/library";
 import { pickLayoutMode } from "@/canvas/layout";
 import { analysisDepth } from "@/canvas/depth";
 import { ContextTab, type ContextMode } from "@/ui/tabs/ContextTab";
@@ -57,6 +66,13 @@ export default function KeystoneApp({
   // A ref, not state — render never reads it; analyse() snapshots it at fetch time.
   const gatherFactsRef = useRef<Partial<Record<GatherKind, GatherFinding[]>>>({});
 
+  // V5-4 · the library entry THIS session is editing. analyse() creates one; Apply Load / Reinforce
+  // patch its verdict; reopening a snapshot adopts its id. null = nothing saved yet this session.
+  const [currentEntryId, setCurrentEntryId] = useState<string | null>(null);
+  // Bumped whenever the library changes (save / verdict update / restore) so the CONTEXT-tab
+  // LIBRARY ledger re-reads localStorage. localStorage is not reactive; this is the refresh beat.
+  const [libraryVersion, setLibraryVersion] = useState(0);
+
   // CUSTOM sends NO scenario (live path fires when a key exists); A/B pin the fixture chain.
   const scenarioArg = mode === "custom" ? undefined : mode;
 
@@ -64,6 +80,53 @@ export default function KeystoneApp({
   const decisionContextPack = useKeystone((s) => s.decisionContextPack);
   const integrityValue = useKeystone(selectIntegrity);
   const keystoneId = useKeystone(selectKeystoneId);
+
+  // V5-4 · the current live verdict SUMMARY, read straight off the store (post-engine). Used to
+  // stamp a new snapshot and to patch it after Apply Load / Reinforce.
+  function currentVerdict(): LibraryVerdict {
+    const s = keystoneStore.getState();
+    return {
+      integrity: selectIntegrity(s),
+      keystoneId: selectKeystoneId(s),
+      failedIds: [...s.failures],
+      loadApplied: s.loadApplied,
+    };
+  }
+
+  // Patch the current snapshot's verdict in place (Apply Load / Reinforce) + refresh the ledger.
+  function syncCurrentVerdict() {
+    if (!currentEntryId) return;
+    updateEntryVerdict(currentEntryId, currentVerdict());
+    setLibraryVersion((n) => n + 1);
+  }
+
+  // V5-4 · restore a saved snapshot into the store WITHOUT calling the API: rehydrate the context
+  // pack (so Context Used surfaces), set the graph (the engine re-verdicts from it), adopt the mode
+  // and the entry id, and jump to the GRAPH tab. Shared by the ?open=<id> deep link and the
+  // in-studio LIBRARY reopen action.
+  function restoreEntry(entry: LibraryEntry) {
+    const store = keystoneStore.getState();
+    if (entry.companyContext && entry.pack) {
+      store.setContext(entry.companyContext, entry.pack, "fixture");
+    }
+    store.setGraph(entry.graph);
+    setMode(entry.mode);
+    setCurrentEntryId(entry.id);
+    setActiveTab("graph");
+  }
+
+  // V5-4 · deep link: /studio?open=<id> restores that snapshot on mount. Read window.location
+  // in an effect (client-only, SSR-safe) rather than useSearchParams — this keeps the studio page
+  // free of a Suspense boundary and the shell render tests free of a router-context mock, while
+  // still honouring "reopen anywhere". Runs once on mount.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const id = new URLSearchParams(window.location.search).get("open");
+    if (!id) return;
+    const entry = getEntry(id);
+    if (entry) restoreEntry(entry);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Orchestration reaches the model ONLY over HTTP — never imports server modules.
   async function analyse(input: ContextInput) {
@@ -108,6 +171,23 @@ export default function KeystoneApp({
       }));
       await new Promise((resolve) => setTimeout(resolve, 800));
       keystoneStore.getState().setGraph(graph);
+      // V5-4 · auto-save the analysis. savedAtISO = the server-passed startedAt (NEVER a client
+      // clock — T8); seq/id come from the library's persisted monotonic counter. The verdict is
+      // the fresh (pre-load) engine reading off the just-set graph.
+      const entry = saveEntry({
+        title: input.decisionText.trim() || decision,
+        savedAtISO: startedAt,
+        mode,
+        input,
+        companyContext,
+        pack,
+        graph,
+        verdict: currentVerdict(),
+      });
+      if (entry) {
+        setCurrentEntryId(entry.id);
+        setLibraryVersion((n) => n + 1);
+      }
       setStage("done");
       setActiveTab("graph");
     } finally {
@@ -136,10 +216,18 @@ export default function KeystoneApp({
         attacks: res.headers.get("x-keystone-source") === "live" ? "live" : "fixture",
       }));
       keystoneStore.getState().applyLoad(generated);
+      // V5-4 · the applied-load verdict updates the current snapshot in the library.
+      syncCurrentVerdict();
       setStage("done");
     } finally {
       setLoading(false);
     }
+  }
+
+  // V5-4 · Reinforce runs the store solver, then patches the snapshot's verdict (de-risked).
+  function handleReinforce() {
+    keystoneStore.getState().reinforce();
+    syncCurrentVerdict();
   }
 
   // Bottom status strip: live reads of engine/store outputs. LINKS = total edges
@@ -263,6 +351,13 @@ export default function KeystoneApp({
             onGatherFindings={(kind, facts) => {
               gatherFactsRef.current[kind] = facts;
             }}
+            libraryVersion={libraryVersion}
+            currentEntryId={currentEntryId}
+            onReopen={(id) => {
+              const entry = getEntry(id);
+              if (entry) restoreEntry(entry);
+            }}
+            onLibraryChange={() => setLibraryVersion((n) => n + 1)}
           />
         )}
         {activeTab === "graph" && <GraphTab fitSignal={fitSignal} />}
@@ -270,7 +365,7 @@ export default function KeystoneApp({
           <StressTab
             onApplyLoad={applyLoad}
             onReset={() => keystoneStore.getState().reset()}
-            onReinforce={() => keystoneStore.getState().reinforce()}
+            onReinforce={handleReinforce}
             loading={loading}
           />
         )}

@@ -50,7 +50,7 @@
 
 ## Wave 2 (after V5-1 + V5-3 land — touches store + landing)
 
-### V5-4 · Decision library — auto-save + ledgers  ← first to cut
+### V5-4 · Decision library — auto-save + ledgers ✅ (keystone.library.v1, cap 20 FIFO, monotonic seq survives deletes, corruption-tolerant, SSR no-op; auto-save on Analyse + verdict patch on Apply Load/Reinforce; reopen via ?open= mount effect — deviation: window.location.search instead of useSearchParams to avoid Suspense/router mocks; LIBRARY ledger in CONTEXT rail; landing RecentDecisions reads client-side on mount, hydration-safe; 17 new tests + T8 source-scan. NOTHING CUT — all four features shipped)
 - [ ] Auto-save on every successful Analyse (and update on Apply Load/reinforce): snapshot {id, title=decision, startedAtISO (server-passed — NEVER client Date), mode/scenario, input, pack, graph, verdict summary {integrity, keystone, failed}} → localStorage (versioned key `keystone.library.v1`, capped 20 entries FIFO).
 - [ ] Studio: LIBRARY drawer/section (ContextTab rail or TopBar) — reopen (restores full snapshot into store + mode), duplicate, delete.
 - [ ] Landing: DECISIONS ledger section lists recent 5 (title, integrity stamp, keystone, date) — click → /studio?open=<id> restores it.

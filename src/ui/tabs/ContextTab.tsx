@@ -12,12 +12,15 @@
 // Editing ANY textarea while pinned to A/B auto-flips the mode to CUSTOM — the seeded text
 // stays as the user's starting point, only the scenario pin drops. This is the keystroke that
 // used to reveal the demo was on rails; now it just works.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ContextInput, ScenarioId } from "@/context";
 import { SCENARIOS } from "@/context/fixtures";
 import type { GatherFinding, GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
+// V5-4 · decision library — the localStorage snapshot layer (SSR-safe, no wall-clock).
+import { listEntries, duplicateEntry, deleteEntry, type LibraryEntry } from "@/lib/library";
+import { statusWord, statusAccent } from "@/ui/memo/derive";
 
 // The CONTEXT tab's operating mode: a pinned demo scenario, or the live custom path.
 export type ContextMode = ScenarioId | "custom";
@@ -139,12 +142,161 @@ function ModeChip({ mode }: { mode: ContextMode }) {
   );
 }
 
+// ── V5-4 · LIBRARY ledger ─────────────────────────────────────────────────────────────────────
+// A compact terminal ledger (under the MODE control) of saved analyses. Reads localStorage on
+// mount + whenever `version` bumps (localStorage is not reactive). Rows: truncated title, integrity
+// stamp with status word, keystone; actions REOPEN (restore into the store, no navigation),
+// DUP (duplicate), DEL (delete). SSR-safe: initial render is the empty-state (listEntries() → []
+// off-browser and before the mount effect), so there is no hydration mismatch.
+const LIB_ACTION: React.CSSProperties = {
+  fontFamily: "var(--mono)",
+  fontSize: 9,
+  letterSpacing: "0.1em",
+  textTransform: "uppercase",
+  padding: "2px 5px",
+  border: "1px solid var(--hair-strong)",
+  borderRadius: 0,
+  background: "transparent",
+  color: "var(--muted)",
+  cursor: "pointer",
+};
+
+function LibrarySection({
+  version = 0,
+  currentEntryId = null,
+  onReopen,
+  onChange,
+}: {
+  version?: number;
+  currentEntryId?: string | null;
+  onReopen?: (id: string) => void;
+  onChange?: () => void;
+}) {
+  const [entries, setEntries] = useState<LibraryEntry[]>([]);
+  // Re-read on mount and on every version bump (save / verdict update from the parent).
+  useEffect(() => {
+    setEntries(listEntries());
+  }, [version]);
+
+  function refresh() {
+    setEntries(listEntries());
+  }
+
+  return (
+    <div data-testid="library-ledger">
+      <span className="label" style={{ display: "block", marginBottom: 5 }}>
+        Library
+      </span>
+      {entries.length === 0 ? (
+        <div
+          style={{
+            border: "1px dashed var(--hair-strong)",
+            borderRadius: 0,
+            padding: "12px 10px",
+            textAlign: "center",
+          }}
+        >
+          <span className="label" style={{ letterSpacing: "0.14em", color: "var(--muted)" }}>
+            No saved analyses
+          </span>
+        </div>
+      ) : (
+        <div style={{ border: "1px solid var(--hair)", borderRadius: 0 }}>
+          {entries.map((e) => {
+            const word = statusWord(e.verdict.integrity);
+            const active = e.id === currentEntryId;
+            return (
+              <div
+                key={e.id}
+                data-testid="library-row"
+                data-entry-id={e.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "6px 8px",
+                  borderBottom: "1px solid var(--hair)",
+                  background: active ? "var(--panel-2)" : "transparent",
+                }}
+              >
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: "var(--ink)",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={e.title}
+                  >
+                    {e.title}
+                  </div>
+                  <div style={{ display: "flex", gap: 6, alignItems: "baseline", marginTop: 2 }}>
+                    <span
+                      className="mono"
+                      style={{ fontSize: 10, color: statusAccent(word) }}
+                    >
+                      {Math.round(e.verdict.integrity)}% {word}
+                    </span>
+                    <span className="mono" style={{ fontSize: 10, color: "var(--muted)" }}>
+                      {e.verdict.keystoneId ?? "—"}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  <button
+                    type="button"
+                    data-testid="library-reopen"
+                    style={LIB_ACTION}
+                    onClick={() => onReopen?.(e.id)}
+                  >
+                    Reopen
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="library-duplicate"
+                    style={LIB_ACTION}
+                    onClick={() => {
+                      duplicateEntry(e.id);
+                      refresh();
+                      onChange?.();
+                    }}
+                  >
+                    Dup
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="library-delete"
+                    style={LIB_ACTION}
+                    onClick={() => {
+                      deleteEntry(e.id);
+                      refresh();
+                      onChange?.();
+                    }}
+                  >
+                    Del
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function ContextTab({
   onAnalyse,
   analysing,
   mode = "A",
   onModeChange,
   onGatherFindings,
+  libraryVersion,
+  currentEntryId,
+  onReopen,
+  onLibraryChange,
 }: {
   onAnalyse: (input: ContextInput) => void;
   analysing: boolean;
@@ -154,6 +306,14 @@ export function ContextTab({
   onModeChange?: (m: ContextMode) => void;
   /** V3-8: lifts each finished gather's facts so analyse() can ground extraction (V3-6). */
   onGatherFindings?: (kind: GatherKind, facts: GatherFinding[]) => void;
+  /** V5-4: bumps to make the LIBRARY ledger re-read localStorage (save / verdict update). */
+  libraryVersion?: number;
+  /** V5-4: id of the snapshot the session is editing — highlighted in the ledger. */
+  currentEntryId?: string | null;
+  /** V5-4: restore a snapshot into the store (no navigation). */
+  onReopen?: (id: string) => void;
+  /** V5-4: the ledger mutated locally (duplicate / delete) — let the parent resync. */
+  onLibraryChange?: () => void;
 }) {
   const [active, setActive] = useState("business");
 
@@ -235,6 +395,14 @@ export function ContextTab({
       }}
     >
       {onModeChange && <ModeSelect mode={mode} onSelect={selectMode} />}
+
+      {/* V5-4 · LIBRARY ledger — compact list of saved analyses under the mode control. */}
+      <LibrarySection
+        version={libraryVersion}
+        currentEntryId={currentEntryId}
+        onReopen={onReopen}
+        onChange={onLibraryChange}
+      />
 
       <Tabs tabs={SUB_TABS} active={active} onChange={setActive} />
 

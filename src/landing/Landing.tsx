@@ -235,8 +235,8 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           </Link>
         </section>
 
-        {/* DECISIONS ledger — empty-state seam for V5-4. */}
-        <RecentDecisions entries={[]} />
+        {/* DECISIONS ledger — V5-4 reads recent snapshots from the library client-side. */}
+        <RecentDecisions />
       </div>
     </main>
   );
