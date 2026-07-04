@@ -1,5 +1,5 @@
 import type { Attack, Graph } from "@/engine";
-import { attacksReferenceIssues, graphReferenceIssues } from "@/engine";
+import { graphReferenceIssues, validateAttacks } from "@/engine";
 import type { DecisionContextPack } from "@/context/types";
 import { fixtureContextAttacks, fixtureContextGraph } from "@/context/fixtures";
 import { AttacksSchema, GraphSchema, type AttacksOutput } from "./schemas";
@@ -120,10 +120,11 @@ export async function generateAttacks(
         toolName: "emit_attacks",
         toolDescription: "Emit adversarial attacks against the assumptions.",
       });
-      // Reject attacks that target non-existent nodes so they fall back to a
-      // fixture instead of silently no-op'ing against the graph.
-      const issues = attacksReferenceIssues(out.attacks, graph);
-      if (issues.length > 0) throw new Error(`malformed attacks: ${issues.join("; ")}`);
+      // Code decides whether to trust the proposed attacks: each must target an
+      // existing assumption, have a unique id, finite severity, and a rationale.
+      // Any violation -> throw -> retry/fixture fallback (demo stays safe).
+      const check = validateAttacks(graph, out.attacks);
+      if (!check.ok) throw new Error(`malformed attacks: ${check.issues.join("; ")}`);
       return out.attacks;
     },
     fallback,

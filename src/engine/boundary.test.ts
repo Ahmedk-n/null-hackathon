@@ -30,7 +30,10 @@ function importLines(src: string): string[] {
 }
 
 describe("engine purity boundary", () => {
-  const files = readdirSync(ENGINE_DIR).filter((f) => f.endsWith(".ts"));
+  // Scan SOURCE files only. Test harnesses (*.test.ts) are dev-only and may
+  // legitimately import fixtures from @/context or @/llm; they are never shipped
+  // and do not affect the engine's runtime dependency graph.
+  const files = readdirSync(ENGINE_DIR).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"));
 
   it("finds engine source files to check", () => {
     expect(files.length).toBeGreaterThan(0);

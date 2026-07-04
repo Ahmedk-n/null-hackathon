@@ -47,3 +47,40 @@ export function attacksReferenceIssues(attacks: Attack[], graph: Graph): string[
   }
   return issues;
 }
+
+export interface AttackValidationResult {
+  ok: boolean;
+  issues: string[];
+  /** The subset of attacks that passed every check (useful for partial use). */
+  validAttacks: Attack[];
+}
+
+/**
+ * Full validation of a proposed attack set before deterministic application.
+ * Enforces the "LLM proposes, code decides" boundary: an attack must target an
+ * existing ASSUMPTION node, have a unique id, a finite severity, and a rationale.
+ * Attacks are proposals; this is where code decides whether to trust them.
+ */
+export function validateAttacks(graph: Graph, attacks: Attack[]): AttackValidationResult {
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const seen = new Set<string>();
+  const issues: string[] = [];
+  const validAttacks: Attack[] = [];
+  for (const a of attacks) {
+    const local: string[] = [];
+    const node = byId.get(a.targetId);
+    if (!node) local.push(`attack ${a.id} targets missing node: ${a.targetId}`);
+    else if (node.type !== "assumption") {
+      local.push(`attack ${a.id} targets non-assumption node: ${a.targetId} (${node.type})`);
+    }
+    if (seen.has(a.id)) local.push(`duplicate attack id: ${a.id}`);
+    seen.add(a.id);
+    if (!Number.isFinite(a.severity)) local.push(`attack ${a.id} has non-finite severity`);
+    if (typeof a.rationale !== "string" || a.rationale.trim() === "") {
+      local.push(`attack ${a.id} has empty rationale`);
+    }
+    if (local.length === 0) validAttacks.push(a);
+    else issues.push(...local);
+  }
+  return { ok: issues.length === 0, issues, validAttacks };
+}
