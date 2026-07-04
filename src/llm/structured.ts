@@ -36,6 +36,10 @@ export interface StructuredCallArgs<T> {
   schema: ZodType<T, ZodTypeDef, unknown>;
   toolName: string;
   toolDescription: string;
+  // Optional per-call request deadline (ms). Defaults to REQUEST_TIMEOUT_MS. A caller whose emit
+  // must synthesize MANY rich facts from a large research transcript (e.g. the business agent) can
+  // raise this; the default keeps the fast callers (temporal) tight.
+  timeoutMs?: number;
 }
 
 /**
@@ -67,7 +71,7 @@ export async function structuredCall<T>(args: StructuredCallArgs<T>): Promise<T>
       tool_choice: { type: "tool", name: args.toolName },
       messages: [{ role: "user", content: args.user }],
     },
-    { timeout: REQUEST_TIMEOUT_MS },
+    { timeout: args.timeoutMs ?? REQUEST_TIMEOUT_MS },
   );
 
   const block = res.content.find(

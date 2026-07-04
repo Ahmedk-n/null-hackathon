@@ -9,13 +9,18 @@ import { retryOnce } from "./retry";
 import { structuredCall } from "@/llm/structured";
 
 const MODEL = "claude-opus-4-8";
-// Hard per-request deadline so a slow live web_search can never freeze the demo. The SDK
-// rejects with APIConnectionTimeoutError, which the existing catch → fixture fallback handles.
-// This call does genuine multi-step server-side tool use (web_search + web_fetch). With the
-// bounded basic tool variants below, a full anthropic.com + competitor turn measured ~30-38s
-// live (2026-07-04); 60s gives one attempt comfortable headroom, and retryOnce fires a second
-// fresh attempt if the first overruns.
-const REQUEST_TIMEOUT_MS = 60_000;
+// PHASE-1 (web research) hard per-request deadline. The SDK rejects with APIConnectionTimeoutError
+// past this, which the catch → fixture fallback handles. This call does genuine multi-step
+// server-side tool use (web_search + web_fetch).
+//
+// V8-C5-fix · raised 60s→135s. The original 60s (with a 5-search/3-fetch budget) was the direct
+// cause of the two-phase live regression: phase-1 never finished in 60s, timed out twice via
+// retryOnce, and every live business gather silently fell back to fixture. Under current
+// server-tool latency (measured 2026-07-04) even a MINIMAL 1-search/1-fetch turn takes ~108s, so
+// 135s gives one honest turn ~25s of headroom. NOTE: this makes a live business gather slow
+// (~110s phase-1 + ~55s phase-2 ≈ 165s end-to-end); that is acceptable for the LIVE flex path
+// (the rehearsed demo runs on fixtures), and any genuine overrun still falls back to the fixture.
+const REQUEST_TIMEOUT_MS = 135_000;
 
 function hasApiKey(): boolean {
   return Boolean(process.env.ANTHROPIC_API_KEY);
@@ -41,9 +46,15 @@ function hasApiKey(): boolean {
 // few seconds, and the 60s REQUEST_TIMEOUT_MS + retryOnce still bound one attempt. Kept modest (5/3,
 // not 8/6) so a live gather doesn't routinely overrun 60s; on timeout the catch → fixture fallback
 // protects the demo. Trade-off: more competitor coverage vs. a slightly higher tail latency.
+// V8-C5-fix · trimmed 5/3 → 1/1. V7-4's 5-search/3-fetch deepening (plus current server-tool
+// latency) pushed a research turn far past the request timeout, so phase-1 never finished and the
+// live path silently fell back to fixture. Even 1 search + 1 fetch takes ~108s under current
+// latency, yet still yields plenty (a live probe produced 13 rich facts incl. the named
+// competitor) because web_search returns many results the model synthesizes and phase-2 enriches.
+// Kept at the floor to keep phase-1 inside the 135s ceiling; raise cautiously if latency improves.
 const SERVER_TOOLS = [
-  { type: "web_search_20250305", name: "web_search", max_uses: 5 },
-  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 3 },
+  { type: "web_search_20250305", name: "web_search", max_uses: 1 },
+  { type: "web_fetch_20250910", name: "web_fetch", max_uses: 1 },
 ];
 
 // PHASE 1 — web research. Server tools (web_search + web_fetch) loop MULTI-STEP server-side within
@@ -123,10 +134,10 @@ export async function gatherBusiness(
     // PHASE 2 — forced-tool finalizer. The research synthesis (with URLs + verbatim quotes + numbers)
     // is fed to a single FORCED emit_findings call that lands the rich typed schema reliably. Separate
     // request because a forced tool_choice cannot coexist with server tools.
-    // LATENCY TRADE-OFF (this agent is the tail-latency risk): phase 1 runs ~30-38s live (5 search /
-    // 3 fetch, basic tool variants — the dynamic-filtering variants blow the budget) bounded by
-    // REQUEST_TIMEOUT_MS; phase 2 adds one bounded structuredCall (45s). Both are guarded by retryOnce
-    // + the try/catch → fixture fallback, so an overrun FALLS BACK to the fixture and never hangs.
+    // V8-C5-fix · timeoutMs raised to 90s (structuredCall's 45s default was the SECOND cause of the
+    // regression once phase-1 was trimmed): synthesizing 5-13 rich facts from the ~15k-char research
+    // transcript measured ~55-58s live, overrunning 45s and falling back. Both phases are guarded by
+    // retryOnce + the try/catch → fixture fallback, so any overrun falls back and never hangs.
     emit({ type: "status", message: "Analyzing website and competitors (forced emit)…", ts: now() });
     const synthesis = collectText(res.content);
     const findings: GatherFindings = await retryOnce(() =>
@@ -137,6 +148,7 @@ export async function gatherBusiness(
         toolName: "emit_findings",
         toolDescription:
           "Emit the business findings (rich typed, with verbatim quotes, quantities, entities, implication) as one structured object.",
+        timeoutMs: 90_000,
       }),
     );
 

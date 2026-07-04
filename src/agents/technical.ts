@@ -1,31 +1,39 @@
-// Technical agent: shallow-clone a repo into an OS temp dir, build a digest, then let
-// a Claude tool_runner explore it with three read-only, path-confined tools. Falls back
-// to the scripted fixture on no key / no repoUrl / any error. Never throws.
+// Technical agent: shallow-clone a repo into an OS temp dir, build a DEEP deterministic digest
+// (file listing + manifest/CI/Dockerfile heads + local grep signals + counts), then a single
+// forced-tool emit_findings call converts that digest into the rich typed schema. Falls back to
+// the scripted fixture on no key / no repoUrl / any error. Never throws.
+//
+// V8-C5-fix — WHY NO tool_runner: the previous two-phase design let a claude-opus-4-8 tool_runner
+// interactively explore with read_file/grep, then a forced-emit finalizer. In practice a SINGLE
+// opus tool_runner turn regularly exceeded the per-turn timeout (>60s even on a medium repo), so
+// the loop threw and every live run silently fell back to fixture (the V8 regression). The digest
+// already gathers the same real repo facts deterministically (no model latency), and one forced
+// structuredCall over it lands rich findings in ~20-30s — reliable AND live. The read is still
+// genuine (real clone, real file contents, real grep hits); only the file-selection is now
+// deterministic instead of model-driven.
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
-import { mkdtemp, rm, readdir, readFile, stat, realpath } from "node:fs/promises";
+import { mkdtemp, rm, readdir, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import Anthropic from "@anthropic-ai/sdk";
-import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
-import { z as z4 } from "zod/v4";
 import type { Emit, GatherFinding, GatherFindings, Now, TechnicalSource } from "./types";
 import { GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
-import { rejectAfter, retryOnce } from "./retry";
+import { retryOnce } from "./retry";
 import { structuredCall } from "@/llm/structured";
 
-const MODEL = "claude-opus-4-8";
 const CLONE_TIMEOUT_MS = 60_000;
-// Per-turn deadline on each tool_runner LLM call, plus a hard ceiling on the whole
-// multi-turn loop so a slow turn can never freeze the demo. maxRetries: 1 honors the
-// "retry once then fall back to a fixture" guardrail at each turn; on final failure the
-// runner rejects and the existing catch → replayFixture fallback fires.
-const REQUEST_TIMEOUT_MS = 30_000;
-const RUNNER_DEADLINE_MS = 90_000;
 const MAX_ENTRIES = 200;
-const MAX_FILE_CHARS = 20_000;
-const MANIFEST_FILES = ["package.json", "pyproject.toml", "go.mod", "requirements.txt"];
+const MAX_FILE_CHARS = 6_000; // per-file head in the digest (keeps the emit prompt bounded)
+const MANIFEST_FILES = ["package.json", "pyproject.toml", "go.mod", "requirements.txt", "Cargo.toml", "pom.xml"];
+
+// Grep signals surfaced deterministically into the digest so the finalizer can quote real hits.
+const GREP_SIGNALS: { label: string; re: RegExp }[] = [
+  { label: "tech-debt (TODO/FIXME/HACK)", re: /\b(TODO|FIXME|HACK|XXX)\b/ },
+  { label: "observability", re: /opentelemetry|prometheus|structlog|opentracing|datadog|sentry|grafana/i },
+  { label: "secrets/config", re: /API_KEY|SECRET|PASSWORD|ACCESS_TOKEN|PRIVATE_KEY/ },
+  { label: "migrations", re: /\b(migrate|alembic|migration|flyway|liquibase)\b/i },
+];
 
 const execAsync = promisify(exec);
 
@@ -69,6 +77,24 @@ async function walk(root: string, cap: number): Promise<string[]> {
   return out;
 }
 
+/** Grep the repo's text files for `re`, returning up to `cap` "path:line: text" hits. */
+async function grepRepo(root: string, files: readonly string[], re: RegExp, cap: number): Promise<string[]> {
+  const hits: string[] = [];
+  for (const rel of files) {
+    if (hits.length >= cap) break;
+    try {
+      const content = await readFile(path.join(root, rel), "utf8");
+      const lines = content.split("\n");
+      for (let i = 0; i < lines.length && hits.length < cap; i++) {
+        if (re.test(lines[i])) hits.push(`${rel}:${i + 1}: ${lines[i].trim().slice(0, 160)}`);
+      }
+    } catch {
+      /* skip binary / unreadable */
+    }
+  }
+  return hits;
+}
+
 async function buildDigest(root: string): Promise<Digest> {
   const files = await walk(root, MAX_ENTRIES);
   const has = (name: string) => files.some((f) => f === name || f.endsWith("/" + name));
@@ -81,108 +107,84 @@ async function buildDigest(root: string): Promise<Digest> {
   if (has("Dockerfile")) {
     facts.push({ label: "Containerization", value: "Dockerfile present", source: "Dockerfile" });
   }
-  const ci = files.find((f) => f.startsWith(".github/workflows/"));
-  if (ci) {
-    facts.push({ label: "CI", value: "GitHub Actions workflow present", source: ci });
+  const workflows = files.filter((f) => f.startsWith(".github/workflows/"));
+  if (workflows.length) {
+    facts.push({ label: "CI", value: "GitHub Actions workflow present", source: workflows[0] });
   }
   const testDir = files.find((f) => f.startsWith("tests/") || f.startsWith("test/"));
   if (testDir) {
     facts.push({ label: "Tests", value: "Test suite present", source: testDir.split("/")[0] + "/" });
   }
 
-  // Manifest / README heads for the model prompt.
-  const heads: string[] = [`Repository file listing (capped at ${MAX_ENTRIES}):\n${files.join("\n")}`];
-  for (const name of [...MANIFEST_FILES, "README.md", "README.rst", "README"]) {
-    const rel = files.find((f) => f === name || f.endsWith("/" + name));
+  // Deterministic counts the finalizer can turn into `quantities`.
+  const testFileCount = files.filter((f) => /(^|\/)(tests?|__tests__|spec)\//i.test(f) || /\.(test|spec)\./i.test(f)).length;
+  const cappedNote = files.length >= MAX_ENTRIES ? `${MAX_ENTRIES}+ (listing capped)` : `${files.length}`;
+
+  const heads: string[] = [
+    `Repository file listing (capped at ${MAX_ENTRIES}):\n${files.join("\n")}`,
+    `\nCOUNTS: files=${cappedNote}; test files=${testFileCount}; CI workflows=${workflows.length}`,
+  ];
+
+  // Read the heads of the highest-signal files: every manifest + lockfiles + first CI workflow +
+  // Dockerfile + README, so the finalizer has real dependency lists / versions / CI steps to quote.
+  const keyFiles = [
+    ...MANIFEST_FILES,
+    "package-lock.json",
+    "pnpm-lock.yaml",
+    "yarn.lock",
+    "poetry.lock",
+    "Dockerfile",
+    "docker-compose.yml",
+    "README.md",
+    "README.rst",
+    "README",
+    ...workflows.slice(0, 2),
+  ];
+  for (const name of keyFiles) {
+    const rel = name.includes("/") ? name : files.find((f) => f === name || f.endsWith("/" + name));
     if (!rel) continue;
     try {
       const content = await readFile(path.join(root, rel), "utf8");
-      heads.push(`\n----- ${rel} (head) -----\n${content.slice(0, 4_000)}`);
+      heads.push(`\n----- ${rel} (head) -----\n${content.slice(0, MAX_FILE_CHARS)}`);
     } catch {
       /* ignore */
     }
   }
 
+  // Real grep hits for the signal patterns, so the finalizer can quote verbatim lines + counts.
+  for (const { label, re } of GREP_SIGNALS) {
+    const hits = await grepRepo(root, files, re, 12);
+    heads.push(`\n----- grep: ${label} (${hits.length ? hits.length + "+ hits" : "no hits"}) -----\n${hits.join("\n") || "(none)"}`);
+  }
+
   return { facts, text: heads.join("\n") };
 }
 
-// PHASE 1 — exploration. The tool_runner (server tools + a forced tool_choice cannot share a
-// request, so this phase uses free tool use) digs through the repo. It does NOT emit the schema
-// here; it ends with a detailed prose synthesis carrying exact paths, verbatim snippets, and counts,
-// which PHASE 2 (a forced-tool emit_findings) converts into the rich typed schema reliably.
-const TECH_SYSTEM = `You are Keystone's technical context agent, exploring a cloned code repository with three
-read-only tools (list_dir, read_file, grep), all confined to the repo root. Determine the real
-technical context a founder would paste into a decision tool: stack/framework, architecture
-(monolith vs services), infrastructure, integrations, deployment, observability maturity,
-testing/CI, technical-debt signals, and team-size hints.
+// Forced-tool finalizer. Converts the deterministic digest (file listing + file heads + grep hits +
+// counts) into the rich typed schema in one call — reliable and low-latency (no multi-turn loop).
+const TECH_EMIT_SYSTEM = `You are Keystone's technical context agent. Below is a DIGEST of a code repository: its file
+listing, verbatim heads of the key files (manifests, lockfiles, CI config, Dockerfile, README), real
+grep hits for tech-debt / observability / secrets / migration signals, and deterministic counts.
+Convert it into structured findings by calling the emit_findings tool. Use ONLY facts grounded in the
+digest — never invent files, versions, or counts.
 
-Explore DEEPLY and CROSS-REFERENCE sources — do not stop at the digest:
-  - Open the manifest (package.json / pyproject.toml / go.mod / requirements.txt) AND the lockfile,
-    the Dockerfile(s), the CI config (.github/workflows/*), and several source + test directories.
-  - grep for real signals: "TODO", "FIXME", "HACK", secrets ("API_KEY|SECRET|password|token"),
-    migrations ("migrate|alembic|migration"), and observability ("opentelemetry|prometheus|structlog").
-  - COUNT things: number of services/apps, number of test files, number of dependencies, key versions.
-
-When you have genuinely investigated, STOP calling tools and write a THOROUGH technical synthesis in
-prose. For every claim, include the EXACT file path it came from and a SHORT VERBATIM snippet (a real
-line you read or a grep hit) plus any counts/versions. Do not invent files that do not exist.`;
-
-// PHASE 2 — forced-tool finalizer. Converts the exploration transcript into the rich typed schema.
-const TECH_EMIT_SYSTEM = `You are Keystone's technical context agent. Below is the transcript of your read-only
-exploration of a code repository (tool calls, file contents, grep hits, and your synthesis). Convert
-it into structured findings by calling the emit_findings tool. Use ONLY facts grounded in the
-transcript — never invent files, versions, or counts.
+Determine the real technical context a founder would paste into a decision tool: stack/framework,
+architecture (monolith vs services), infrastructure, deployment, observability maturity, testing/CI,
+and technical-debt signals. Cross-reference across manifest ∧ lockfile ∧ CI ∧ Dockerfile ∧ src dirs.
 
 For EACH fact populate the rich fields:
   - "label": short tag (e.g. "Framework", "CI", "Tests", "Observability", "Tech debt").
   - "value": a terse headline.
   - "source": the EXACT repo file path (or "src/") the fact came from.
   - "category": one of stack | infra | ci | tests | observability | team | tech-debt | integration.
-  - "sourceExcerpt": a SHORT VERBATIM line/snippet from that file (or a grep hit) — real text.
+  - "sourceExcerpt": a SHORT VERBATIM line/snippet from that file (or a grep hit) — real text from the digest.
   - "quantities": counts/versions as {metric,value,unit?} — e.g. {metric:"test files",value:"38"},
     {metric:"fastapi",value:"0.110"}, {metric:"services",value:"1"}, {metric:"total dependencies",value:"62"}.
   - "entities": named frameworks/libraries/tools (e.g. "FastAPI", "GitHub Actions", "pytest").
   - "implication": one sentence on why this matters for the founder's decision.
   - "confidence": 0..1.
 
-Cross-reference across manifest ∧ lockfile ∧ CI ∧ Dockerfile ∧ src dirs. Produce at least 5 facts,
-kind "technical". Prefer facts that carry a real sourceExcerpt and quantities.`;
-
-/** Render the tool_runner conversation into a compact transcript for the emit phase: assistant text
- *  + tool calls (name/input) + tool results (file contents / grep hits), so PHASE 2 has real
- *  snippets to quote. Bounded so it never blows the emit-call token budget. */
-function renderTranscript(messages: readonly Anthropic.Beta.Messages.BetaMessageParam[], cap: number): string {
-  const parts: string[] = [];
-  for (const m of messages) {
-    const content = m.content;
-    if (typeof content === "string") {
-      parts.push(`[${m.role}] ${content}`);
-      continue;
-    }
-    if (!Array.isArray(content)) continue;
-    for (const block of content) {
-      const b = block as { type?: string; text?: string; name?: string; input?: unknown; content?: unknown };
-      if (b.type === "text" && typeof b.text === "string") {
-        parts.push(`[${m.role}] ${b.text}`);
-      } else if (b.type === "tool_use") {
-        parts.push(`[tool_call] ${b.name}(${JSON.stringify(b.input)})`);
-      } else if (b.type === "tool_result") {
-        const c = b.content;
-        const text =
-          typeof c === "string"
-            ? c
-            : Array.isArray(c)
-              ? c
-                  .map((x) => (x && typeof x === "object" && "text" in x ? (x as { text: string }).text : ""))
-                  .join("\n")
-              : "";
-        if (text) parts.push(`[tool_result]\n${text}`);
-      }
-    }
-  }
-  const joined = parts.join("\n\n");
-  return joined.length > cap ? joined.slice(0, cap) + "\n…[transcript truncated]" : joined;
-}
+Produce at least 5 facts, kind "technical". Prefer facts that carry a real sourceExcerpt and quantities.`;
 
 export async function gatherTechnical(
   source: TechnicalSource,
@@ -202,136 +204,17 @@ export async function gatherTechnical(
       `git clone --depth 1 ${branchArg}${shq(source.repoUrl)} ${shq(cloneDir)}`,
       { timeout: CLONE_TIMEOUT_MS },
     );
-    const rootReal = await realpath(cloneDir);
 
-    emit({ type: "status", message: "Building repository digest…", ts: now() });
+    emit({ type: "status", message: "Building repository digest (files, manifests, CI, grep signals)…", ts: now() });
     const digest = await buildDigest(cloneDir);
     for (const f of digest.facts) emit({ type: "finding", finding: f, ts: now() });
 
-    // Resolve a model-supplied relative path and confine it to the clone dir.
-    // Rejects `..`, absolute-outside, and symlink escapes. Returns null if it escapes.
-    const confine = async (rel: string): Promise<string | null> => {
-      const resolved = path.resolve(rootReal, rel);
-      if (resolved !== rootReal && !resolved.startsWith(rootReal + path.sep)) return null;
-      try {
-        const real = await realpath(resolved);
-        if (real !== rootReal && !real.startsWith(rootReal + path.sep)) return null;
-        return real;
-      } catch {
-        return null; // does not exist / not accessible
-      }
-    };
-
-    const listDir = betaZodTool({
-      name: "list_dir",
-      description: "List entries of a directory within the repo. `path` is relative to the repo root ('' or '.' = root).",
-      inputSchema: z4.object({ path: z4.string() }),
-      run: async ({ path: rel }) => {
-        const abs = await confine(rel || ".");
-        if (!abs) return "ERROR: path escapes the repository root.";
-        try {
-          const entries = await readdir(abs, { withFileTypes: true });
-          return entries
-            .filter((e) => e.name !== ".git")
-            .slice(0, MAX_ENTRIES)
-            .map((e) => (e.isDirectory() ? e.name + "/" : e.name))
-            .join("\n");
-        } catch {
-          return "ERROR: not a directory or unreadable.";
-        }
-      },
-    });
-
-    const readFileTool = betaZodTool({
-      name: "read_file",
-      description: "Read a UTF-8 text file within the repo. `path` is relative to the repo root. Output is capped.",
-      inputSchema: z4.object({ path: z4.string() }),
-      run: async ({ path: rel }) => {
-        const abs = await confine(rel);
-        if (!abs) return "ERROR: path escapes the repository root.";
-        try {
-          const s = await stat(abs);
-          if (!s.isFile()) return "ERROR: not a file.";
-          const content = await readFile(abs, "utf8");
-          return content.length > MAX_FILE_CHARS
-            ? content.slice(0, MAX_FILE_CHARS) + "\n…[truncated]"
-            : content;
-        } catch {
-          return "ERROR: unreadable (binary or missing).";
-        }
-      },
-    });
-
-    const grepTool = betaZodTool({
-      name: "grep",
-      description: "Search the repo's text files for a regular expression. Returns up to 50 matching 'path:line' entries.",
-      inputSchema: z4.object({ pattern: z4.string() }),
-      run: async ({ pattern }) => {
-        let re: RegExp;
-        try {
-          re = new RegExp(pattern);
-        } catch {
-          re = new RegExp(pattern.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"));
-        }
-        const files = await walk(rootReal, MAX_ENTRIES);
-        const hits: string[] = [];
-        for (const rel of files) {
-          if (hits.length >= 50) break;
-          try {
-            const content = await readFile(path.join(rootReal, rel), "utf8");
-            const lines = content.split("\n");
-            for (let i = 0; i < lines.length && hits.length < 50; i++) {
-              if (re.test(lines[i])) hits.push(`${rel}:${i + 1}: ${lines[i].trim().slice(0, 160)}`);
-            }
-          } catch {
-            /* skip binary */
-          }
-        }
-        return hits.length ? hits.join("\n") : "No matches.";
-      },
-    });
-
-    emit({ type: "status", message: "Exploring with read-only tools (list_dir / read_file / grep)…", ts: now() });
-
-    const client = new Anthropic({ timeout: REQUEST_TIMEOUT_MS, maxRetries: 1 });
-    const runner = client.beta.messages.toolRunner({
-      model: MODEL,
-      max_tokens: 8_000,
-      // V7-4 · deepened 8→12 so the agent can open more files (manifests + CI + Dockerfile +
-      // several source dirs + tests) and grep before answering, yielding richer per-fact detail/
-      // specifics. Each turn is bounded by REQUEST_TIMEOUT_MS (30s) and the whole loop by
-      // RUNNER_DEADLINE_MS (90s) via Promise.race — most turns are fast local tool calls, so the
-      // extra iterations rarely add wall-clock; on overrun the deadline rejects → fixture fallback
-      // (the demo is never at risk). Trade-off: more depth vs. a slightly higher chance of hitting
-      // the 90s ceiling on a huge repo — kept modest (12, not 20) to stay inside the envelope.
-      max_iterations: 12,
-      system: TECH_SYSTEM,
-      messages: [
-        {
-          role: "user",
-          content:
-            `Repo: ${source.repoUrl}\n\nInitial digest to orient you (explore further with the tools if needed):\n\n` +
-            digest.text,
-        },
-      ],
-      tools: [listDir, readFileTool, grepTool],
-    });
-
-    const final = await Promise.race([
-      runner.runUntilDone(),
-      rejectAfter(RUNNER_DEADLINE_MS, "technical tool_runner"),
-    ]);
-
-    // PHASE 2 — forced-tool finalizer. The exploration transcript (tool calls + file contents +
-    // grep hits + the model's synthesis) is fed to a single FORCED emit_findings tool call, which
-    // lands the rich typed schema reliably (free-text scraping silently dropped rich output). This
-    // is a separate request because a forced tool_choice cannot coexist with the runner's tools.
+    // Forced-tool finalizer over the deterministic digest — one bounded call, no multi-turn loop.
     emit({ type: "status", message: "Synthesizing technical findings (forced emit)…", ts: now() });
-    const transcript = renderTranscript(final ? runner.params.messages : [], 24_000);
     const findings: GatherFindings = await retryOnce(() =>
       structuredCall({
         system: TECH_EMIT_SYSTEM,
-        user: `Repo: ${source.repoUrl}\n\nEXPLORATION TRANSCRIPT:\n\n${transcript}`,
+        user: `Repo: ${source.repoUrl}\n\nREPOSITORY DIGEST:\n\n${digest.text}`,
         schema: GatherFindingsSchema,
         toolName: "emit_findings",
         toolDescription:
