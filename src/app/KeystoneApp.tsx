@@ -196,11 +196,18 @@ export default function KeystoneApp({
       keystoneStore.getState().setContext(companyContext, pack, source);
       setStageSource((s) => ({ ...s, context: source }));
 
-      // Stage 2 — EXTRACT STRUCTURE. Gathered facts ground the extraction's confidences:
-      // GatherFinding {label,value,source} → ExtractFinding {source, fact}. Empty → omitted.
+      // Stage 2 — EXTRACT STRUCTURE. Gathered facts ground the extraction's confidences.
+      // GatherFinding {label,value,source,detail?,specifics?} → ExtractFinding {source, fact}.
+      // V7-5: fold detail + quantified specifics into the fact so the model extracts against the
+      // FULL research, not just the headline (was dropping detail/specifics). Empty → omitted.
       const facts = Object.values(gatherFactsRef.current).flat();
       const findings = facts.length
-        ? facts.map((f) => ({ source: f.source, fact: `${f.label}: ${f.value}` }))
+        ? facts.map((f) => {
+            const parts = [`${f.label}: ${f.value}`];
+            if (f.detail) parts.push(f.detail);
+            if (f.specifics && f.specifics.length > 0) parts.push(`specifics: ${f.specifics.join("; ")}`);
+            return { source: f.source, fact: parts.join(" — ") };
+          })
         : undefined;
       setStage("extract");
       const exRes = await fetch("/api/extract", {

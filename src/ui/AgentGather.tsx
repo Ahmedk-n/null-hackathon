@@ -176,17 +176,47 @@ export function AgentGather({
         <div>
           <SectionHeader>Findings</SectionHeader>
           {findings.facts.map((f, i) => (
-            <LedgerRow
-              key={i}
-              label={f.label}
-              mono={false}
-              value={
-                <>
-                  {f.value}
-                  <Source>{f.source}</Source>
-                </>
-              }
-            />
+            <div key={i} data-testid="finding" style={{ paddingBottom: 6 }}>
+              <LedgerRow
+                label={f.label}
+                mono={false}
+                value={
+                  <>
+                    {f.value}
+                    <Source>{f.source}</Source>
+                  </>
+                }
+              />
+              {/* V7-5: the deeper research now reaches the eye — detail + quantified specifics. */}
+              {f.detail && (
+                <div
+                  className="mono"
+                  style={{ fontSize: 11, color: "var(--muted)", padding: "2px 0 0 2px", lineHeight: 1.4 }}
+                >
+                  {f.detail}
+                </div>
+              )}
+              {f.specifics && f.specifics.length > 0 && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingTop: 3 }}>
+                  {f.specifics.map((s, j) => (
+                    <span
+                      key={j}
+                      data-testid="finding-specific"
+                      className="mono"
+                      style={{
+                        fontSize: 10,
+                        padding: "1px 5px",
+                        border: "1px solid var(--hair-strong)",
+                        color: "var(--ink-2)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       )}

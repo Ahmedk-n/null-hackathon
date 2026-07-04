@@ -55,8 +55,8 @@ The interlocking core — new math + deeper structure + re-authored fixtures mus
 
 ## WAVE 3
 
-### V7-5 · Sweep
-- [ ] Full gates + e2e; a fresh depth/value/UI re-audit (did the shallowness/overflow actually resolve?); GOAL.md note; memory update; push.
+### V7-5 · Sweep ✅
+- [x] Full gates + e2e; independent re-audit: graph depth RESOLVED, stress value RESOLVED, UI overflow RESOLVED, agent depth PARTIAL→**RESOLVED** after the last-mile wiring fix (findings `detail`+`specifics` now render in the ledger AND fold into the ExtractFinding fact string reaching the model — were dead data). GOAL.md v7 section + memory updated; pushed. 480 tests, e2e PASS.
 
 ## Invariants (unchanged)
 Scenario fixtures win; offline keyless demo works; engine pure; never 500; no client wall-clock/random; NEXT_DIST_DIR gate builds; model claude-opus-4-8. **New:** the aggregation change is the ONE sanctioned math change — it re-pins numbers but must preserve the demo beats (R/A/B/design verdicts, keystone identity, collapse/hold discrimination).
