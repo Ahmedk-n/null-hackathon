@@ -165,3 +165,31 @@ already absorbed*.
 - **`src/llm/live-smoke.test.ts`** — founder-a's live smoke coverage. We already have equivalent
   live coverage via `scripts/smoke-live.mjs` and the acid test, so their smoke test is redundant on
   our branch and was skipped.
+
+### V8 Wave A — final disposition (2026-07-04, SUPERSEDES the two "NOT harvested" notes above)
+
+Wave A of the keystone-v8 merge plan re-evaluated founder-a's three unique files and REVERSED the
+earlier conservative calls: founder-a's `structured.ts` does **not** use the unavailable
+`messages.parse` / `zodOutputFormat` — it uses `messages.create` with `tools:[tool]` +
+`tool_choice:{type:"tool"}` (a **forced tool call**, fully supported by `@anthropic-ai/sdk@0.68.0`)
+and validates `tool_use.input` with zod. That is strictly more reliable than free-text JSON
+scraping, so it is now **ADDED** (Wave B rewires callers onto it). The merge is `add-unique-files`
+style (clean additive commit, not a `git merge`); `engine/validate.ts` is the only file explicitly
+skipped. Nothing from founder-a is lost.
+
+| founder-a file | disposition | reason |
+| --- | --- | --- |
+| `src/llm/structured.ts` | **ADDED** (adapted) | Forced-tool-call transport (`zodToJsonSchema` → `tool_choice:{type:"tool"}` → validate `tool_use.input`). Adapted to our conventions: `new Anthropic({ maxRetries: 0 })`, 45s `REQUEST_TIMEOUT_MS`, model `claude-opus-4-8`. Sole *new* sanctioned SDK importer; Wave B routes live calls through it. |
+| `src/context/boundary.test.ts` | **ADDED** (adapted) | Context+engine key-safety guard we lacked. Allowlist EXTENDED from founder-a's `{structured.ts}` to our real server transports `{structured.ts, client.ts, design.ts, reinforce.ts, compile.ts}` so it passes our superset tree. |
+| `src/llm/live-smoke.test.ts` | **ADDED** (adapted) | Live-path schema smoke. Retargeted to our signatures: `compileContext` input/return shape, and `validateGraph`/`validateAttacks` from `@/llm/validate` (return value \| null) instead of founder-a's engine-side `isGraphWellFormed`/`validateAttacks(...).ok`. `describe.skipIf(!hasKey)` keeps the offline suite green. |
+| `zod-to-json-schema` (dep) | **ADDED** | Pinned `^3.25.2` (matches founder-a); required by `structured.ts`. Only new dependency. |
+| `src/engine/validate.ts` (+ test) | **SKIPPED** | Superseded by our `src/llm/validate.ts`, which *repairs* (clamps, drops orphans/unreachable, dedups, severity-caps) where theirs only detects. Optional diagnostic-surface port deferred to Wave B if UI needs it. |
+| `src/engine/explain.ts` (+ test) | already harvested (795f817) | Ported verbatim (KEEP-OURS with their logic), pinned to our hero numbers. See "Harvested" above. |
+| `src/llm/reinforce.ts` | already harvested (795f817) | Their prompt idea on our proven-live pattern. See "Harvested" above. |
+| `src/engine/boundary.test.ts` | already harvested (795f817) | Engine-purity guard, globs `src/engine/*.ts`. See "Harvested" above. |
+| `src/engine/smoke.test.ts` | KEEP-OURS (byte-identical) | Same file on both branches; no action. |
+| `engine/{types,propagation,sensitivity,load,index}.ts` | KEEP-OURS | Ours is the v7 depth-robust typed aggregation; subsumes founder-a's plainer versions. |
+| `llm/{client,schemas,fixture}.ts` | KEEP-OURS | Ours adds provenance-carrying `*WithSource`, A/B/R scenario fixtures, validation wall; subsumes theirs. |
+| `context/{compile,weights,schemas,types,fixtures,index}.ts` | KEEP-OURS | `CompanyContext`/`DecisionContextPack` schema is byte-identical (we adopted theirs); our compiler/prompts/fixtures are deeper (776 vs 163 lines). |
+| `app/{layout,page}.tsx` | KEEP-OURS | Ours is the full product shell (landing + ledger + tabs); founder-a is core-only. |
+| `docs/founder-a/**` | KEEP (copied verbatim) | All seven docs present. |

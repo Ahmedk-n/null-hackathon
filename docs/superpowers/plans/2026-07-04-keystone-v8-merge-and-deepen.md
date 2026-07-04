@@ -14,7 +14,7 @@
 
 ---
 
-## WAVE A — Mechanical merge (no features lost; makes `git merge founder-a` clean)
+## WAVE A ✅ — Mechanical merge (no features lost) — structured.ts + context boundary + live-smoke added; zod-to-json-schema dep; engine/validate.ts skipped (superseded); disposition recorded. 508 pass +1 skip, build 0, e2e PASS.
 
 ### V8-A1 · Absorb founder-a's unique files (additive)
 - [ ] `src/llm/structured.ts` — take founder-a's `structuredCall` (forced tool call) + `hasApiKey`; add `zod-to-json-schema@^3.25.2` dependency (founder-a pins it; we don't have it). This is the transport layer Wave B builds on.
