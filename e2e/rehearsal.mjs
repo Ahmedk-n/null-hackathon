@@ -17,6 +17,7 @@
 //
 //   Usage:  BASE_URL=http://localhost:3002 node e2e/rehearsal.mjs
 import { chromium } from "playwright";
+import { runSkylineLeg } from "./skyline-leg.mjs";
 
 const BASE_URL = process.env.BASE_URL || "http://localhost:3002";
 
@@ -338,6 +339,65 @@ async function main() {
       if (integrityR >= 35)
         throw new Error(`scenario R did NOT collapse — integrity ${integrityR}% >= 35% (expected crack)`);
     });
+
+    // ── DESIGN — generative rivals tournament (V6-1) ──────────────────────────
+    console.log("\n[DESIGN · generative rivals — mode R pinned]");
+
+    await step(
+      "DESIGN: switch to DESIGN tab (mode R seeds the goal)",
+      async () => {
+        await page.click('[data-tab="design"]');
+        await waitTabActive("design");
+        // The GOAL textarea is seeded from scenario R's design goal.
+        await page.waitForFunction(
+          () => {
+            const t = document.querySelector('[data-testid="design-goal"]');
+            return !!t && /6-person team/i.test(t.value || "");
+          },
+          undefined,
+          { timeout: 10000 },
+        );
+        // GENERATE RIVALS button present.
+        const gen = page.getByRole("button", { name: /generate rivals/i }).first();
+        if ((await gen.count()) === 0) throw new Error("GENERATE RIVALS button not found");
+      },
+      { tabSwitch: true },
+    );
+
+    let standsCount = null;
+    await step("DESIGN: GENERATE RIVALS → 3 candidate stamps, exactly one ✓ STANDS", async () => {
+      await page.getByRole("button", { name: /generate rivals/i }).first().click();
+      // mode R → pinned → fast fetch; the tournament animates deterministically to its stamps.
+      await page.waitForFunction(
+        () => document.querySelectorAll('[data-testid="candidate-stamp"]').length === 3,
+        undefined,
+        { timeout: 15000 },
+      );
+      standsCount = await page.evaluate(
+        () => document.querySelectorAll('[data-testid="candidate-stamp"][data-band="STANDS"]').length,
+      );
+      console.log(`      candidate stamps: 3, ✓ STANDS survivors: ${standsCount}`);
+      if (standsCount !== 1)
+        throw new Error(`expected exactly one ✓ STANDS survivor, got ${standsCount}`);
+    });
+
+    await step(
+      "DESIGN: OPEN IN STUDIO (survivor) → GRAPH tab active",
+      async () => {
+        await page.click('[data-testid="open-in-studio"][data-survivor="true"]');
+        await waitTabActive("graph");
+        await page.waitForFunction(
+          () => document.querySelectorAll(".react-flow__node").length > 0,
+          undefined,
+          { timeout: 15000 },
+        );
+      },
+      { tabSwitch: true },
+    );
+
+    // ── SKYLINE — the assembly view (V6-3) ────────────────────────────────────
+    console.log("\n[SKYLINE · library as one structure — seeded samples]");
+    await runSkylineLeg(page, step, BASE_URL);
   } catch (err) {
     record("error", `SCRIPT DRIVE FAILURE: ${err.message}`);
     console.error(`\n✗ drive failure during step "${currentStep}": ${err.message}`);

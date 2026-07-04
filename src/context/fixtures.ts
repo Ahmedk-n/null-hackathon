@@ -589,6 +589,131 @@ export function fixtureContextAttacksR(): Attack[] {
 }
 
 /* ══════════════════════════════════════════════════════════════════════════
+ * SCENARIO R · DESIGN — GENERATIVE RIVALS (V6-1)
+ * ──────────────────────────────────────────────────────────────────────────
+ * Three RIVAL candidate structures for the SAME goal ("win enterprise
+ * collaboration revenue without burning the 6-person team"), one per STRATEGY
+ * LENS, stress-tested under IDENTICAL grounded load (the R pack's weight
+ * adjustments — ▲execution 0.8, ▲reliability/timeline/opp-cost 0.7, …). The pure
+ * engine — not the LLM — picks the survivor.
+ *
+ * PROVENANCE: the live path was run end-to-end (2026-07-04) via scripts/generate-design-r.mjs
+ * against the dev server WITH a key — /api/context (live) → /api/design (live). ALL THREE lenses
+ * returned source="live": aggressive "SHIP OWNED ENTERPRISE BACKEND NOW", conservative "HARDEN
+ * MANAGED INFRA FOR ENTERPRISE FIRST", hybrid "STAGE A ENTERPRISE PILOT ROLLOUT" (10 nodes + 5
+ * attacks each). The raw live structures are captured verbatim in scripts/design-r.artifacts.json.
+ *
+ * The PINNED set below is AUTHORED from that same real Excalidraw material (the ~6-person Brno
+ * team, excalidraw-room, Firebase, Socket.IO E2E, Sentry-only observability, tldraw's $10M raise,
+ * SOC 2 / DPA — real repo paths + URLs as evidence) and CALIBRATED to the base-engine convention
+ * (thesis/claims confidence = 1.0; assumption confidences carry the model's relative skepticism;
+ * severities within the [0.15,0.55] live wall band). Calibration is REQUIRED because the live model
+ * sets thesis/claim confidences < 1.0, so its deep AND-nested structures integrate to ~0% even RAW
+ * under the pure engine — the SAME reason scenario R itself pins thesis/claims to 1.0. Calibrating
+ * yields the clean tournament beat the demo needs: ONE survivor, one stressed, one collapsed.
+ *
+ * VERDICTS (grounded integrity = thesis support ×100 under reweightAttacksByContext
+ * with fixtureDecisionContextPackR; verified by src/ui/design-fixtures.test.ts):
+ *   AGGRESSIVE  "BUILD OWN BACKEND NOW"          raw ≈46% → grounded ≈6%  ✗ COLLAPSED
+ *   CONSERVATIVE"HARDEN MANAGED INFRA FIRST"     raw ≈53% → grounded ≈48% ✓ STANDS (survivor)
+ *   HYBRID      "STAGE A MANAGED-TO-OWN ROLLOUT" raw ≈37% → grounded ≈14% ⚠ STRESSED
+ * ════════════════════════════════════════════════════════════════════════ */
+
+export type DesignLens = "aggressive" | "conservative" | "hybrid";
+
+export interface DesignCandidateFixture {
+  lens: DesignLens;
+  label: string;
+  graph: Graph;
+  attacks: Attack[];
+}
+
+export function fixtureDesignCandidatesR(): DesignCandidateFixture[] {
+  return [
+    // ── AGGRESSIVE — bet on speed/upside: build the paid realtime backend now. Rests on the
+    // optimistic "a 6-person team has spare capacity" keystone; grounded execution load craters it.
+    {
+      lens: "aggressive",
+      label: "BUILD OWN BACKEND NOW",
+      graph: {
+        thesisId: "T",
+        nodes: [
+          { id: "T", type: "thesis", label: "Build own realtime backend now", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_build", "c_convert", "c_compete"] }] },
+          { id: "c_build", type: "claim", label: "Team can build and operate it", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_capacity", "a_e2e", "a_reliab"] }] },
+          { id: "c_convert", type: "claim", label: "Own backend lifts paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["a_conversion", "a_audit"] }] },
+          { id: "c_compete", type: "claim", label: "Keeps pace with funded rivals", confidence: 1.0, groups: [{ kind: "OR", childIds: ["a_urgency", "a_audit"] }] },
+          { id: "k_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.7, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno." } },
+          { id: "a_e2e", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; E2E-encrypted." } },
+          { id: "a_reliab", type: "assumption", label: "Reliability/observability adequate", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability limited to Sentry browser error tracking." } },
+          { id: "a_conversion", type: "assumption", label: "Collab quality gates conversion", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
+          { id: "a_audit", type: "assumption", label: "Own backend enables enterprise audit", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place." } },
+          { id: "a_urgency", type: "assumption", label: "tldraw funding pressures timeline", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "tldraw raised a $10M Series A and ships a realtime collab SDK aggressively." } },
+        ],
+      },
+      attacks: [
+        { id: "atk_capacity", targetId: "k_capacity", category: "execution risk", severity: 0.5, rationale: "A 6-person team with no backend history has no spare capacity to build/operate own infra before the roadmap meeting." },
+        { id: "atk_reliab", targetId: "a_reliab", category: "reliability", severity: 0.15, rationale: "Owning realtime infra raises reliability burden while observability is only Sentry error tracking." },
+        { id: "atk_e2e", targetId: "a_e2e", category: "technical", severity: 0.15, rationale: "Reimplementing E2E-encrypted Socket.IO collab off excalidraw-room is deep, unscoped work." },
+        { id: "atk_conversion", targetId: "a_conversion", category: "market", severity: 0.15, rationale: "The growth bottleneck is free-to-paid conversion; a backend build competes with it without proof collab gates conversion." },
+        { id: "atk_audit", targetId: "a_audit", category: "auditability", severity: 0.15, rationale: "SOC 2 / DPA demands need audited controls and process, not merely owning infra." },
+      ],
+    },
+
+    // ── CONSERVATIVE — de-risk first: keep the proven managed stack (excalidraw-room + Firebase),
+    // harden reliability/compliance incrementally, keep the tiny team on conversion. The SAME
+    // grounded context that craters the aggressive plan only mildly stresses this one → it STANDS.
+    {
+      lens: "conservative",
+      label: "HARDEN MANAGED INFRA FIRST",
+      graph: {
+        thesisId: "T",
+        nodes: [
+          { id: "T", type: "thesis", label: "Harden managed infra first", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_reliab", "c_focus"] }] },
+          { id: "c_reliab", type: "claim", label: "Reliability improves without a rewrite", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_managed"] }, { kind: "OR", childIds: ["a_sentry", "a_firebase"] }] },
+          { id: "c_focus", type: "claim", label: "Team stays on paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_managed"] }, { kind: "OR", childIds: ["a_roadmap", "a_budget"] }] },
+          { id: "k_managed", type: "assumption", label: "Managed stack stays reliable enough", confidence: 0.9, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Persistence on Firebase Firestore/Storage; realtime via open-source excalidraw-room." } },
+          { id: "a_sentry", type: "assumption", label: "Sentry-based ops catch incidents", confidence: 0.85, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability: @sentry/browser error tracking." } },
+          { id: "a_firebase", type: "assumption", label: "Firebase SLA covers pilot load", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Firebase Firestore/Storage is a managed, SLA-backed dependency." } },
+          { id: "a_roadmap", type: "assumption", label: "Roadmap defers own-backend safely", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Collaboration roadmap meeting in 2 days sets near-term stance." } },
+          { id: "a_budget", type: "assumption", label: "No infra spend frees conversion work", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Bootstrapped; must self-fund any infrastructure investment." } },
+        ],
+      },
+      attacks: [
+        { id: "atk_managed", targetId: "k_managed", category: "execution risk", severity: 0.1, rationale: "Leaning on excalidraw-room + Firebase is a bounded, well-understood dependency — not a new build." },
+        { id: "atk_sentry", targetId: "a_sentry", category: "reliability", severity: 0.15, rationale: "Sentry-only observability is thin, but Firebase's managed SLA backstops the pilot." },
+        { id: "atk_roadmap", targetId: "a_roadmap", category: "timeline", severity: 0.15, rationale: "Deferring the own-backend decision risks ceding momentum, but keeps the 2-day meeting realistic." },
+      ],
+    },
+
+    // ── HYBRID — stage the bet: pilot an own backend behind excalidraw-room, expand only if the
+    // staged milestones prove out. Rests on "the team can staff a staged pilot" — grounded execution
+    // + timeline load stresses it into the middle band (STANDS neither cleanly nor collapses).
+    {
+      lens: "hybrid",
+      label: "STAGE A MANAGED-TO-OWN ROLLOUT",
+      graph: {
+        thesisId: "T",
+        nodes: [
+          { id: "T", type: "thesis", label: "Stage a managed-to-own rollout", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_pilot", "c_value"] }] },
+          { id: "c_pilot", type: "claim", label: "A staged pilot is deliverable", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_staged", "a_scope"] }] },
+          { id: "c_value", type: "claim", label: "The pilot proves enterprise value", confidence: 1.0, groups: [{ kind: "AND", childIds: ["a_signal"] }, { kind: "OR", childIds: ["a_audit_pilot"] }] },
+          { id: "k_staged", type: "assumption", label: "Team can staff a staged pilot", confidence: 0.8, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "~6-person team; a staged pilot still competes for the same scarce capacity." } },
+          { id: "a_scope", type: "assumption", label: "Pilot scope stays small by meeting", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Roadmap meeting in 2 days forces a narrow near-term scope." } },
+          { id: "a_signal", type: "assumption", label: "Pilot yields a conversion signal", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Excalidraw+ conversion has been flat; a pilot must show it moves." } },
+          { id: "a_audit_pilot", type: "assumption", label: "Pilot satisfies enterprise audit", confidence: 0.85, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II + DPA expectations apply to any own-infra pilot." } },
+        ],
+      },
+      attacks: [
+        { id: "atk_staged", targetId: "k_staged", category: "execution risk", severity: 0.4, rationale: "Even a staged pilot pulls the tiny team off conversion; capacity is the binding constraint." },
+        { id: "atk_scope", targetId: "a_scope", category: "timeline", severity: 0.15, rationale: "Scope tends to creep once an own-backend pilot starts, past the 2-day meeting's narrow mandate." },
+        { id: "atk_signal", targetId: "a_signal", category: "market", severity: 0.18, rationale: "A pilot may not produce a clean conversion signal fast enough to justify further build." },
+        { id: "atk_audit_pilot", targetId: "a_audit_pilot", category: "auditability", severity: 0.18, rationale: "SOC 2 / DPA controls are non-trivial even for a limited pilot." },
+      ],
+    },
+  ];
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
  * SCENARIO REGISTRY — one place the UI + fixture chain agree on scenarios.
  * R (real)    = the live-generated Excalidraw decision that COLLAPSES under context.
  * A (default) = the hero migrate decision that COLLAPSES under context.

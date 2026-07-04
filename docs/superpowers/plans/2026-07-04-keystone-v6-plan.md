@@ -6,13 +6,13 @@
 
 ## Wave 1 (parallel; the founder-a harvest agent owns src/engine/explain*, engine/boundary.test, llm/reinforce, api/reinforce, StressTab VALIDATE-BY, docs/founder-a until it lands)
 
-### V6-1 · Generative Decision Design
-- [ ] Extract `src/ui/MiniStructure.tsx` from the landing hero (landing hero consumes it; no visual regression).
-- [ ] `src/llm/design.ts` + `POST /api/design` (3 lenses parallel, wall-validated, per-candidate fixture stand-ins, x-keystone-source, scenario/no-key → pinned).
-- [ ] `scripts/generate-design-r.mjs` run once live → `fixtureDesignCandidatesR` pinned (provenance verbatim; calibrations documented).
-- [ ] `src/ui/tabs/DesignTab.tsx`: GOAL/CONSTRAINTS + explainer + GENERATE RIVALS + tournament (3 MiniStructures, simultaneous grounded collapse, client-side pure verdicts, survivor stamp) + OPEN IN STUDIO (seeds store + library, jumps to GRAPH).
-- [ ] KeystoneApp: tabs 0·DESIGN → 1·CONTEXT → 2·GRAPH → 3·STRESS; retarget T9 shell test to 4 tabs (deliberate, note in deviations). SKYLINE TopBar link (owns KeystoneApp this wave).
-- [ ] Tests: design fixtures pinned verdicts, route short-circuits, DesignTab render + tournament stamps, MiniStructure extraction (landing test stays green).
+### V6-1 · Generative Decision Design ✅ (headline; live pipeline proven 3/3 candidates source=live, pinned authored+calibrated per R convention; tournament STANDS/STRESSED/COLLAPSED, survivor=HARDEN MANAGED INFRA FIRST 48.5% grounded; OPEN IN STUDIO seeds+saves+jumps; 4-tab T9 retarget; 418 tests, e2e DESIGN+SKYLINE legs PASS)
+- [x] Extract `src/ui/MiniStructure.tsx` from the landing hero (hero consumes it, no regression).
+- [x] `src/llm/design.ts` + `POST /api/design` (3 lenses parallel, wall-validated, per-candidate stand-ins, x-keystone-source, scenario/no-key → pinned).
+- [x] `scripts/generate-design-r.mjs` run live (3/3 candidates live, captured to design-r.artifacts.json) → `fixtureDesignCandidatesR` pinned (authored+calibrated, documented).
+- [x] `DesignTab.tsx`: GOAL/CONSTRAINTS + explainer + GENERATE RIVALS + tournament + OPEN IN STUDIO.
+- [x] KeystoneApp: 0·DESIGN → 1·CONTEXT → 2·GRAPH → 3·STRESS (initial tab stays context); SKYLINE TopBar link; T9 retargeted to 4 tabs.
+- [x] Tests + e2e DESIGN leg; orchestrator spliced the SKYLINE leg (localStorage clear so SAMPLE mode fires) — e2e PASS.
 - Files: src/ui/MiniStructure.tsx, src/landing/MiniCollapseHero.tsx, src/ui/tabs/DesignTab.tsx, src/llm/design.ts, src/app/api/design/route.ts, src/context/fixtures.ts (candidates), scripts/, src/app/KeystoneApp.tsx, shell.test, e2e (DESIGN leg).
 
 ### V6-3 · Skyline ✅ (pure skyline.ts: token-Jaccard ≥0.5 union-find matcher, crackFoundation knockout, tolerant; /skyline SVG towers + foundation columns + CRACK readout + RESET; SAMPLE-seeded, one aliased shared foundation R+A → both collapse "1 ASSUMPTION FEEDS 2 STRUCTURES · 2 COLLAPSE"; 22 tests; e2e leg delivered as e2e/skyline-leg.mjs for orchestrator splice)

@@ -1,0 +1,741 @@
+{
+  "meta": {
+    "generatedFrom": "http://localhost:3002",
+    "goal": "Win enterprise collaboration revenue without burning the 6-person team.",
+    "constraints": "TEAM: Tiny ~6-person team with limited enterprise support capacity\nBUDGET: Bootstrapped; must self-fund infrastructure investments\nTECHNICAL: Currently no own backend; relies on excalidraw-room and Firebase\nREGULATORY: Enterprise SOC 2 Type II, DPA and E2E encryption expectations\nTIME: Roadmap planning meeting in 2 days forces near-term direction",
+    "contextSource": "live",
+    "designSource": "live",
+    "perCandidateSource": [
+      {
+        "lens": "aggressive",
+        "source": "live"
+      },
+      {
+        "lens": "conservative",
+        "source": "live"
+      },
+      {
+        "lens": "hybrid",
+        "source": "live"
+      }
+    ]
+  },
+  "goal": "Win enterprise collaboration revenue without burning the 6-person team.",
+  "constraints": "TEAM: Tiny ~6-person team with limited enterprise support capacity\nBUDGET: Bootstrapped; must self-fund infrastructure investments\nTECHNICAL: Currently no own backend; relies on excalidraw-room and Firebase\nREGULATORY: Enterprise SOC 2 Type II, DPA and E2E encryption expectations\nTIME: Roadmap planning meeting in 2 days forces near-term direction",
+  "decisionContextPack": {
+    "decision": "Build a paid realtime-collaboration backend on own infra now?",
+    "relevantBusinessFacts": [
+      "Bootstrapped ~6-person team in Brno",
+      "Freemium; Excalidraw+ seat-based at ~$6/user/mo",
+      "Enterprise demands auditability/reliability/security (SOC 2 + DPA)",
+      "Competes with funded tldraw, Figma FigJam, Miro",
+      "Growth bottleneck: free→paid conversion and enterprise support capacity"
+    ],
+    "relevantTechnicalFacts": [
+      "Hosted app has no traditional backend today",
+      "Realtime runs over Socket.IO with E2E encryption",
+      "Persistence via Firebase Firestore/Storage, local-first idb-keyval",
+      "Currently relies on open-source excalidraw-room and third-party embeds",
+      "Observability limited to Sentry error tracking"
+    ],
+    "relevantTemporalFacts": [
+      "Collaboration-roadmap planning meeting in 2 days",
+      "Conference talk submission on collaboration in 3 weeks",
+      "Quarterly board update on monetization in 6 weeks",
+      "tldraw funding and aggressive SDK shipping add urgency"
+    ],
+    "relevantConstraints": [
+      {
+        "id": "con-team",
+        "type": "team",
+        "statement": "Tiny ~6-person team limits parallel backend work",
+        "severity": 0.8
+      },
+      {
+        "id": "con-budget",
+        "type": "budget",
+        "statement": "Bootstrapped; no external funding for large infra bets",
+        "severity": 0.7
+      },
+      {
+        "id": "con-regulatory",
+        "type": "regulatory",
+        "statement": "Enterprise requires SOC 2 Type II + DPA",
+        "severity": 0.7
+      },
+      {
+        "id": "con-technical",
+        "type": "technical",
+        "statement": "Local-first E2E-encrypted design constrains backend approach",
+        "severity": 0.6
+      }
+    ],
+    "relevantObjectives": [
+      {
+        "id": "obj-conversion",
+        "statement": "Improve free→paid conversion for Excalidraw+",
+        "priority": 0.9
+      },
+      {
+        "id": "obj-enterprise",
+        "statement": "Meet enterprise reliability/security/auditability demands",
+        "priority": 0.8
+      },
+      {
+        "id": "obj-differentiate",
+        "statement": "Differentiate collaboration story against funded rivals",
+        "priority": 0.7
+      }
+    ],
+    "relevantKnownRisks": [
+      {
+        "id": "risk-exec-capacity",
+        "category": "execution",
+        "statement": "Tiny team may not deliver backend reliably",
+        "likelihood": 0.6,
+        "severity": 0.8
+      },
+      {
+        "id": "risk-opp-cost",
+        "category": "opportunity_cost",
+        "statement": "Backend build diverts from conversion and enterprise work",
+        "likelihood": 0.6,
+        "severity": 0.7
+      },
+      {
+        "id": "risk-tech-e2e",
+        "category": "technical",
+        "statement": "Owned backend may conflict with E2E encryption model",
+        "likelihood": 0.5,
+        "severity": 0.6
+      },
+      {
+        "id": "risk-competitor",
+        "category": "competitor",
+        "statement": "tldraw's funding and SDK velocity outpace roadmap",
+        "likelihood": 0.6,
+        "severity": 0.6
+      }
+    ],
+    "contextWeightAdjustments": [
+      {
+        "targetCategory": "timeline",
+        "direction": "increase",
+        "magnitude": 0.8,
+        "reason": "Collaboration-roadmap planning meeting in 2 days forces a near-term direction decision."
+      },
+      {
+        "targetCategory": "execution",
+        "direction": "increase",
+        "magnitude": 0.8,
+        "reason": "A ~6-person bootstrapped team makes execution capacity the critical risk for a backend build."
+      },
+      {
+        "targetCategory": "opportunity_cost",
+        "direction": "increase",
+        "magnitude": 0.7,
+        "reason": "Backend work competes with free→paid conversion and enterprise support priorities."
+      },
+      {
+        "targetCategory": "reliability",
+        "direction": "increase",
+        "magnitude": 0.7,
+        "reason": "Enterprise reliability demands plus Sentry-only observability raise stakes for owned realtime infra."
+      },
+      {
+        "targetCategory": "auditability",
+        "direction": "increase",
+        "magnitude": 0.7,
+        "reason": "Enterprise SOC 2 Type II + DPA requirements favor a backend enabling auditability."
+      },
+      {
+        "targetCategory": "competitor",
+        "direction": "increase",
+        "magnitude": 0.5,
+        "reason": "tldraw's recent funding and aggressive SDK shipping increase competitive urgency."
+      },
+      {
+        "targetCategory": "technical",
+        "direction": "increase",
+        "magnitude": 0.6,
+        "reason": "E2E encryption and local-first design complicate building an owned realtime backend."
+      },
+      {
+        "targetCategory": "market",
+        "direction": "decrease",
+        "magnitude": 0.3,
+        "reason": "Immediate planning-meeting decision emphasizes execution over broad market positioning near-term."
+      }
+    ],
+    "missingInformation": [
+      "Whether enterprise deals concretely require an owned backend now",
+      "Current excalidraw-room reliability/scaling limitations",
+      "Team's backend/infra engineering capacity and expertise",
+      "Estimated cost and timeline to build owned backend",
+      "No current date to compute time until events/deadlines"
+    ]
+  },
+  "candidates": [
+    {
+      "lens": "aggressive",
+      "label": "SHIP OWNED ENTERPRISE BACKEND NOW",
+      "graph": {
+        "thesisId": "ship_enterprise_backend_now",
+        "nodes": [
+          {
+            "id": "ship_enterprise_backend_now",
+            "type": "thesis",
+            "label": "SHIP OWNED ENTERPRISE BACKEND NOW",
+            "confidence": 0.55,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "own_realtime_infra",
+                  "achieve_soc2_compliance",
+                  "land_enterprise_deals"
+                ]
+              }
+            ],
+            "evidence": null
+          },
+          {
+            "id": "own_realtime_infra",
+            "type": "claim",
+            "label": "Build owned realtime backend fast",
+            "confidence": 0.5,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "team_can_build_backend",
+                  "e2e_preserved_on_migration"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "technical facts",
+              "fact": "Realtime runs over Socket.IO with E2E encryption via open-source excalidraw-room."
+            }
+          },
+          {
+            "id": "achieve_soc2_compliance",
+            "type": "claim",
+            "label": "Reach SOC 2 and DPA readiness",
+            "confidence": 0.5,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "observability_beyond_sentry",
+                  "audit_budget_self_funded"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "business facts",
+              "fact": "Enterprise demands SOC 2 Type II + DPA + auditability/reliability/security."
+            }
+          },
+          {
+            "id": "land_enterprise_deals",
+            "type": "claim",
+            "label": "Convert enterprises before tldraw",
+            "confidence": 0.55,
+            "groups": [
+              {
+                "kind": "OR",
+                "childIds": [
+                  "first_mover_advantage",
+                  "seat_pricing_scales_revenue"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "business facts",
+              "fact": "Competes with funded tldraw, Figma FigJam, Miro; growth bottleneck is enterprise support capacity."
+            }
+          },
+          {
+            "id": "team_can_build_backend",
+            "type": "assumption",
+            "label": "Six devs can build backend fast",
+            "confidence": 0.35,
+            "groups": [],
+            "evidence": {
+              "source": "team facts",
+              "fact": "Bootstrapped ~6-person team in Brno with limited enterprise support capacity."
+            }
+          },
+          {
+            "id": "e2e_preserved_on_migration",
+            "type": "assumption",
+            "label": "E2E survives owned-infra migration",
+            "confidence": 0.45,
+            "groups": [],
+            "evidence": {
+              "source": "technical facts",
+              "fact": "E2E encryption and local-first idb-keyval design complicate owned realtime backend."
+            }
+          },
+          {
+            "id": "observability_beyond_sentry",
+            "type": "assumption",
+            "label": "Add audit-grade observability quickly",
+            "confidence": 0.4,
+            "groups": [],
+            "evidence": {
+              "source": "technical facts",
+              "fact": "Observability limited to Sentry error tracking today."
+            }
+          },
+          {
+            "id": "audit_budget_self_funded",
+            "type": "assumption",
+            "label": "Self-fund SOC 2 audit costs",
+            "confidence": 0.4,
+            "groups": [],
+            "evidence": {
+              "source": "budget facts",
+              "fact": "Bootstrapped; must self-fund infrastructure investments."
+            }
+          },
+          {
+            "id": "first_mover_advantage",
+            "type": "assumption",
+            "label": "Owned backend beats tldraw timing",
+            "confidence": 0.5,
+            "groups": [],
+            "evidence": {
+              "source": "temporal facts",
+              "fact": "tldraw funding and aggressive SDK shipping add urgency."
+            }
+          },
+          {
+            "id": "seat_pricing_scales_revenue",
+            "type": "assumption",
+            "label": "Seat pricing captures enterprise revenue",
+            "confidence": 0.55,
+            "groups": [],
+            "evidence": {
+              "source": "business facts",
+              "fact": "Freemium; Excalidraw+ seat-based at ~$6/user/mo."
+            }
+          }
+        ]
+      },
+      "attacks": [
+        {
+          "id": "atk_team_capacity",
+          "targetId": "team_can_build_backend",
+          "category": "execution risk",
+          "severity": 0.55,
+          "rationale": "With the roadmap meeting in 2 days, a 6-person bootstrapped team can't credibly commit backend build capacity while free→paid conversion competes for the same devs."
+        },
+        {
+          "id": "atk_e2e_migration",
+          "targetId": "e2e_preserved_on_migration",
+          "category": "technical",
+          "severity": 0.45,
+          "rationale": "E2E encryption plus local-first idb-keyval make owned-infra realtime migration technically brittle, and no owned backend exists today to validate against."
+        },
+        {
+          "id": "atk_observability_gap",
+          "targetId": "observability_beyond_sentry",
+          "category": "reliability",
+          "severity": 0.5,
+          "rationale": "Sentry-only observability can't meet enterprise reliability demands quickly, and standing up audit-grade telemetry before the 6-week board update strains the small team."
+        },
+        {
+          "id": "atk_audit_selffund",
+          "targetId": "audit_budget_self_funded",
+          "category": "auditability",
+          "severity": 0.45,
+          "rationale": "Bootstrapped cash makes self-funding SOC 2 Type II + DPA costs doubtful just as the board update on monetization looms in 6 weeks."
+        },
+        {
+          "id": "atk_first_mover",
+          "targetId": "first_mover_advantage",
+          "category": "market",
+          "severity": 0.3,
+          "rationale": "Funded tldraw shipping aggressive SDKs erodes any owned-backend timing edge, and the near-term meeting deprioritizes broad market positioning anyway."
+        }
+      ],
+      "source": "live"
+    },
+    {
+      "lens": "conservative",
+      "label": "HARDEN MANAGED INFRA FOR ENTERPRISE FIRST",
+      "graph": {
+        "thesisId": "harden_managed_infra_first",
+        "nodes": [
+          {
+            "id": "harden_managed_infra_first",
+            "type": "thesis",
+            "label": "HARDEN MANAGED INFRA FOR ENTERPRISE FIRST",
+            "confidence": 0.68,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "achieve_soc2_on_managed_stack",
+                  "protect_team_capacity",
+                  "meet_enterprise_security_bar"
+                ]
+              }
+            ],
+            "evidence": null
+          },
+          {
+            "id": "achieve_soc2_on_managed_stack",
+            "type": "claim",
+            "label": "SOC 2 achievable without owned backend",
+            "confidence": 0.6,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "firebase_soc2_inheritable",
+                  "sentry_plus_audit_logging_sufficient"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "context/regulatory",
+              "fact": "Enterprise demands SOC 2 Type II + DPA; app persists via Firebase Firestore/Storage."
+            }
+          },
+          {
+            "id": "protect_team_capacity",
+            "type": "claim",
+            "label": "Avoid backend build burning six people",
+            "confidence": 0.72,
+            "groups": [
+              {
+                "kind": "OR",
+                "childIds": [
+                  "managed_infra_low_ops_burden",
+                  "phased_hardening_fits_roadmap"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "context/execution",
+              "fact": "~6-person bootstrapped Brno team; execution capacity is the critical risk."
+            }
+          },
+          {
+            "id": "meet_enterprise_security_bar",
+            "type": "claim",
+            "label": "E2E encryption satisfies enterprise expectations",
+            "confidence": 0.66,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "existing_e2e_encryption_holds",
+                  "dpa_signable_with_subprocessors"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "context/technical",
+              "fact": "Realtime over Socket.IO with E2E encryption already in place."
+            }
+          },
+          {
+            "id": "firebase_soc2_inheritable",
+            "type": "assumption",
+            "label": "Firebase compliance inheritable as subprocessor",
+            "confidence": 0.6,
+            "groups": [],
+            "evidence": {
+              "source": "context/technical",
+              "fact": "Persistence via Firebase Firestore/Storage; no traditional owned backend today."
+            }
+          },
+          {
+            "id": "sentry_plus_audit_logging_sufficient",
+            "type": "assumption",
+            "label": "Add audit logging beyond Sentry",
+            "confidence": 0.45,
+            "groups": [],
+            "evidence": {
+              "source": "context/reliability",
+              "fact": "Observability limited to Sentry error tracking, weak for audit needs."
+            }
+          },
+          {
+            "id": "managed_infra_low_ops_burden",
+            "type": "assumption",
+            "label": "Managed services keep ops burden low",
+            "confidence": 0.62,
+            "groups": [],
+            "evidence": {
+              "source": "context/execution",
+              "fact": "Relies on open-source excalidraw-room and Firebase; minimal ops staff."
+            }
+          },
+          {
+            "id": "phased_hardening_fits_roadmap",
+            "type": "assumption",
+            "label": "Incremental hardening fits near-term roadmap",
+            "confidence": 0.55,
+            "groups": [],
+            "evidence": {
+              "source": "context/timeline",
+              "fact": "Collaboration-roadmap planning meeting in 2 days forces near-term direction."
+            }
+          },
+          {
+            "id": "existing_e2e_encryption_holds",
+            "type": "assumption",
+            "label": "Current E2E encryption is production-grade",
+            "confidence": 0.6,
+            "groups": [],
+            "evidence": {
+              "source": "context/technical",
+              "fact": "Realtime runs over Socket.IO with E2E encryption; local-first idb-keyval."
+            }
+          },
+          {
+            "id": "dpa_signable_with_subprocessors",
+            "type": "assumption",
+            "label": "DPA signable citing managed subprocessors",
+            "confidence": 0.5,
+            "groups": [],
+            "evidence": {
+              "source": "context/regulatory",
+              "fact": "Enterprise DPA expectations; third-party embeds and Firebase in stack."
+            }
+          }
+        ]
+      },
+      "attacks": [
+        {
+          "id": "atk_phased_roadmap_slip",
+          "targetId": "phased_hardening_fits_roadmap",
+          "category": "timeline",
+          "severity": 0.55,
+          "rationale": "With the collaboration-roadmap meeting in 2 days, phased hardening competes head-on for scarce roadmap slots and likely gets deferred."
+        },
+        {
+          "id": "atk_audit_logging_gap",
+          "targetId": "sentry_plus_audit_logging_sufficient",
+          "category": "auditability",
+          "severity": 0.52,
+          "rationale": "SOC 2 Type II + DPA demands proper audit trails; Sentry-plus-bolt-on logging is unproven and won't satisfy enterprise auditors in the near-term push."
+        },
+        {
+          "id": "atk_ops_burden_underestimated",
+          "targetId": "managed_infra_low_ops_burden",
+          "category": "execution",
+          "severity": 0.5,
+          "rationale": "A 6-person bootstrapped team hardening managed infra while shipping features will hit execution-capacity limits faster than assumed."
+        },
+        {
+          "id": "atk_firebase_inherit_fails",
+          "targetId": "firebase_soc2_inheritable",
+          "category": "auditability",
+          "severity": 0.4,
+          "rationale": "Inheriting Firebase's SOC 2 as a subprocessor doesn't cover your own controls, leaving the enterprise auditability gap open."
+        },
+        {
+          "id": "atk_e2e_encryption_immature",
+          "targetId": "existing_e2e_encryption_holds",
+          "category": "technical",
+          "severity": 0.35,
+          "rationale": "E2E over Socket.IO with excalidraw-room may not be production-grade under enterprise scrutiny, undermining the hardening-first premise."
+        }
+      ],
+      "source": "live"
+    },
+    {
+      "lens": "hybrid",
+      "label": "STAGE A ENTERPRISE PILOT ROLLOUT",
+      "graph": {
+        "thesisId": "stage_enterprise_pilot",
+        "nodes": [
+          {
+            "id": "stage_enterprise_pilot",
+            "type": "thesis",
+            "label": "STAGE A ENTERPRISE PILOT ROLLOUT",
+            "confidence": 0.6,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "pilot_behind_existing_infra",
+                  "staged_audit_readiness",
+                  "protect_team_capacity"
+                ]
+              }
+            ],
+            "evidence": null
+          },
+          {
+            "id": "pilot_behind_existing_infra",
+            "type": "claim",
+            "label": "Pilot on current Firebase/Socket stack",
+            "confidence": 0.55,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "firebase_socket_scales_pilot",
+                  "e2e_preserved_during_pilot"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "technical facts",
+              "fact": "Realtime runs over Socket.IO with E2E encryption; persistence via Firebase Firestore/Storage"
+            }
+          },
+          {
+            "id": "staged_audit_readiness",
+            "type": "claim",
+            "label": "Prove SOC2/DPA milestones incrementally",
+            "confidence": 0.45,
+            "groups": [
+              {
+                "kind": "AND",
+                "childIds": [
+                  "soc2_milestone_achievable",
+                  "observability_gap_closable"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "business facts",
+              "fact": "Enterprise demands auditability/reliability/security (SOC 2 + DPA)"
+            }
+          },
+          {
+            "id": "protect_team_capacity",
+            "type": "claim",
+            "label": "Expand only after milestones prove out",
+            "confidence": 0.6,
+            "groups": [
+              {
+                "kind": "OR",
+                "childIds": [
+                  "limited_pilot_customers",
+                  "opportunity_cost_manageable"
+                ]
+              }
+            ],
+            "evidence": {
+              "source": "constraints",
+              "fact": "Tiny ~6-person team with limited enterprise support capacity"
+            }
+          },
+          {
+            "id": "firebase_socket_scales_pilot",
+            "type": "assumption",
+            "label": "Existing stack handles pilot load",
+            "confidence": 0.5,
+            "groups": [],
+            "evidence": {
+              "source": "technical facts",
+              "fact": "Hosted app has no traditional backend; relies on excalidraw-room and third-party embeds"
+            }
+          },
+          {
+            "id": "e2e_preserved_during_pilot",
+            "type": "assumption",
+            "label": "E2E encryption unbroken by audit needs",
+            "confidence": 0.4,
+            "groups": [],
+            "evidence": {
+              "source": "context weights",
+              "fact": "E2E encryption and local-first design complicate building an owned realtime backend"
+            }
+          },
+          {
+            "id": "soc2_milestone_achievable",
+            "type": "assumption",
+            "label": "SOC2 Type II reachable in stages",
+            "confidence": 0.35,
+            "groups": [],
+            "evidence": {
+              "source": "regulatory",
+              "fact": "Enterprise SOC 2 Type II, DPA and E2E encryption expectations"
+            }
+          },
+          {
+            "id": "observability_gap_closable",
+            "type": "assumption",
+            "label": "Sentry-only observability upgradable cheaply",
+            "confidence": 0.4,
+            "groups": [],
+            "evidence": {
+              "source": "technical facts",
+              "fact": "Observability limited to Sentry error tracking"
+            }
+          },
+          {
+            "id": "limited_pilot_customers",
+            "type": "assumption",
+            "label": "Few design-partner accounts suffice",
+            "confidence": 0.55,
+            "groups": [],
+            "evidence": {
+              "source": "business facts",
+              "fact": "Growth bottleneck: free→paid conversion and enterprise support capacity"
+            }
+          },
+          {
+            "id": "opportunity_cost_manageable",
+            "type": "assumption",
+            "label": "Pilot won't starve conversion work",
+            "confidence": 0.4,
+            "groups": [],
+            "evidence": {
+              "source": "context weights",
+              "fact": "Backend work competes with free→paid conversion and enterprise support priorities"
+            }
+          }
+        ]
+      },
+      "attacks": [
+        {
+          "id": "atk_soc2_timeline",
+          "targetId": "soc2_milestone_achievable",
+          "category": "auditability",
+          "severity": 0.52,
+          "rationale": "SOC 2 Type II requires months of observation window; with the roadmap meeting in 2 days and board update in 6 weeks, staged achievability is asserted before any control evidence exists."
+        },
+        {
+          "id": "atk_opp_cost_conversion",
+          "targetId": "opportunity_cost_manageable",
+          "category": "execution risk",
+          "severity": 0.55,
+          "rationale": "A 6-person team can't build pilot backend and defend free→paid conversion simultaneously; the 2-day planning meeting forces committing scarce execution capacity away from the actual growth bottleneck."
+        },
+        {
+          "id": "atk_e2e_audit_conflict",
+          "targetId": "e2e_preserved_during_pilot",
+          "category": "technical",
+          "severity": 0.5,
+          "rationale": "Enterprise auditability (SOC 2 + DPA) needs server-visible logs that structurally conflict with unbroken E2E encryption over Socket.IO — the reliability/auditability push makes this contradiction load-bearing."
+        },
+        {
+          "id": "atk_observability_cheap",
+          "targetId": "observability_gap_closable",
+          "category": "reliability",
+          "severity": 0.48,
+          "rationale": "Enterprise reliability demands more than Sentry error tracking; closing the metrics/tracing/uptime gap 'cheaply' on owned realtime infra is unproven and heightened by near-term reliability stakes."
+        },
+        {
+          "id": "atk_socket_scale",
+          "targetId": "firebase_socket_scales_pilot",
+          "category": "reliability",
+          "severity": 0.42,
+          "rationale": "Open-source excalidraw-room + Firestore under concurrent enterprise pilot load is untested; reliability weight is elevated and no owned backend exists to absorb failure modes."
+        }
+      ],
+      "source": "live"
+    }
+  ]
+}

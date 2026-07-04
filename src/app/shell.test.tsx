@@ -20,13 +20,15 @@ describe("Keystone shell (T9 design conformance)", () => {
     // TopBar renders the ISO-8601 session timestamp.
     expect(container.textContent).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
 
-    // Exactly 3 PRIMARY tabs. The active CONTEXT pane renders its own inner sub-tabs
-    // (BUSINESS/TECHNICAL/TEMPORAL/DECISION) which also carry data-tab, so filter to the
-    // primary nav by its labels rather than counting every data-tab globally.
+    // V6-1 · exactly 4 PRIMARY tabs (0·DESIGN → 1·CONTEXT → 2·GRAPH → 3·STRESS). The "exactly 3
+    // tabs" contract is DELIBERATELY retargeted to 4 (same precedent as the T10 tilt retarget).
+    // The active CONTEXT pane renders its own inner sub-tabs (BUSINESS/TECHNICAL/TEMPORAL/DECISION)
+    // which also carry data-tab, so filter to the primary nav by its labels rather than counting
+    // every data-tab globally.
     const primaryTabs = [...container.querySelectorAll("[data-tab]")].filter((el) =>
-      /context|graph|stress/i.test(el.textContent ?? ""),
+      /design|context|graph|stress/i.test(el.textContent ?? ""),
     );
-    expect(primaryTabs.length).toBe(3);
+    expect(primaryTabs.length).toBe(4);
 
     // The always-present StatusStrip (footer) carries the ledger design language on every
     // tab: uppercase `.label` keys + monospace tabular `.mono` values. Ledger ROWS themselves

@@ -22,11 +22,18 @@ import {
 import { pickLayoutMode } from "@/canvas/layout";
 import { analysisDepth } from "@/canvas/depth";
 import { ContextTab, type ContextMode } from "@/ui/tabs/ContextTab";
+import { DesignTab, type OpenCandidate } from "@/ui/tabs/DesignTab";
 import { GraphTab } from "@/ui/tabs/GraphTab";
 import { StressTab } from "@/ui/tabs/StressTab";
 import { TopBar, Tabs, StatusStrip, Button, type TabDef } from "@/ui/primitives";
+// V6-1 · design OPEN IN STUDIO seeds the studio store with scenario R's context (pure fixtures,
+// deep path — never the @/context barrel, so the key-safety boundary stays green).
+import { fixtureCompanyContextR, fixtureDecisionContextPackR, SCENARIOS } from "@/context/fixtures";
 
+// V6-1 · TABS = 0·DESIGN → 1·CONTEXT → 2·GRAPH → 3·STRESS. DESIGN leads the workflow, but CONTEXT
+// stays the INITIAL activeTab (below) so the pinned demo flow is unchanged (deliberate).
 const TABS: TabDef[] = [
+  { id: "design", label: "0 · Design" },
   { id: "context", label: "1 · Context" },
   { id: "graph", label: "2 · Graph" },
   { id: "stress", label: "3 · Stress" },
@@ -112,6 +119,35 @@ export default function KeystoneApp({
     store.setGraph(entry.graph);
     setMode(entry.mode);
     setCurrentEntryId(entry.id);
+    setActiveTab("graph");
+  }
+
+  // V6-1 · OPEN IN STUDIO — seed the studio from a DESIGN-tab tournament candidate: keep the
+  // scenario-R context pack (Context Used surfaces + grounds the load), set the winning graph, and
+  // apply its attacks as rawAttacks (the grounded verdict the tournament just showed). Auto-save the
+  // snapshot and jump to the GRAPH tab. No API round-trip — everything is client-side + pure.
+  function openInStudio(c: OpenCandidate) {
+    const store = keystoneStore.getState();
+    const companyContext = fixtureCompanyContextR();
+    const pack = fixtureDecisionContextPackR();
+    store.setContext(companyContext, pack, "fixture");
+    store.setGraph(c.graph); // clean base + working; clears prior attacks
+    store.applyLoad(c.attacks); // seeds rawAttacks + the grounded, reweighted verdict
+    const entry = saveEntry({
+      title: c.label,
+      savedAtISO: startedAt,
+      mode: "R",
+      input: SCENARIOS.R.input,
+      companyContext,
+      pack,
+      graph: c.graph,
+      verdict: currentVerdict(),
+    });
+    if (entry) {
+      setCurrentEntryId(entry.id);
+      setLibraryVersion((n) => n + 1);
+    }
+    setMode("R");
     setActiveTab("graph");
   }
 
@@ -322,6 +358,10 @@ export default function KeystoneApp({
         timestamp={startedAt}
         actions={
           <>
+            {/* V6-1 · SKYLINE — the whole library rendered as one assembly (V6-3). */}
+            <Link href="/skyline" className="btn" style={{ textDecoration: "none" }}>
+              Skyline
+            </Link>
             <Button onClick={() => setFitSignal((n) => n + 1)} title="Fit graph to view">
               Fit
             </Button>
@@ -342,6 +382,7 @@ export default function KeystoneApp({
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
 
       <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
+        {activeTab === "design" && <DesignTab mode={mode} onOpenInStudio={openInStudio} />}
         {activeTab === "context" && (
           <ContextTab
             mode={mode}

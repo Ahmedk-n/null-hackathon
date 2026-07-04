@@ -17,6 +17,11 @@
 
 export async function runSkylineLeg(page, step, BASE_URL) {
   await step("SKYLINE: load /skyline — buildings render from seeded samples", async () => {
+    // Earlier rehearsal legs auto-save library entries (V5-4), which would suppress the
+    // empty-library SAMPLE seeding this leg asserts. Clear storage first so the deterministic
+    // 3-sample skyline (with its aliased shared foundation) renders reliably.
+    await page.goto(BASE_URL + "/", { waitUntil: "domcontentloaded", timeout: 60000 });
+    await page.evaluate(() => window.localStorage.clear());
     await page.goto(BASE_URL + "/skyline", { waitUntil: "networkidle", timeout: 60000 });
     // Header + SAMPLE chip (empty library seeds the three sample buildings).
     await page.waitForFunction(
