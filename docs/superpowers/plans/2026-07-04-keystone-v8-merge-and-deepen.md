@@ -66,6 +66,7 @@ Replace flat `GatherFinding {label,value,source,detail?,specifics?}` with a reli
 - [ ] `src/agents/types.ts`, `src/agents/schemas.ts` (zod), each agent's prompt skeleton, `src/agents/fixtures.ts` (rewrite the 3 fixtures to the new shape — pinned in tests), `src/ui/AgentGather.tsx` (render the new fields — excerpt as a quote, quantities/entities as chips).
 - Engine-inert; fixtures + agent tests re-pin.
 
+### V8-C3 ✅ — ExtractFinding gains excerpt; renderFindings appends `verbatim: "..."`; EXTRACT prompt requires node evidence.fact reuse the EXACT quote (no paraphrase); KeystoneApp threads sourceExcerpt. Schema unchanged, engine-inert. 515 pass +1 skip. Original item text:
 ### V8-C3 · Verbatim provenance all the way to the graph — needs V8-C2
 Extend `ExtractFinding {source,fact}` to carry `sourceExcerpt`; update `renderFindings` + the `KeystoneApp` mapping so node `evidence` cites the ACTUAL quote, not a paraphrase. The EXTRACT prompt already asks for verbatim evidence — this makes it real.
 - [ ] `src/llm/client.ts`, `src/app/KeystoneApp.tsx`. Engine-inert, low effort.

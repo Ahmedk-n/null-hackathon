@@ -149,6 +149,21 @@ shallow, and UI bugs (crack-readout overflow) unfixed.
   specifics; gather loops deepened.
 - **UI:** `.ledger-row` overflow fixed at the source (crack readout + SelectionPanel + canvas labels).
 
+## v8 — Merge founder-a + deepen agents (2026-07-04)
+
+Plan `docs/superpowers/plans/2026-07-04-keystone-v8-merge-and-deepen.md`. Integrated founder-a's
+core branch losing NO feature (we're a superset; disposition in docs/founder-a/contracts.md) and
+deepened the context agents:
+- **Merge:** absorbed founder-a's `src/llm/structured.ts` (forced-tool-call output), context
+  key-safety guard, live-smoke; skipped superseded `engine/validate.ts`. All shared files kept ours.
+- **Reliability:** every live LLM call (compile/extract/attacks/design/reinforce/temporal/tunnel)
+  now answers through a schema-constrained `structuredCall` tool instead of scraping JSON from prose.
+- **Agents:** rich typed `GatherFinding` (sourceExcerpt/quantities/entities/dateISO/implication);
+  live technical (deterministic deep digest + forced-emit, ~50s, `source:live`) and business
+  (multi-turn web + forced-emit, ~165s, `source:live`) produce real deep findings; those findings
+  now feed the COMPILER (CompanyContext/risks built from research + cross-source synthesis) and
+  carry verbatim excerpts to node evidence. Deferred C6 (pack-fact contract change).
+
 ## Reference docs
 
 - Base build plan: `docs/superpowers/plans/2026-07-03-keystone.md` (Tasks 1–14, exact code)

@@ -182,6 +182,34 @@ describe("extractStructure — evidence provenance (V3-6)", () => {
     expect(userContent).toContain("[notes] Enterprise meeting tomorrow");
   });
 
+  it("carries a finding's VERBATIM excerpt into the extraction prompt (V8-C3)", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    await extractStructure("Should we migrate?", pack, undefined, [
+      {
+        source: "pyproject.toml",
+        fact: "FastAPI monolith (Python)",
+        excerpt: 'fastapi = "^0.110.0"',
+      },
+    ]);
+    const userContent = createMock.mock.calls[0][0].messages[0].content as string;
+    // The exact verbatim quote reaches the user message so node evidence.fact can copy it.
+    expect(userContent).toContain('verbatim: "fastapi = "^0.110.0""');
+    // And the EXTRACT prompt (system) instructs reusing the verbatim quote, not paraphrasing.
+    const systemContent = createMock.mock.calls[0][0].system as string;
+    expect(systemContent).toMatch(/VERBATIM quote/);
+    expect(systemContent).toMatch(/reuse that EXACT quoted text/);
+  });
+
+  it("omits the verbatim suffix when a finding has no excerpt", async () => {
+    createMock.mockResolvedValue(msg(VALID_GRAPH));
+    await extractStructure("Should we migrate?", pack, undefined, [
+      { source: "notes", fact: "Enterprise meeting tomorrow" },
+    ]);
+    const userContent = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(userContent).toContain("[notes] Enterprise meeting tomorrow");
+    expect(userContent).not.toContain("verbatim:");
+  });
+
   it("omits the findings block when none are supplied", async () => {
     createMock.mockResolvedValue(msg(VALID_GRAPH));
     await extractStructure("Should we migrate?", pack);

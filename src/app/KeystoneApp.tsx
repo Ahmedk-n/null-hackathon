@@ -223,16 +223,18 @@ export default function KeystoneApp({
       setStageSource((s) => ({ ...s, context: source }));
 
       // Stage 2 — EXTRACT STRUCTURE. Gathered facts ground the extraction's confidences.
-      // GatherFinding {label,value,source,detail?,specifics?} → ExtractFinding {source, fact}.
+      // GatherFinding → ExtractFinding {source, fact, excerpt?}.
       // V7-5: fold detail + quantified specifics into the fact so the model extracts against the
       // FULL research, not just the headline (was dropping detail/specifics). Empty → omitted.
+      // V8-C3: thread the VERBATIM sourceExcerpt so node evidence can cite the actual source words
+      // instead of a paraphrase. `fact` stays the informative summary; `excerpt` carries the quote.
       // (`facts` was snapshotted above for the compiler; reuse the same snapshot here.)
       const findings = facts.length
         ? facts.map((f) => {
             const parts = [`${f.label}: ${f.value}`];
             if (f.detail) parts.push(f.detail);
             if (f.specifics && f.specifics.length > 0) parts.push(`specifics: ${f.specifics.join("; ")}`);
-            return { source: f.source, fact: parts.join(" — ") };
+            return { source: f.source, fact: parts.join(" — "), excerpt: f.sourceExcerpt };
           })
         : undefined;
       setStage("extract");

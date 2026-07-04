@@ -80,18 +80,28 @@ function renderPack(pack: unknown): string {
 /**
  * A gathered fact threaded into extraction so the model can GROUND each confidence in real
  * evidence (V3-6). Deliberately mirrors the node `evidence` shape ({ source, fact }): the
- * orchestrator maps store gather findings (GatherFinding {label,value,source}) to this shape
- * (fact = `${label}: ${value}`) at the call site — a one-prop change. See renderFindings.
+ * orchestrator maps store gather findings (GatherFinding {label,value,source,sourceExcerpt?}) to
+ * this shape at the call site. `fact` is the informative summary; `excerpt` (V8-C3) is the
+ * VERBATIM quote lifted from the source — carried through so node evidence can cite the actual
+ * words, not a paraphrase. See renderFindings + EXTRACT_SYSTEM.
  */
 export interface ExtractFinding {
   source: string;
   fact: string;
+  /** V8-C3 · the VERBATIM source quote (from GatherFinding.sourceExcerpt). Optional. */
+  excerpt?: string;
 }
 
-/** Compact rendering of gathered findings, each line citable verbatim as node evidence. */
+/**
+ * Compact rendering of gathered findings, each line citable verbatim as node evidence. When a
+ * finding carries a VERBATIM excerpt (V8-C3), it's appended as a quoted string so the model can
+ * copy the ACTUAL source words into evidence.fact instead of paraphrasing the summary.
+ */
 function renderFindings(findings?: ExtractFinding[]): string {
   if (!findings || findings.length === 0) return "";
-  return findings.map((f) => `- [${f.source}] ${f.fact}`).join("\n");
+  return findings
+    .map((f) => (f.excerpt ? `- [${f.source}] ${f.fact} — verbatim: "${f.excerpt}"` : `- [${f.source}] ${f.fact}`))
+    .join("\n");
 }
 
 // ── EXTRACT ────────────────────────────────────────────────────────────────
@@ -128,10 +138,15 @@ HARD RULES:
 EVIDENCE & CONFIDENCE PROVENANCE (disarms "you invented these numbers"):
 - "evidence" is an ARRAY. When GATHERED FINDINGS are supplied below, each ASSUMPTION SHOULD cite
   the 1-3 MOST RELEVANT findings, each as { "source": <the finding's source VERBATIM — file path,
-  url, or "notes">, "fact": <the finding text>, "stance": "supports" | "contradicts" }. Prefer
+  url, or "notes">, "fact": <the cited evidence>, "stance": "supports" | "contradicts" }. Prefer
   1-2 SUPPORTING citations; ADD a "contradicts" citation whenever a real finding argues AGAINST
   the assumption (conflicting evidence must surface, not be dropped). Never fabricate a source;
   copy one from the findings list exactly.
+- When a cited finding carries a VERBATIM quote (rendered as \`verbatim: "..."\` on its line),
+  evidence.fact MUST reuse that EXACT quoted text — copy the source's actual words, do NOT
+  paraphrase or summarise them — and set evidence.source to that finding's source. This keeps
+  node evidence traceable to the real source line. Only when a finding has no verbatim quote may
+  evidence.fact fall back to the finding's summary text.
 - Set confidence HIGHER (0.7–0.9) when the cited findings DIRECTLY support the assumption; LOWER
   (0.3–0.55) when findings are ABSENT or when a "contradicts" citation applies.
 - An assumption with NO relevant finding MUST set "evidence": null. thesis/claim nodes set "evidence": null.
