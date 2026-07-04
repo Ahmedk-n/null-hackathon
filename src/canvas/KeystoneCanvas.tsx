@@ -124,7 +124,7 @@ const NO_PLANES: readonly ConstraintPlane[] = [];
 const RIGHT_GUTTER_PCT = 15;
 const BOARD_RIGHT_PCT = 100 - RIGHT_GUTTER_PCT; // left edge of the gutter, as a canvas %
 // Node bounding box maps into this padded board region (matches the fitView padding below).
-const BOARD_X0 = 6; // left pad %
+const BOARD_X0 = 12; // left pad % — matches fitView left padding so the leftmost node (often the keystone) never clips the edge
 const BOARD_Y0 = 12; // top pad %
 const BOARD_Y1 = 90; // bottom pad %
 
@@ -132,7 +132,7 @@ const BOARD_Y1 = 90; // bottom pad %
 // extend under the rail; otherwise fall back to a symmetric 12% frame.
 function fitPaddingFor(hasPlanes: boolean) {
   return hasPlanes
-    ? ({ top: "12%", bottom: "12%", left: "6%", right: `${RIGHT_GUTTER_PCT}%` } as const)
+    ? ({ top: "12%", bottom: "12%", left: `${BOARD_X0}%`, right: `${RIGHT_GUTTER_PCT}%` } as const)
     : ("12%" as const);
 }
 
