@@ -37,6 +37,22 @@ describe("context schemas", () => {
     expect(() => CompanyContextSchema.parse(bad)).toThrow();
   });
 
+  it("rejects a wrong field type (severity as a string)", () => {
+    const bad = fixtureCompanyContext();
+    // @ts-expect-error deliberately wrong type
+    bad.constraints[0].severity = "oops";
+    expect(() => CompanyContextSchema.parse(bad)).toThrow();
+  });
+
+  it("postClamp normalises NaN -> 0 and Infinity -> 1", () => {
+    const cc = fixtureCompanyContext();
+    cc.temporal.urgencyLevel = Number.NaN;
+    cc.constraints[0].severity = Number.POSITIVE_INFINITY;
+    const out = postClamp({ companyContext: cc, decisionContextPack: fixtureDecisionContextPack() });
+    expect(out.companyContext.temporal.urgencyLevel).toBe(0);
+    expect(out.companyContext.constraints[0].severity).toBe(1);
+  });
+
   it("postClamp clamps out-of-range scores and normalises teamSize", () => {
     const cc = fixtureCompanyContext();
     cc.temporal.urgencyLevel = 5;

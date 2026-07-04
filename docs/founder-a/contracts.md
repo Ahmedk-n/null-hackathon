@@ -14,6 +14,15 @@ interface GraphNode { id: string; type: NodeType; label: string; confidence: num
 interface Graph { nodes: GraphNode[]; thesisId: string }
 interface Attack { id: string; targetId: string; category: string; severity: number; rationale: string }
 interface Keystone { id: string; label: string; impact: number }   // NOTE shape: { id, label, impact }
+// validation
+interface AttackValidationResult { ok: boolean; issues: string[]; validAttacks: Attack[] }
+// explainability (pure data contracts for Founder B panels)
+interface GroupContribution { kind: GroupKind; childIds: string[]; value: number }
+interface NodeSupport { id; type; label; ownConfidence; groups: GroupContribution[]; dependencyFactor; support; failed }
+interface SupportBreakdown { thesisId: string; threshold: number; integrity: number; nodes: NodeSupport[] }
+interface RankedAssumption { id: string; label: string; impact: number }
+interface KeystoneExplanation { baselineIntegrity; keystoneId; keystoneLabel; keystoneImpact; nextImpact; impactRatio; ranked: RankedAssumption[]; explanation: string }
+interface LoadResultSummary { baselineIntegrity; postLoadIntegrity; integrityDrop; failedNodeIds: string[]; holdingNodeIds: string[]; keystoneBeforeLoad; keystoneAfterLoad; attacksApplied; threshold }
 ```
 
 **Functions** (all pure, deterministic)
@@ -31,6 +40,11 @@ topoOrder(graph: Graph): string[]                       // throws on cycle
 graphReferenceIssues(graph: Graph): string[]            // dangling childIds / missing thesis / dup ids / empty
 isGraphWellFormed(graph: Graph): boolean
 attacksReferenceIssues(attacks: Attack[], graph: Graph): string[]   // attacks whose targetId is not a real node
+validateAttacks(graph: Graph, attacks: Attack[]): AttackValidationResult   // target exists+is assumption, unique id, finite severity, rationale
+// explainability (pure, deterministic — "code decides, and shows its work")
+supportBreakdown(graph: Graph, threshold?: number): SupportBreakdown       // per-node support decomposition
+explainKeystone(graph: Graph): KeystoneExplanation                         // why the keystone is load-bearing (as data)
+summariseLoadResult(graph: Graph, attacks: Attack[], threshold?: number): LoadResultSummary   // collapse-panel data contract
 ```
 > **Contract note:** `keystone()`/`rankLoadBearing()` return `{ id, label, impact }` (base-plan shape), **not** `{ assumptionId, impact }`. Use `keystone(g)?.id` for the keystone node id.
 

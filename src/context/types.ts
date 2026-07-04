@@ -1,7 +1,7 @@
 /**
  * Context-layer contracts. Pure types — safe to import anywhere (client or
- * server). No `any`. All scores are 0..1. Arrays default to [] (never optional
- * arrays) so the UI can `.map` without guards.
+ * server). No `any`. All scores are 0..1. Arrays are required (never optional)
+ * so the UI can `.map` without guards.
  */
 
 /* ---------- Raw input from the four textareas ---------- */

@@ -71,7 +71,9 @@ export function validateAttacks(graph: Graph, attacks: Attack[]): AttackValidati
     const node = byId.get(a.targetId);
     if (!node) local.push(`attack ${a.id} targets missing node: ${a.targetId}`);
     else if (node.type !== "assumption") {
-      local.push(`attack ${a.id} targets non-assumption node: ${a.targetId} (${node.type})`);
+      local.push(
+        `attack ${a.id} targets non-assumption node: ${a.targetId} (${node.type}); attacks can only stress leaf assumptions`,
+      );
     }
     if (seen.has(a.id)) local.push(`duplicate attack id: ${a.id}`);
     seen.add(a.id);

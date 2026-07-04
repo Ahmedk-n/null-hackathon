@@ -35,6 +35,12 @@ describe("supportBreakdown", () => {
     expect(k.support).toBeCloseTo(0.9);
     expect(k.failed).toBe(false); // healthy baseline
   });
+
+  it("degrades gracefully on an empty graph", () => {
+    const bd = supportBreakdown({ thesisId: "T", nodes: [] });
+    expect(bd.nodes).toEqual([]);
+    expect(bd.integrity).toBe(0);
+  });
 });
 
 describe("explainKeystone", () => {
@@ -54,6 +60,21 @@ describe("explainKeystone", () => {
     expect(ex.impactRatio).toBe(0);
     expect(ex.ranked).toEqual([]);
   });
+
+  it("reports a sole load-bearing assumption with infinite ratio", () => {
+    const g: Graph = {
+      thesisId: "T",
+      nodes: [
+        { id: "T", type: "thesis", label: "d", confidence: 1, groups: [{ kind: "AND", childIds: ["a"] }] },
+        { id: "a", type: "assumption", label: "only one", confidence: 0.9, groups: [] },
+      ],
+    };
+    const ex = explainKeystone(g);
+    expect(ex.keystoneId).toBe("a");
+    expect(ex.nextImpact).toBe(0);
+    expect(ex.impactRatio).toBe(Infinity);
+    expect(ex.explanation).toContain("while no other assumption is load-bearing");
+  });
 });
 
 describe("summariseLoadResult", () => {
@@ -67,6 +88,8 @@ describe("summariseLoadResult", () => {
     expect(s.holdingNodeIds).toContain("c_roi");
     expect(s.failedNodeIds).not.toContain("c_roi");
     expect(s.keystoneBeforeLoad).toBe("k_credible");
+    // k_credible remains the most load-bearing node even after the collapse
+    expect(s.keystoneAfterLoad).toBe("k_credible");
   });
 
   it("does not mutate the input graph", () => {

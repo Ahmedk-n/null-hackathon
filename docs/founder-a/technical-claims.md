@@ -40,7 +40,10 @@ targets, input never mutated. Backed by `load.test.ts`.
 
 **Context weighting** (outside the engine, still deterministic) —
 `severity' = clamp01( severity × (1 + sign(direction) × 0.5 × magnitude) )`, matched by category. Pure,
-no engine/LLM import. Backed by `weights.test.ts`.
+no engine/LLM import. Backed by `weights.test.ts`. This is intentionally a **client-side contract**:
+`reweightAttacksByContext` is applied by the store/UI layer (Founder B) *before* the engine's
+`applyAttacks`, not inside the LLM wrapper — the LLM proposes attack severities, the client optionally
+reweights them by context, then the engine decides the collapse.
 
 ## The hero fixture — pinned, independently recomputed
 
