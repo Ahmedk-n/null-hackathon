@@ -185,13 +185,32 @@ export default function KeystoneApp({
     // Fresh run → clear last run's provenance (attacks stays null until Apply Load fires).
     setStageSource({ context: null, extract: null, attacks: null });
     try {
+      // The gathered rich findings snapshotted for THIS run. Fed into BOTH stages: the compiler
+      // (V8-C1, so the pack is grounded in real multi-source research) and extraction (grounds
+      // assumption confidences). Pure map — no client wall-clock/random.
+      const facts = Object.values(gatherFactsRef.current).flat();
+      // V8-C1 · GatherFinding → the plain ContextFinding shape the compiler expects (rich fields
+      // carried through: excerpt, quantities, entities, date, implication). Empty → omitted so the
+      // route/compiler behave exactly as before.
+      const contextFindings = facts.length
+        ? facts.map((f) => ({
+            source: f.source,
+            label: f.label,
+            value: f.value,
+            sourceExcerpt: f.sourceExcerpt,
+            quantities: f.quantities,
+            entities: f.entities,
+            dateISO: f.dateISO,
+            implication: f.implication,
+          }))
+        : undefined;
       // Stage 1 — COMPILE CONTEXT. Omit `scenario` entirely in CUSTOM mode (JSON.stringify drops
       // the undefined key) so the route's live branch can fire; A/B keep it and stay deterministic.
       setStage("context");
       const ctxRes = await fetch("/api/context", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ ...input, scenario: scenarioArg }),
+        body: JSON.stringify({ ...input, scenario: scenarioArg, findings: contextFindings }),
       });
       const { companyContext, decisionContextPack: pack, source } = (await ctxRes.json()) as {
         companyContext: CompanyContext;
@@ -207,7 +226,7 @@ export default function KeystoneApp({
       // GatherFinding {label,value,source,detail?,specifics?} → ExtractFinding {source, fact}.
       // V7-5: fold detail + quantified specifics into the fact so the model extracts against the
       // FULL research, not just the headline (was dropping detail/specifics). Empty → omitted.
-      const facts = Object.values(gatherFactsRef.current).flat();
+      // (`facts` was snapshotted above for the compiler; reuse the same snapshot here.)
       const findings = facts.length
         ? facts.map((f) => {
             const parts = [`${f.label}: ${f.value}`];

@@ -134,3 +134,77 @@ describe("compileContext — live path (mocked SDK)", () => {
     expect(createMock).toHaveBeenCalledTimes(2);
   });
 });
+
+// V8-C1 — the gathered multi-source findings are threaded into the compiler and rendered into the
+// user message so constraints/objectives/known-risks can be grounded + cited.
+describe("compileContext — findings threading (V8-C1)", () => {
+  const RICH_FINDINGS = [
+    {
+      source: "package.json",
+      label: "Observability gap",
+      value: "no tracing/metrics deps present",
+      sourceExcerpt: '"dependencies": { "express": "^4.19.2" }',
+      quantities: [{ metric: "services", value: "3" }],
+      entities: ["express", "postgres"],
+      dateISO: "2026-06-01",
+      implication: "audit trail cannot be produced on demand",
+    },
+    {
+      source: "notes",
+      label: "SOC2 mandated",
+      value: "top customer requires SOC2 before renewal",
+      implication: "regulatory risk to revenue",
+    },
+  ];
+
+  it("findings present → still returns valid live context and forwards the excerpt to the model", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
+    createMock.mockResolvedValue(liveMessage());
+
+    const res = await compileContext(HERO_CONTEXT_INPUT, undefined, RICH_FINDINGS);
+
+    expect(res.source).toBe("live");
+    expect(() =>
+      ContextCompileSchema.parse({
+        companyContext: res.companyContext,
+        decisionContextPack: res.decisionContextPack,
+      }),
+    ).not.toThrow();
+
+    // The rendered findings block (source + excerpt + quantities/entities/implication) reached the
+    // model's user message — this is the whole point of C1.
+    const userMsg = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(userMsg).toContain("SUPPLIED FINDINGS");
+    expect(userMsg).toContain("Observability gap");
+    expect(userMsg).toContain('"dependencies"'); // verbatim excerpt
+    expect(userMsg).toContain("services=3"); // quantity
+    expect(userMsg).toContain("express"); // entity
+    expect(userMsg).toContain("SOC2 mandated");
+  });
+
+  it("findings absent → user message is unchanged (no SUPPLIED FINDINGS block)", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
+    createMock.mockResolvedValue(liveMessage());
+
+    const res = await compileContext(HERO_CONTEXT_INPUT);
+    expect(res.source).toBe("live");
+    const userMsg = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(userMsg).not.toContain("SUPPLIED FINDINGS");
+  });
+
+  it("empty findings array → treated as absent (no findings block)", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
+    createMock.mockResolvedValue(liveMessage());
+
+    await compileContext(HERO_CONTEXT_INPUT, undefined, []);
+    const userMsg = createMock.mock.calls[0][0].messages[0].content as string;
+    expect(userMsg).not.toContain("SUPPLIED FINDINGS");
+  });
+
+  it("findings + a pinned scenario → fixtures still win (findings inert, no SDK call)", async () => {
+    process.env.ANTHROPIC_API_KEY = "sk-test-not-real";
+    const res = await compileContext(HERO_CONTEXT_INPUT, "A", RICH_FINDINGS);
+    expect(res.source).toBe("fixture");
+    expect(createMock).not.toHaveBeenCalled();
+  });
+});

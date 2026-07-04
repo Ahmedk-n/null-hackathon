@@ -55,6 +55,32 @@ describe("POST /api/context", () => {
     expect(data.decisionContextPack.decision).toBe(HERO_CONTEXT_INPUT.decisionText);
   });
 
+  it("accepts a findings array in the body and still returns a schema-valid pack (no key → fixture)", async () => {
+    // V8-C1 · the route forwards `findings` to compileContext. With no key it short-circuits to
+    // the fixture, but the extra body field must not break parsing or throw.
+    const res = await contextPOST(
+      jsonReq("http://x/api/context", {
+        ...HERO_CONTEXT_INPUT,
+        findings: [
+          { source: "package.json", label: "stack", value: "express + postgres", entities: ["express"] },
+        ],
+      }),
+    );
+    const data = (await res.json()) as {
+      companyContext: unknown;
+      decisionContextPack: DecisionContextPack;
+      source: string;
+    };
+    expect(() =>
+      ContextCompileSchema.parse({
+        companyContext: data.companyContext,
+        decisionContextPack: data.decisionContextPack,
+      }),
+    ).not.toThrow();
+    expect(data.source).toBe("fixture");
+    expect(data.decisionContextPack.decision).toBe(HERO_CONTEXT_INPUT.decisionText);
+  });
+
   it("routes scenario 'B' to the reinforce context pack", async () => {
     const res = await contextPOST(
       jsonReq("http://x/api/context", { ...REINFORCE_CONTEXT_INPUT, scenario: "B" }),

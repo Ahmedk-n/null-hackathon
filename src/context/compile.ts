@@ -31,6 +31,22 @@ import {
 import { retryOnce } from "@/agents/retry";
 import { hasApiKey, structuredCall } from "@/llm/structured";
 
+// STRUCTURAL finding shape (V8-C1). This is a plain mirror of the rich GatherFinding the agents
+// emit (label/value/source + sourceExcerpt/quantities/entities/dateISO/implication). We define it
+// LOCALLY on purpose: importing @/agents/types would pull the agent module graph into the context
+// layer and risks tripping src/context/boundary.test.ts's SDK-leak guard, so we keep a purely
+// structural type and let the route/KeystoneApp map GatherFinding → this shape at the seam.
+export interface ContextFinding {
+  source: string;
+  label: string;
+  value: string;
+  sourceExcerpt?: string;
+  quantities?: { metric: string; value: string; unit?: string }[];
+  entities?: string[];
+  dateISO?: string;
+  implication?: string;
+}
+
 // Combined §6.1 (compileCompanyContext) + §6.2 (buildDecisionContextPack) + grounding rules +
 // an explicit field skeleton, so the one call returns a single ContextCompileSchema-valid object.
 const CONTEXT_SYSTEM = `You are Keystone's context compiler. Convert three free-text descriptions of a company —
@@ -41,6 +57,23 @@ GROUNDING RULES: Use only the business, technical, and temporal context provided
 facts that are not supported by the input. When something needed is not stated, add it to
 missingInfo/missingInformation rather than guessing. Keep every string concise (<= 20 words).
 Produce COMPANY-SPECIFIC items, not generic best-practice. Every score is a number in 0..1.
+
+SUPPLIED FINDINGS (V8-C1): You may also be given a SUPPLIED FINDINGS block — typed, multi-source
+research where each finding carries a source (file path / url / "notes"), an optional verbatim
+excerpt, extracted quantities and named entities, an optional ISO date, and an implication. When
+findings are present, GROUND every constraint, objective, and known-risk in them: cite the
+contributing finding's SOURCE inside the statement/reason, and reuse the findings' quantities and
+entities so items stay specific. When a fact you need is ABSENT from both the findings and the
+free-text context, list it in missingInfo/missingInformation rather than inventing it.
+
+CROSS-SOURCE SYNTHESIS (V8-C4): The strongest risks and constraints emerge when signals from
+DIFFERENT sources COMBINE — e.g. a temporal event ("auditability review tomorrow") + a business
+requirement ("SOC2 mandated by top customer") + a technical gap ("no observability / audit
+logging") together imply ONE high-severity known-risk. DERIVE such compound risks explicitly, set
+severity/likelihood to reflect the compounding, and CITE ALL contributing sources in the statement
+and in the matching contextWeightAdjustment reason. PREFER risks and constraints corroborated by
+MULTIPLE sources; when an item rests on a SINGLE source, keep its likelihood/severity lower to
+signal lower confidence. Apply the same multi-source-first bias to the weight adjustments.
 
 companyContext:
   business: { companyStage?, industry?, customers[], revenueModel?, competitors[],
@@ -82,8 +115,32 @@ decisionContextPack — the decision-relevant slice of the above:
 
 Return ONLY the single JSON object matching this schema exactly — no prose, no markdown fences.`;
 
-function renderContextUser(input: ContextInput): string {
-  return [
+// V8-C1 · render the gathered multi-source research as a citable block appended to the user
+// message. Each finding surfaces its source + excerpt + quantities/entities/date + implication so
+// the compiler can ground constraints/objectives/known-risks in it and synthesise across sources.
+function renderFindings(findings: ContextFinding[]): string {
+  const lines: string[] = [
+    "SUPPLIED FINDINGS (multi-source research — GROUND every item in these and CITE the source):",
+  ];
+  findings.forEach((f, i) => {
+    lines.push(`[${i + 1}] (${f.source}) ${f.label}: ${f.value}`);
+    if (f.sourceExcerpt) lines.push(`    excerpt: "${f.sourceExcerpt}"`);
+    if (f.quantities && f.quantities.length > 0) {
+      lines.push(
+        `    quantities: ${f.quantities
+          .map((q) => `${q.metric}=${q.value}${q.unit ? ` ${q.unit}` : ""}`)
+          .join(", ")}`,
+      );
+    }
+    if (f.entities && f.entities.length > 0) lines.push(`    entities: ${f.entities.join(", ")}`);
+    if (f.dateISO) lines.push(`    date: ${f.dateISO}`);
+    if (f.implication) lines.push(`    implication: ${f.implication}`);
+  });
+  return lines.join("\n");
+}
+
+function renderContextUser(input: ContextInput, findings?: ContextFinding[]): string {
+  const parts = [
     "BUSINESS CONTEXT:",
     input.businessContextText,
     "",
@@ -95,7 +152,10 @@ function renderContextUser(input: ContextInput): string {
     "",
     "DECISION:",
     input.decisionText,
-  ].join("\n");
+  ];
+  // Findings absent → user message is byte-identical to before (behaviour unchanged).
+  if (findings && findings.length > 0) parts.push("", renderFindings(findings));
+  return parts.join("\n");
 }
 
 // Scenario short-circuit + every failure path lands here. FIXTURES ALWAYS WIN under a scenario.
@@ -124,6 +184,9 @@ function fixtureResult(input: ContextInput, scenario?: ScenarioId): ContextRoute
 export async function compileContext(
   input: ContextInput,
   scenario?: ScenarioId,
+  // V8-C1 · the agents' gathered multi-source research. Affects ONLY the live path — a pinned
+  // scenario still short-circuits to the deterministic fixture before findings are ever read.
+  findings?: ContextFinding[],
 ): Promise<ContextRouteResponse> {
   // (a) A scenario is pinned → deterministic fixture (demo invariant). (b) No key → fixture.
   if (scenario) return fixtureResult(input, scenario);
@@ -134,7 +197,7 @@ export async function compileContext(
     const parsed = await retryOnce(() =>
       structuredCall({
         system: CONTEXT_SYSTEM,
-        user: renderContextUser(input),
+        user: renderContextUser(input, findings),
         schema: ContextCompileSchema,
         toolName: "emit_context",
         toolDescription:

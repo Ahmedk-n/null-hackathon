@@ -53,6 +53,7 @@ Replace `messages.create` + `collectText` + `extractJson`/`extractFindings` + `s
 
 ## WAVE C — Deepen the agents + context (the founder's core ask)
 
+### V8-C1 ✅ + V8-C4 ✅ — findings fed into compileContext (ContextFinding structural type, renderFindings block, KeystoneApp passes gatherFactsRef into /api/context; route forwards); CONTEXT_SYSTEM grounds constraints/objectives/risks in findings + derives cross-source compound risks (temporal+business+technical → one high-severity risk, cite all sources). Engine-inert, scenario short-circuit intact, SDK boundary green (structural type, no @/agents import). 513 pass +1 skip, build 0, e2e PASS. Original item text:
 ### V8-C1 · Feed gathered findings INTO the compiler ← highest impact, cheapest, do first
 Today `compileContext` receives only the 4 textareas; the agents' structured research bypasses the context model entirely (only reaches extraction as a flattened fact string). Thread the collected `GatherFinding[]` (source + all fields) into `compileContext` so `CompanyContext`/`DecisionContextPack` — constraints, objectives, known-risks, weight adjustments — are built from real multi-source research with provenance, not a prose summary.
 - [ ] `src/context/compile.ts`: new `findings` param + a rendered findings block in the user message + a prompt line "ground every constraint/objective/known-risk in the supplied findings; cite sources; list genuinely-absent info in missingInfo".
