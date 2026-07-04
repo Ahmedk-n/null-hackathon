@@ -59,6 +59,7 @@ Today `compileContext` receives only the 4 textareas; the agents' structured res
 - [ ] `src/app/KeystoneApp.tsx` (~L191): pass `gatherFactsRef.current` into the `/api/context` body; `src/app/api/context/route.ts`: forward it.
 - Engine-inert, live-path only, no contract change. **Do first.**
 
+### V8-C2 ✅ + V8-C5 (offline) — rich typed GatherFinding (sourceExcerpt/quantities/entities/dateISO/implication); all 3 agents emit it; technical keeps 12-iter explore + forced-emit finalizer; business→multi-turn+finalizer; temporal→structured; AgentGather renders chips; fixtures re-pinned. 508 pass+1 skip, e2e PASS. KNOWN FOLLOW-UP: live technical(repo-clone)+business(web-tools) two-phase explorations fall back to fixture even with a key — diagnose next (offline demo fully works). Original item text:
 ### V8-C2 · Rich, typed per-finding schema (kills flat label/value) — needs V8-B1
 Replace flat `GatherFinding {label,value,source,detail?,specifics?}` with a reliably-populated structure: `{label, value, source, category, sourceExcerpt (verbatim quote), quantities:[{metric,value,unit?}], entities:string[], dateISO?, confidence, implication}`. Forced tool call (V8-B1) is what makes an 8-field schema land reliably.
 - [ ] `src/agents/types.ts`, `src/agents/schemas.ts` (zod), each agent's prompt skeleton, `src/agents/fixtures.ts` (rewrite the 3 fixtures to the new shape — pinned in tests), `src/ui/AgentGather.tsx` (render the new fields — excerpt as a quote, quantities/entities as chips).

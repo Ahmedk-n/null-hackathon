@@ -14,17 +14,23 @@ const TEMPORAL_SYSTEM = `You are Keystone's temporal context agent. From the fou
 near-term time pressure relevant to a decision: upcoming meetings/events, deadlines, and overall
 urgency. Keep date descriptions verbatim from the notes (e.g. "tomorrow", "next Tuesday").
 
-Return a single JSON object and nothing else, matching exactly:
-{
-  "kind": "temporal",
-  "summary": "<2-4 sentences suitable to paste into a context textarea>",
-  "facts": [ { "label": "...", "value": "<terse headline>", "source": "notes",
-               "detail": "<1-2 sentences elaborating the event/deadline and its stakes>",
-               "specifics": ["<quantified: dates verbatim, counts, named parties — e.g. 'tomorrow', 'in 2 days'>"] } ]
-}
-Populate "detail" and "specifics" for every fact — put QUANTIFIED data in specifics (dates verbatim
-from the notes, counts, named parties), not vague prose. Produce at least 3 facts. Do not invent
-dates or events that are not in the notes.`;
+Call the emit_findings tool with a structured object. For EACH fact populate the rich fields:
+  - "label": short tag ("Upcoming meeting", "Deadline", "Urgency", "Follow-up").
+  - "value": a terse headline.
+  - "source": always "notes".
+  - "category": one of meeting | deadline | urgency (coarse bucket).
+  - "sourceExcerpt": a SHORT VERBATIM quote from the notes that this fact rests on.
+  - "quantities": extracted numbers as {metric,value,unit?} — especially LEAD TIME
+    ({metric:"lead time", value:"1", unit:"day"} for "tomorrow", "2" days for "in 2 days"),
+    and an urgency estimate 0..1 as {metric:"urgency", value:"0.85"} on the urgency fact.
+  - "entities": named people/orgs/parties mentioned (e.g. the customer, the team).
+  - "dateISO": ONLY if the notes state an absolute calendar date; otherwise omit it — never
+    invent one from relative words like "tomorrow".
+  - "implication": one sentence on why this pressures THE DECISION (what it raises the weight on).
+  - "confidence": 0..1.
+
+Produce at least 5 facts (an urgency fact, plus meetings/deadlines/follow-ups). Order by lead time
+(soonest first). Do not invent dates or events that are not in the notes.`;
 
 export async function gatherTemporal(
   source: TemporalSource,

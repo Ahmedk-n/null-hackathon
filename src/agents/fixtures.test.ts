@@ -31,12 +31,20 @@ describe("agent fixtures", () => {
         expect(f.label.length).toBeGreaterThan(0);
       }
 
-      // V7-4 · structured depth: every fixture finding carries a detail elaboration + at least
-      // one quantified specific (so the ledger reads as real research, not headlines).
+      // V8-C2 · RICH TYPED DEPTH: every fixture finding reads as real, multi-layered research —
+      // a category, a verbatim source excerpt, an implication tying it to the decision, and at least
+      // one extracted quantity OR named entity. This is what the offline demo must SHOW.
       for (const f of fx.findings.facts) {
-        expect(f.detail && f.detail.length).toBeGreaterThan(0);
-        expect(f.specifics && f.specifics.length).toBeGreaterThan(0);
+        expect(f.category && f.category.length).toBeGreaterThan(0);
+        expect(f.sourceExcerpt && f.sourceExcerpt.length).toBeGreaterThan(0);
+        expect(f.implication && f.implication.length).toBeGreaterThan(0);
+        const quantities = f.quantities?.length ?? 0;
+        const entities = f.entities?.length ?? 0;
+        expect(quantities + entities).toBeGreaterThan(0);
       }
+
+      // At least one finding across the fixture carries extracted quantities (numbers as data).
+      expect(fx.findings.facts.some((f) => (f.quantities?.length ?? 0) > 0)).toBe(true);
     });
   }
 });

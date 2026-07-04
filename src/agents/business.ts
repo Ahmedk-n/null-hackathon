@@ -3,9 +3,10 @@
 // Falls back to the scripted fixture on no key / no source / any error. Never throws.
 import Anthropic from "@anthropic-ai/sdk";
 import type { BusinessSource, Emit, GatherFindings, Now } from "./types";
-import { collectText, extractFindings } from "./schemas";
+import { collectText, GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
 import { retryOnce } from "./retry";
+import { structuredCall } from "@/llm/structured";
 
 const MODEL = "claude-opus-4-8";
 // Hard per-request deadline so a slow live web_search can never freeze the demo. The SDK
@@ -45,23 +46,43 @@ const SERVER_TOOLS = [
   { type: "web_fetch_20250910", name: "web_fetch", max_uses: 3 },
 ];
 
+// PHASE 1 — web research. Server tools (web_search + web_fetch) loop MULTI-STEP server-side within
+// this one create call (search → fetch → search again). It does NOT emit the schema here (a forced
+// tool_choice cannot coexist with server tools); it ends with a detailed synthesis carrying URLs,
+// verbatim quotes, and numbers, which PHASE 2 (a forced-tool emit_findings) converts into the schema.
 const BUSINESS_SYSTEM = `You are Keystone's business context agent. Using web search and web fetch, research the
-company's website and the named competitors, then produce the business context a founder would
-paste into a decision tool: company stage, industry, customer segments, revenue model, competitors,
-strategic goals, growth bottlenecks, and market constraints (e.g. auditability / reliability demands).
+company's website AND the named competitors deeply — do multiple searches and fetch several real
+pages (the company's about/pricing/security/customers pages, and each competitor's site). Build the
+business context a founder would paste into a decision tool: company stage/funding, industry, customer
+segments, revenue model, competitors (as named entities), strategic goals, growth bottlenecks, and
+market constraints (e.g. auditability / reliability / uptime / certification demands).
 
-After researching, STOP and return a single JSON object and nothing else, matching exactly:
-{
-  "kind": "business",
-  "summary": "<3-5 sentences suitable to paste into a context textarea>",
-  "facts": [ { "label": "...", "value": "<terse headline>", "source": "<the url you found it on>",
-               "detail": "<1-2 sentences elaborating the fact and its relevance to the decision>",
-               "specifics": ["<quantified: $ amounts, dates, headcounts, named competitors/certs>"] } ]
-}
-Every fact's "source" MUST be a url you actually fetched. Populate "detail" and "specifics" for
-every fact — put QUANTIFIED data in specifics (e.g. "$17.5B valuation", "Series A $10M", "SOC 2
-Type II", "founded 2019"), not vague prose. Produce at least 5 facts across the site and competitors.
-Do not fabricate.`;
+When you have genuinely researched, STOP calling tools and write a THOROUGH business synthesis in
+prose. For every claim include the EXACT URL you fetched it from and a SHORT VERBATIM quote from that
+page, plus any numbers (funding $, pricing, headcount, dates, growth %, uptime/SLA, cert names). Name
+the competitors explicitly. Do not fabricate — only state what you actually read.`;
+
+// PHASE 2 — forced-tool finalizer. Converts the research synthesis into the rich typed schema.
+const BUSINESS_EMIT_SYSTEM = `You are Keystone's business context agent. Below is the transcript of your web research
+(searches, fetched pages, and your synthesis). Convert it into structured findings by calling the
+emit_findings tool. Use ONLY facts grounded in the transcript — never fabricate a URL, number, or
+competitor.
+
+For EACH fact populate the rich fields:
+  - "label": short tag (e.g. "Industry", "Stage / funding", "Growth bottleneck", "Competitor").
+  - "value": a terse headline.
+  - "source": the EXACT url you fetched the fact from.
+  - "category": one of market | funding | growth | competitor | constraint | segment.
+  - "sourceExcerpt": a SHORT VERBATIM quote from that page — real text you read.
+  - "quantities": numbers as {metric,value,unit?} — e.g. {metric:"Series B",value:"45",unit:"$M"},
+    {metric:"uptime SLA",value:"99.95",unit:"%"}, {metric:"founded",value:"2014"}.
+  - "entities": named competitors / investors / certs (e.g. "Ledgerline", "SOC 2 Type II").
+  - "dateISO": ONLY when the page states an absolute date (e.g. a funding announcement); else omit.
+  - "implication": one sentence on why this matters for the founder's decision.
+  - "confidence": 0..1.
+
+Produce at least 5 facts across the site and competitors, kind "business". Prefer facts that carry a
+real sourceExcerpt and quantities.`;
 
 function renderUser(source: BusinessSource): string {
   const parts: string[] = [];
@@ -81,9 +102,10 @@ export async function gatherBusiness(
   if (!hasApiKey() || !hasSource) return fallback();
 
   try {
-    emit({ type: "status", message: "Searching the web for the company…", ts: now() });
+    // PHASE 1 — web research. The server tools loop multi-step server-side within this one call.
     // maxRetries: 0 — retryOnce below owns the single guardrail retry; the SDK's default
     // auto-retry would otherwise stack multiple 30s timeouts and blow the client deadline.
+    emit({ type: "status", message: "Searching the web for the company…", ts: now() });
     const client = new Anthropic({ maxRetries: 0 });
     const res = await retryOnce(() =>
       client.messages.create(
@@ -98,9 +120,28 @@ export async function gatherBusiness(
       ),
     );
 
-    emit({ type: "status", message: "Analyzing website and competitors…", ts: now() });
-    const findings = extractFindings(collectText(res.content));
-    if (findings) {
+    // PHASE 2 — forced-tool finalizer. The research synthesis (with URLs + verbatim quotes + numbers)
+    // is fed to a single FORCED emit_findings call that lands the rich typed schema reliably. Separate
+    // request because a forced tool_choice cannot coexist with server tools.
+    // LATENCY TRADE-OFF (this agent is the tail-latency risk): phase 1 runs ~30-38s live (5 search /
+    // 3 fetch, basic tool variants — the dynamic-filtering variants blow the budget) bounded by
+    // REQUEST_TIMEOUT_MS; phase 2 adds one bounded structuredCall (45s). Both are guarded by retryOnce
+    // + the try/catch → fixture fallback, so an overrun FALLS BACK to the fixture and never hangs.
+    emit({ type: "status", message: "Analyzing website and competitors (forced emit)…", ts: now() });
+    const synthesis = collectText(res.content);
+    const findings: GatherFindings = await retryOnce(() =>
+      structuredCall({
+        system: BUSINESS_EMIT_SYSTEM,
+        user: `SOURCE:\n${renderUser(source)}\n\nRESEARCH TRANSCRIPT:\n\n${synthesis}`,
+        schema: GatherFindingsSchema,
+        toolName: "emit_findings",
+        toolDescription:
+          "Emit the business findings (rich typed, with verbatim quotes, quantities, entities, implication) as one structured object.",
+      }),
+    );
+
+    // MIN_FACTS gate preserved: a thin reply looks sparse, so fall through to the fixture.
+    if (findings.facts.length >= MIN_FACTS) {
       findings.kind = "business";
       for (const f of findings.facts) emit({ type: "finding", finding: f, ts: now() });
       emit({ type: "done", findings, source: "live", ts: now() });

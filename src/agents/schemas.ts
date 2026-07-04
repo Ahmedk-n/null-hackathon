@@ -6,13 +6,27 @@ import type { AgentEvent, GatherFindings } from "./types";
 
 export const GatherKindSchema = z.enum(["technical", "business", "temporal"]);
 
+export const QuantitySchema = z.object({
+  metric: z.string(),
+  value: z.string(),
+  unit: z.string().optional(),
+});
+
 export const GatherFindingSchema = z.object({
   label: z.string(),
   value: z.string(),
   source: z.string(),
-  // V7-4 · structured depth: an optional 1-2 sentence elaboration + quantified specifics
-  // (numbers / dates / named entities). Optional so a thin live reply still parses; agents are
-  // prompted to populate them (see technical/business/temporal system prompts).
+  // V8-C2 · RICH TYPED FINDING. label/value/source required (back-compat); the rest optional so
+  // a thin live reply still parses, but every agent's forced-tool prompt asks for them so a live
+  // reply populates them (verbatim excerpt + extracted numbers + named entities + implication).
+  category: z.string().optional(),
+  sourceExcerpt: z.string().optional(),
+  quantities: z.array(QuantitySchema).optional(),
+  entities: z.array(z.string()).optional(),
+  dateISO: z.string().optional(),
+  confidence: z.number().optional(),
+  implication: z.string().optional(),
+  // Deprecated V7-4 fields, kept optional for back-compat (see types.ts). Agents no longer emit them.
   detail: z.string().optional(),
   specifics: z.array(z.string()).optional(),
 });

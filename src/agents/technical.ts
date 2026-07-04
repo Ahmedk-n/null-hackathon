@@ -10,9 +10,10 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z as z4 } from "zod/v4";
 import type { Emit, GatherFinding, GatherFindings, Now, TechnicalSource } from "./types";
-import { collectText, extractFindings } from "./schemas";
+import { GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
-import { rejectAfter } from "./retry";
+import { rejectAfter, retryOnce } from "./retry";
+import { structuredCall } from "@/llm/structured";
 
 const MODEL = "claude-opus-4-8";
 const CLONE_TIMEOUT_MS = 60_000;
@@ -105,26 +106,83 @@ async function buildDigest(root: string): Promise<Digest> {
   return { facts, text: heads.join("\n") };
 }
 
-const TECH_SYSTEM = `You are Keystone's technical context agent. You are exploring a cloned code repository
-using three read-only tools (list_dir, read_file, grep), all confined to the repo root.
-Determine the real technical context a founder would paste into a decision tool: the stack
-and framework, architecture (monolith vs services), infrastructure, integrations, deployment
-process, observability maturity, testing/CI, technical-debt signals, and any team-size hints.
+// PHASE 1 — exploration. The tool_runner (server tools + a forced tool_choice cannot share a
+// request, so this phase uses free tool use) digs through the repo. It does NOT emit the schema
+// here; it ends with a detailed prose synthesis carrying exact paths, verbatim snippets, and counts,
+// which PHASE 2 (a forced-tool emit_findings) converts into the rich typed schema reliably.
+const TECH_SYSTEM = `You are Keystone's technical context agent, exploring a cloned code repository with three
+read-only tools (list_dir, read_file, grep), all confined to the repo root. Determine the real
+technical context a founder would paste into a decision tool: stack/framework, architecture
+(monolith vs services), infrastructure, integrations, deployment, observability maturity,
+testing/CI, technical-debt signals, and team-size hints.
 
-Explore thoroughly — open multiple files (manifests, CI config, Dockerfiles, source dirs, tests)
-and grep for real signals — then STOP and return your answer as a single JSON object and nothing
-else, matching exactly:
-{
-  "kind": "technical",
-  "summary": "<3-5 sentences suitable to paste into a context textarea>",
-  "facts": [ { "label": "...", "value": "<terse headline>", "source": "<file path you found it in>",
-               "detail": "<1-2 sentences elaborating the fact and why it matters to the decision>",
-               "specifics": ["<quantified: version numbers, counts, named deps/services/tools>"] } ]
+Explore DEEPLY and CROSS-REFERENCE sources — do not stop at the digest:
+  - Open the manifest (package.json / pyproject.toml / go.mod / requirements.txt) AND the lockfile,
+    the Dockerfile(s), the CI config (.github/workflows/*), and several source + test directories.
+  - grep for real signals: "TODO", "FIXME", "HACK", secrets ("API_KEY|SECRET|password|token"),
+    migrations ("migrate|alembic|migration"), and observability ("opentelemetry|prometheus|structlog").
+  - COUNT things: number of services/apps, number of test files, number of dependencies, key versions.
+
+When you have genuinely investigated, STOP calling tools and write a THOROUGH technical synthesis in
+prose. For every claim, include the EXACT file path it came from and a SHORT VERBATIM snippet (a real
+line you read or a grep hit) plus any counts/versions. Do not invent files that do not exist.`;
+
+// PHASE 2 — forced-tool finalizer. Converts the exploration transcript into the rich typed schema.
+const TECH_EMIT_SYSTEM = `You are Keystone's technical context agent. Below is the transcript of your read-only
+exploration of a code repository (tool calls, file contents, grep hits, and your synthesis). Convert
+it into structured findings by calling the emit_findings tool. Use ONLY facts grounded in the
+transcript — never invent files, versions, or counts.
+
+For EACH fact populate the rich fields:
+  - "label": short tag (e.g. "Framework", "CI", "Tests", "Observability", "Tech debt").
+  - "value": a terse headline.
+  - "source": the EXACT repo file path (or "src/") the fact came from.
+  - "category": one of stack | infra | ci | tests | observability | team | tech-debt | integration.
+  - "sourceExcerpt": a SHORT VERBATIM line/snippet from that file (or a grep hit) — real text.
+  - "quantities": counts/versions as {metric,value,unit?} — e.g. {metric:"test files",value:"38"},
+    {metric:"fastapi",value:"0.110"}, {metric:"services",value:"1"}, {metric:"total dependencies",value:"62"}.
+  - "entities": named frameworks/libraries/tools (e.g. "FastAPI", "GitHub Actions", "pytest").
+  - "implication": one sentence on why this matters for the founder's decision.
+  - "confidence": 0..1.
+
+Cross-reference across manifest ∧ lockfile ∧ CI ∧ Dockerfile ∧ src dirs. Produce at least 5 facts,
+kind "technical". Prefer facts that carry a real sourceExcerpt and quantities.`;
+
+/** Render the tool_runner conversation into a compact transcript for the emit phase: assistant text
+ *  + tool calls (name/input) + tool results (file contents / grep hits), so PHASE 2 has real
+ *  snippets to quote. Bounded so it never blows the emit-call token budget. */
+function renderTranscript(messages: readonly Anthropic.Beta.Messages.BetaMessageParam[], cap: number): string {
+  const parts: string[] = [];
+  for (const m of messages) {
+    const content = m.content;
+    if (typeof content === "string") {
+      parts.push(`[${m.role}] ${content}`);
+      continue;
+    }
+    if (!Array.isArray(content)) continue;
+    for (const block of content) {
+      const b = block as { type?: string; text?: string; name?: string; input?: unknown; content?: unknown };
+      if (b.type === "text" && typeof b.text === "string") {
+        parts.push(`[${m.role}] ${b.text}`);
+      } else if (b.type === "tool_use") {
+        parts.push(`[tool_call] ${b.name}(${JSON.stringify(b.input)})`);
+      } else if (b.type === "tool_result") {
+        const c = b.content;
+        const text =
+          typeof c === "string"
+            ? c
+            : Array.isArray(c)
+              ? c
+                  .map((x) => (x && typeof x === "object" && "text" in x ? (x as { text: string }).text : ""))
+                  .join("\n")
+              : "";
+        if (text) parts.push(`[tool_result]\n${text}`);
+      }
+    }
+  }
+  const joined = parts.join("\n\n");
+  return joined.length > cap ? joined.slice(0, cap) + "\n…[transcript truncated]" : joined;
 }
-Every fact's "source" MUST be a file path from the repo. Populate "detail" and "specifics" for
-every fact — put QUANTIFIED data in specifics (e.g. "socket.io-client 4.7.2", "6 services",
-"pytest suite of 42 tests"), not vague prose. Produce at least 5 facts, digging for genuine depth.
-Do not invent files that do not exist.`;
 
 export async function gatherTechnical(
   source: TechnicalSource,
@@ -263,10 +321,27 @@ export async function gatherTechnical(
       runner.runUntilDone(),
       rejectAfter(RUNNER_DEADLINE_MS, "technical tool_runner"),
     ]);
-    const findings = extractFindings(collectText(final.content));
-    if (findings) {
+
+    // PHASE 2 — forced-tool finalizer. The exploration transcript (tool calls + file contents +
+    // grep hits + the model's synthesis) is fed to a single FORCED emit_findings tool call, which
+    // lands the rich typed schema reliably (free-text scraping silently dropped rich output). This
+    // is a separate request because a forced tool_choice cannot coexist with the runner's tools.
+    emit({ type: "status", message: "Synthesizing technical findings (forced emit)…", ts: now() });
+    const transcript = renderTranscript(final ? runner.params.messages : [], 24_000);
+    const findings: GatherFindings = await retryOnce(() =>
+      structuredCall({
+        system: TECH_EMIT_SYSTEM,
+        user: `Repo: ${source.repoUrl}\n\nEXPLORATION TRANSCRIPT:\n\n${transcript}`,
+        schema: GatherFindingsSchema,
+        toolName: "emit_findings",
+        toolDescription:
+          "Emit the technical findings (rich typed, with verbatim excerpts, quantities, entities, implication) as one structured object.",
+      }),
+    );
+
+    // MIN_FACTS gate preserved: a thin reply looks sparse, so fall through to the fixture.
+    if (findings.facts.length >= MIN_FACTS) {
       findings.kind = "technical";
-      emit({ type: "status", message: "Summarizing technical context…", ts: now() });
       for (const f of findings.facts) emit({ type: "finding", finding: f, ts: now() });
       emit({ type: "done", findings, source: "live", ts: now() });
       return findings;

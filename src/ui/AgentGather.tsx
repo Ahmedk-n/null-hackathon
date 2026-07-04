@@ -17,6 +17,34 @@ function Source({ children }: { children: React.ReactNode }) {
   );
 }
 
+// A small mono chip for a finding's extracted quantity or named entity (V8-C2). `ink` tone for
+// numbers (stronger), `muted` tone for entities — same square, hairline-bordered CAD-ledger look.
+function Chip({
+  children,
+  testid,
+  tone,
+}: {
+  children: React.ReactNode;
+  testid: string;
+  tone: "ink" | "muted";
+}) {
+  return (
+    <span
+      data-testid={testid}
+      className="mono"
+      style={{
+        fontSize: 10,
+        padding: "1px 5px",
+        border: "1px solid var(--hair-strong)",
+        color: tone === "ink" ? "var(--ink-2)" : "var(--muted)",
+        whiteSpace: "nowrap",
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
 // Terminal source chip for the finished run: LIVE (real agent, green ok tone) vs
 // CACHED (offline/fixture data, calm neutral tone) — factual provenance, not an apology.
 function SourceChip({ source }: { source: "live" | "fixture" }) {
@@ -176,7 +204,7 @@ export function AgentGather({
         <div>
           <SectionHeader>Findings</SectionHeader>
           {findings.facts.map((f, i) => (
-            <div key={i} data-testid="finding" style={{ paddingBottom: 6 }}>
+            <div key={i} data-testid="finding" style={{ paddingBottom: 8 }}>
               <LedgerRow
                 label={f.label}
                 mono={false}
@@ -187,33 +215,46 @@ export function AgentGather({
                   </>
                 }
               />
-              {/* V7-5: the deeper research now reaches the eye — detail + quantified specifics. */}
-              {f.detail && (
-                <div
+              {/* V8-C2 · the deeper, typed research now reaches the eye: a verbatim quote from the
+                  source, extracted numbers + named entities as mono chips, and the implication. */}
+              {f.sourceExcerpt && (
+                <blockquote
+                  data-testid="finding-excerpt"
                   className="mono"
-                  style={{ fontSize: 11, color: "var(--muted)", padding: "2px 0 0 2px", lineHeight: 1.4 }}
+                  style={{
+                    margin: "3px 0 0 2px",
+                    padding: "1px 0 1px 8px",
+                    borderLeft: "2px solid var(--hair-strong)",
+                    fontSize: 10.5,
+                    color: "var(--ink-2)",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.4,
+                  }}
                 >
-                  {f.detail}
+                  {f.sourceExcerpt}
+                </blockquote>
+              )}
+              {((f.quantities && f.quantities.length > 0) || (f.entities && f.entities.length > 0)) && (
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingTop: 4 }}>
+                  {f.quantities?.map((q, j) => (
+                    <Chip key={`q${j}`} testid="finding-quantity" tone="ink">
+                      {q.metric}: {q.value}
+                      {q.unit ? ` ${q.unit}` : ""}
+                    </Chip>
+                  ))}
+                  {f.entities?.map((e, j) => (
+                    <Chip key={`e${j}`} testid="finding-entity" tone="muted">
+                      {e}
+                    </Chip>
+                  ))}
                 </div>
               )}
-              {f.specifics && f.specifics.length > 0 && (
-                <div style={{ display: "flex", flexWrap: "wrap", gap: 4, paddingTop: 3 }}>
-                  {f.specifics.map((s, j) => (
-                    <span
-                      key={j}
-                      data-testid="finding-specific"
-                      className="mono"
-                      style={{
-                        fontSize: 10,
-                        padding: "1px 5px",
-                        border: "1px solid var(--hair-strong)",
-                        color: "var(--ink-2)",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {s}
-                    </span>
-                  ))}
+              {f.implication && (
+                <div
+                  className="mono"
+                  style={{ fontSize: 11, color: "var(--muted)", padding: "3px 0 0 2px", lineHeight: 1.4 }}
+                >
+                  → {f.implication}
                 </div>
               )}
             </div>
