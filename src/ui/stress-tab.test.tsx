@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { describe, it, expect, beforeAll, beforeEach, afterEach } from "vitest";
-import { render, cleanup, screen, fireEvent } from "@testing-library/react";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { render, cleanup, screen, fireEvent, waitFor } from "@testing-library/react";
 import { StressTab } from "./tabs/StressTab";
 import { keystoneStore } from "@/store/useKeystone";
 import { integrity } from "@/engine";
@@ -236,6 +236,64 @@ describe("StressTab (R4)", () => {
   });
 
   // ── W2-2 · deterministic re-run beat ──────────────────────────────────
+  // ── V6-2 · WIND TUNNEL section ────────────────────────────────────────
+  it("renders the WIND TUNNEL section and streams a role-tagged transcript + verdict", async () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    keystoneStore.getState().setApplyContextWeights(true); // singleton store — a prior test may have flipped it
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+
+    const frames = [
+      { type: "round", round: 1, ts: "T" },
+      {
+        type: "proposal",
+        round: 1,
+        role: "PROSECUTOR",
+        targetId: "k_credible",
+        category: "execution",
+        severity: 0.5,
+        rationale: "no spare capacity",
+        ts: "T",
+      },
+      { type: "verdict", round: 1, role: "SOLVER", step: "proposal", valid: true, reason: null, integrity: 26.3, delta: -26, ts: "T" },
+      { type: "counter", round: 1, role: "ADVOCATE", kind: "restore", targetId: "k_credible", value: 0.72, citation: "notes: hiring", ts: "T" },
+      { type: "verdict", round: 1, role: "SOLVER", step: "counter", valid: true, reason: null, integrity: 47.4, delta: 21, verdict: "HOLD", ts: "T" },
+      { type: "done", verdict: "STANDS", holds: 3, cracks: 2, source: "fixture", ts: "T" },
+    ];
+    const makeStream = () => {
+      const enc = new TextEncoder();
+      let i = 0;
+      return new ReadableStream<Uint8Array>({
+        pull(controller) {
+          if (i < frames.length) {
+            controller.enqueue(enc.encode(`data: ${JSON.stringify(frames[i])}\n\n`));
+            i += 1;
+          } else {
+            controller.close();
+          }
+        },
+      });
+    };
+    const fetchMock = vi.fn(async () => ({ body: makeStream() }) as unknown as Response);
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    // The section + its button are present (grounded + loaded).
+    const section = screen.getByTestId("wind-tunnel");
+    expect(section).toBeDefined();
+    const btn = screen.getByRole("button", { name: /wind tunnel/i });
+    fireEvent.click(btn);
+
+    await waitFor(() => expect(screen.getAllByTestId("tunnel-row").length).toBeGreaterThan(0));
+    expect(fetchMock).toHaveBeenCalledWith("/api/tunnel", expect.objectContaining({ method: "POST" }));
+
+    const verdict = await screen.findByTestId("tunnel-verdict");
+    expect(verdict.textContent).toMatch(/STANDS \(3 HOLDS \/ 2 CRACKS\)/);
+
+    vi.unstubAllGlobals();
+  });
+
   it("re-run leaves the verdict identical and flashes the determinism chip", () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());
     keystoneStore.getState().setContext(

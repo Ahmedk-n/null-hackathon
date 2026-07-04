@@ -29,12 +29,12 @@
 
 ## Wave 2 (after Wave 1 + harvest land)
 
-### V6-2 · Adversarial Wind Tunnel
-- [ ] `src/context/tunnel.ts` (pure referee): applyTunnelRound validation table (target exists/assumption, category normalises, severity ≤0.6, no duplicate targets, restore ≤ baseline, rebuttal ≥ 0.5× severity) + engine recompute on a session clone. Unit-tested exhaustively.
-- [ ] `src/agents/tunnel.ts`: prosecutor + advocate on the proven live pattern (30s timeouts, retryOnce, transcript-threaded prompts); scripted 5-round fixture duel for scenario R; mid-duel agent failure → scripted continuation event.
-- [ ] `POST /api/tunnel` SSE (gather-shaped events: round/proposal/verdict/counter/done).
-- [ ] STRESS tab WIND TUNNEL section (enabled loadApplied && grounded): session-clone MiniStructure + role-tagged transcript ledger + live session integrity + final stamp + explainer. Main verdict untouched.
-- [ ] Tests: referee table, fixture duel replay end-state pinned, route SSE shape, UI render. e2e TUNNEL-replay leg.
+### V6-2 · Adversarial Wind Tunnel ✅ (pure referee validation table; live prosecutor+advocate duel + scripted R fallback ending STANDS 3/2 @ 37.90%; /api/tunnel SSE; WIND TUNNEL section on a session-clone — main verdict untouched; keyless→scripted deterministic; 442 tests, e2e TUNNEL leg 20 rows PASS)
+- [x] `src/context/tunnel.ts` pure referee — full validation table (target exists/assumption, category normalises, severity ≤0.6, no dup targets, restore ≤ baseline, rebuttal ≥ 0.5× severity); recompute on session clone; input never mutated.
+- [x] `src/agents/tunnel.ts` — live prosecutor+advocate (30s/retryOnce/transcript-threaded); scripted 5-round R duel; mid-duel failure → scripted-continuation notice.
+- [x] `POST /api/tunnel` SSE (round/proposal/verdict/counter/done; ts stamped in route only).
+- [x] STRESS WIND TUNNEL section (session-clone MiniStructure + role-tagged transcript + live integrity + stamp + explainer).
+- [x] Referee table, scripted end-state pinned, route SSE, UI render tests + e2e TUNNEL leg. Deviation: keyless→scripted / key→live (StressTab has no mode prop; spec-correct, deterministic gate).
 - Files: src/context/tunnel.ts (+test), src/agents/tunnel.ts (+test), src/app/api/tunnel/route.ts (+test), src/ui/tabs/StressTab.tsx (harvest has landed by now), e2e.
 
 ### V6-5 · Final sweep

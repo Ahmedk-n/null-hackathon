@@ -340,6 +340,25 @@ async function main() {
         throw new Error(`scenario R did NOT collapse — integrity ${integrityR}% >= 35% (expected crack)`);
     });
 
+    // ── WIND TUNNEL — adversarial duel on the R structure (V6-2) ──────────────
+    console.log("\n[WIND TUNNEL · adversarial duel — mode R, offline → scripted]");
+
+    await step("TUNNEL: run WIND TUNNEL → done stamp + role-tagged transcript", async () => {
+      // We are on STRESS with load applied + grounded → the WIND TUNNEL section is enabled.
+      await page.waitForSelector('[data-testid="wind-tunnel"]', { timeout: 10000 });
+      await page.getByRole("button", { name: /wind tunnel/i }).first().click();
+      // Offline / no key (the gate condition) → the deterministic scripted duel streams to its done
+      // stamp instantly. A generous ceiling also lets a key-present LIVE duel finish (~1 round/6s).
+      await page.waitForSelector('[data-testid="tunnel-verdict"]', { timeout: 90000 });
+
+      const rows = await page.locator('[data-testid="tunnel-row"]').count();
+      const verdictText = await page.locator('[data-testid="tunnel-verdict"]').innerText();
+      console.log(`      transcript rows: ${rows} · verdict: ${verdictText}`);
+      if (rows < 4) throw new Error(`expected >=4 transcript rows, got ${rows}`);
+      if (!/\b(STANDS|FALLS)\b/.test(verdictText))
+        throw new Error(`tunnel verdict missing STANDS/FALLS: "${verdictText}"`);
+    });
+
     // ── DESIGN — generative rivals tournament (V6-1) ──────────────────────────
     console.log("\n[DESIGN · generative rivals — mode R pinned]");
 

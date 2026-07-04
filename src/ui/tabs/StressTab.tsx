@@ -1,7 +1,9 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Attack, Graph } from "@/engine";
-import { rankLoadBearing } from "@/engine";
+import { rankLoadBearing, integrity, keystone } from "@/engine";
+import { MiniStructure, layoutStructure } from "@/ui/MiniStructure";
+import type { TunnelEvent } from "@/context/tunnel";
 import {
   keystoneStore,
   useKeystone,
@@ -380,6 +382,207 @@ function TimelineSection() {
   );
 }
 
+// V6-2 · WIND TUNNEL — two agents duel over a CLONE of the working structure; the pure solver
+// referees every round and cannot be overridden. The MAIN verdict/store is UNTOUCHED — the session
+// runs on a clone in local component state, streamed from POST /api/tunnel (SSE, gather-shaped). No
+// wall-clock / random in this client file: the run deadline is a setTimeout, and every event `ts`
+// is stamped by the server. Offline / no key → the deterministic scripted duel for scenario R.
+const TUNNEL_DEADLINE_MS = 60_000;
+
+function roleGlyph(role: string): string {
+  return role === "PROSECUTOR" ? "PROSECUTOR ▶" : role === "ADVOCATE" ? "ADVOCATE ◀" : "SOLVER ■";
+}
+function roleColor(role: string): string {
+  return role === "PROSECUTOR" ? "var(--bad)" : role === "ADVOCATE" ? "var(--ok)" : "var(--ink)";
+}
+
+function TranscriptRow({ event }: { event: TunnelEvent }) {
+  if (event.type === "notice") {
+    return (
+      <div
+        data-testid="tunnel-row"
+        className="label"
+        style={{ padding: "6px 0", color: "var(--warn)", fontStyle: "italic", borderBottom: "1px solid var(--hair)" }}
+      >
+        {event.message}
+      </div>
+    );
+  }
+  if (event.type === "round" || event.type === "done" || event.type === "error") return null;
+
+  let head = "";
+  let body = "";
+  let accent = roleColor(event.role);
+  if (event.type === "proposal") {
+    head = `${event.category.toUpperCase()} · SEV ${event.severity.toFixed(2)} → ${event.targetId}`;
+    body = event.rationale;
+  } else if (event.type === "counter") {
+    head = `${event.kind.toUpperCase()} ${event.value.toFixed(2)}${event.targetId ? ` → ${event.targetId}` : ""}`;
+    body = event.citation;
+  } else {
+    // SOLVER verdict.
+    const rv = event.verdict;
+    head = event.valid
+      ? `APPLIED · INTEGRITY ${event.integrity.toFixed(1)}%${rv ? ` · ${rv}` : ""}`
+      : `REJECTED · ${event.reason ?? "invalid"}`;
+    accent = rv === "CRACK" ? "var(--bad)" : rv === "HOLD" ? "var(--ok)" : event.valid ? "var(--ink)" : "var(--warn)";
+  }
+
+  return (
+    <div data-testid="tunnel-row" style={{ padding: "6px 0", borderBottom: "1px solid var(--hair)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 6, alignItems: "baseline" }}>
+        <span className="label" style={{ color: roleColor(event.role), flex: "0 0 auto" }}>
+          {roleGlyph(event.role)}
+        </span>
+        <span className="mono" style={{ fontSize: 10, color: accent, textAlign: "right" }}>
+          {head}
+        </span>
+      </div>
+      {body && (
+        <div className="mono" style={{ fontSize: 10, color: "var(--muted)", marginTop: 2, lineHeight: 1.4 }}>
+          {body}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function WindTunnelSection({ baseGraph }: { baseGraph: Graph }) {
+  const [events, setEvents] = useState<TunnelEvent[]>([]);
+  const [running, setRunning] = useState(false);
+  const pack = useKeystone((s) => s.decisionContextPack);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const done = events.find((e) => e.type === "done") as
+    | Extract<TunnelEvent, { type: "done" }>
+    | undefined;
+
+  // Live session integrity — the latest SOLVER verdict, else the clean baseline.
+  const liveIntegrity = useMemo(() => {
+    for (let i = events.length - 1; i >= 0; i--) {
+      const e = events[i];
+      if (e.type === "verdict") return e.integrity;
+    }
+    return integrity(baseGraph);
+  }, [events, baseGraph]);
+
+  const keystoneId = useMemo(() => keystone(baseGraph)?.id ?? "", [baseGraph]);
+  const layout = useMemo(
+    () => layoutStructure(baseGraph, { keystoneId, width: 300, height: 172 }),
+    [baseGraph, keystoneId],
+  );
+  // When the duel ends in a fall, the keystone shows cracked; a stand leaves it whole.
+  const fell = done?.verdict === "FALLS";
+
+  async function run() {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    const deadline = setTimeout(() => controller.abort(), TUNNEL_DEADLINE_MS);
+    setEvents([]);
+    setRunning(true);
+    try {
+      const res = await fetch("/api/tunnel", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ graph: baseGraph, pack: pack ?? undefined }),
+        signal: controller.signal,
+      });
+      const body = res.body;
+      if (!body) return;
+      const reader = body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { done: streamDone, value } = await reader.read();
+        if (streamDone) break;
+        buffer += decoder.decode(value, { stream: true });
+        let sep: number;
+        while ((sep = buffer.indexOf("\n\n")) !== -1) {
+          const chunk = buffer.slice(0, sep);
+          buffer = buffer.slice(sep + 2);
+          const line = chunk.split("\n").find((l) => l.startsWith("data:"));
+          if (!line) continue;
+          try {
+            const event = JSON.parse(line.slice(5).trim()) as TunnelEvent;
+            setEvents((prev) => [...prev, event]);
+          } catch {
+            /* ignore malformed frame */
+          }
+        }
+      }
+    } catch {
+      /* aborted / offline — the transcript keeps whatever streamed */
+    } finally {
+      clearTimeout(deadline);
+      setRunning(false);
+    }
+  }
+
+  const intColor = liveIntegrity >= 35 ? "var(--ok)" : liveIntegrity >= 10 ? "var(--warn)" : "var(--bad)";
+
+  return (
+    <div data-testid="wind-tunnel">
+      <SectionHeader>Wind Tunnel</SectionHeader>
+      <p className="label" style={{ padding: "0 0 6px", color: "var(--muted)", lineHeight: 1.5, textTransform: "none", letterSpacing: 0 }}>
+        WIND TUNNEL — two agents argue; the solver referees. Its verdict cannot be overridden.
+      </p>
+      <Button onClick={run} disabled={running}>
+        {running ? "Interrogating…" : "Wind Tunnel"}
+      </Button>
+
+      {events.length > 0 && (
+        <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+          {/* Session clone — the MAIN structure is never touched. */}
+          <MiniStructure
+            testId="tunnel-mini"
+            nodes={layout.nodes}
+            edges={layout.edges}
+            width={layout.width}
+            height={layout.height}
+            keystoneId={keystoneId}
+            tick={9999}
+            failedIds={fell ? new Set([keystoneId]) : undefined}
+            cracked={fell}
+          />
+
+          {/* Live session integrity readout. */}
+          <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+            <span className="label">Session Integrity</span>
+            <span data-testid="tunnel-integrity" className="mono" style={{ fontSize: 14, color: intColor }}>
+              {liveIntegrity.toFixed(1)}%
+            </span>
+          </div>
+
+          {/* Role-tagged transcript ledger. */}
+          <div>
+            {events.map((e, i) => (
+              <TranscriptRow key={i} event={e} />
+            ))}
+          </div>
+
+          {/* Final stamp. */}
+          {done && (
+            <span
+              data-testid="tunnel-verdict"
+              className="chip mono"
+              style={{
+                alignSelf: "flex-start",
+                color: done.verdict === "STANDS" ? "var(--ok)" : "var(--bad)",
+                borderColor: done.verdict === "STANDS" ? "var(--ok)" : "var(--bad)",
+              }}
+            >
+              {`${done.verdict} (${done.holds} HOLDS / ${done.cracks} CRACKS)`}
+            </span>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -478,6 +681,9 @@ export function StressTab({
 
         {/* V3-7 — time-axis stress (grounded only; RAW has no temporal dimension) */}
         {loadApplied && applyContextWeights && pack && <TimelineSection />}
+
+        {/* V6-2 — adversarial wind tunnel (grounded + loaded; runs on a session clone) */}
+        {loadApplied && applyContextWeights && baseGraph && <WindTunnelSection baseGraph={baseGraph} />}
 
         {/* W2-2 — deterministic re-run beat */}
         <RerunControl />
