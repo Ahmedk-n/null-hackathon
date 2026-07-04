@@ -126,19 +126,26 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       animate={
         data.isFailed
           ? {
-              // Buckle toward the viewer: drop, rotate off-axis, and sink in Z.
-              opacity: 0.4,
-              rotateX: 42,
-              rotateY: data.type === "thesis" ? -6 : data.type === "claim" ? -12 : -8,
-              rotate: data.type === "thesis" ? -2 : data.type === "claim" ? -8 : -4,
-              y: 18,
-              z: -70,
+              // Buckle toward the viewer as a TRANSIENT (through ~42°) then SETTLE back to a
+              // near-flat, legible resting frame — the red BAD_BG + failed shadow + cracks +
+              // FAILED chip carry the failure signal, so the label/values stay readable.
+              opacity: [null, 0.55, 0.95],
+              rotateX: [null, 42, 8],
+              rotateY: 0,
+              rotate:
+                data.type === "thesis"
+                  ? [null, -2, -1]
+                  : data.type === "claim"
+                    ? [null, -6, -1.5]
+                    : [null, -4, -1.5],
+              y: [null, 22, 8],
+              z: [null, -70, -20],
             }
           : { opacity: restOpacity, rotateX: 0, rotateY: 0, rotate: 0, y: 0, z: liveZ, scale: 1 }
       }
       transition={
         data.isFailed
-          ? { duration: 0.55, delay: collapseDelay, ease: FALL_EASE }
+          ? { duration: 0.85, delay: collapseDelay, times: [0, 0.5, 1], ease: "easeInOut" }
           : entrance
             ? { duration: 0.5, delay: buildDelay, ease: [0.22, 1, 0.36, 1] }
             : { duration: 0.4, ease: "easeOut" }

@@ -118,14 +118,32 @@ const NO_ATTACKS: readonly Attack[] = [];
 const NO_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
 const NO_PLANES: readonly ConstraintPlane[] = [];
 
+// V7-BUGFIX — the constraint rail is DOCKED in a dedicated right GUTTER so its planes,
+// labels and VIOLATED tallies never cross the node area. The board reserves this fraction
+// of its width on the right via fitView padding; the constraint planes live inside it.
+const RIGHT_GUTTER_PCT = 15;
+const BOARD_RIGHT_PCT = 100 - RIGHT_GUTTER_PCT; // left edge of the gutter, as a canvas %
+// Node bounding box maps into this padded board region (matches the fitView padding below).
+const BOARD_X0 = 6; // left pad %
+const BOARD_Y0 = 12; // top pad %
+const BOARD_Y1 = 90; // bottom pad %
+
+// fitView padding — when constraints are docked, reserve the right gutter so nodes never
+// extend under the rail; otherwise fall back to a symmetric 12% frame.
+function fitPaddingFor(hasPlanes: boolean) {
+  return hasPlanes
+    ? ({ top: "12%", bottom: "12%", left: "6%", right: `${RIGHT_GUTTER_PCT}%` } as const)
+    : ("12%" as const);
+}
+
 // Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action).
 // Lives inside <ReactFlow> so useReactFlow() resolves the flow instance context.
-function FitController({ fitSignal }: { fitSignal?: number }) {
+function FitController({ fitSignal, hasPlanes }: { fitSignal?: number; hasPlanes: boolean }) {
   const { fitView } = useReactFlow();
   useEffect(() => {
     if (fitSignal === undefined) return;
-    fitView({ padding: 0.2, duration: 400 });
-  }, [fitSignal, fitView]);
+    fitView({ padding: fitPaddingFor(hasPlanes), duration: 400 });
+  }, [fitSignal, fitView, hasPlanes]);
   return null;
 }
 
@@ -186,6 +204,8 @@ export function KeystoneCanvas({
   // (tilt=false) is a top-down flat inspection with no perspective.
   const flat = pickLayoutMode(graph.nodes.length) === "simple-2d";
   const section = tilt && !flat;
+  // Constraints docked → the board reserves a right gutter for the rail.
+  const hasPlanes = constraintPlanes.length > 0;
 
   // W1-6a — play the assembly build-in only the first time we see this graph identity.
   const buildIdentity: object = buildKey ?? graph;
@@ -389,6 +409,8 @@ export function KeystoneCanvas({
             nodeTypes={nodeTypes}
             onNodeClick={onNodeClick}
             fitView
+            // Reserve the right gutter for the constraint rail so nodes never sit under it.
+            fitViewOptions={{ padding: fitPaddingFor(hasPlanes) }}
             // A tilted (transformed) ancestor breaks React Flow's pointer math, so pan
             // and node-drag are disabled whenever the SECTION view is active (W3-4).
             panOnDrag={!section}
@@ -403,18 +425,22 @@ export function KeystoneCanvas({
               gap={130}
               color={HAIR_STRONG}
             />
-            <FitController fitSignal={fitSignal} />
+            <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} />
           </ReactFlow>
           {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
           <StratumChrome strata={strata} focusLayer={focusLayer} />
-          {/* V4-2 — constraint boundary planes (right margin; opposite the L0..L3 labels). */}
+          {/* V4-2 — constraint boundary planes, DOCKED in the right gutter (never over nodes). */}
           <ConstraintFrame
             planes={constraintPlanes}
             strikes={strikes}
             active={effectiveLoadApplied}
             targetPoints={targetPoints}
           />
-          <ForceArrows arrows={forceArrows} />
+          <ForceArrows
+            arrows={forceArrows}
+            x0={hasPlanes ? BOARD_X0 : 12}
+            x1={hasPlanes ? BOARD_RIGHT_PCT : 88}
+          />
         </div>
       </motion.div>
     </motion.div>
@@ -506,12 +532,28 @@ function ConstraintFrame({
 }) {
   if (planes.length === 0) return null;
   const strikeFor = (id: string) => strikes.find((s) => s.planeId === id);
+  // Each plane's rule sits at this canvas-% from the right — all inside the reserved
+  // right gutter (RIGHT_GUTTER_PCT), so no rule/label/tally can cross the node area.
+  const ruleRightPct = (i: number) => 2 + i * 3;
   return (
     <div
       data-testid="constraint-planes"
       aria-hidden
       style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "hidden" }}
     >
+      {/* Gutter datum line — the docked rail's left edge, so the constraints read as a
+          separate CAD margin the structure sits inside (never over it). */}
+      <div
+        style={{
+          position: "absolute",
+          top: "4%",
+          bottom: "4%",
+          right: `${RIGHT_GUTTER_PCT}%`,
+          width: 1,
+          background: HAIR_STRONG,
+          opacity: 0.4,
+        }}
+      />
       {/* Section header datum in the top-right — reads the frame as CAD boundary planes. */}
       <span
         className="mono"
@@ -527,8 +569,9 @@ function ConstraintFrame({
       >
         CONSTRAINTS
       </span>
-      {/* Strike-lines: one animated hairline per struck plane, from its rule edge to the
-          first attacked node. viewBox 0..100 maps to canvas %, non-scaling hairline. */}
+      {/* Strike-lines: one animated hairline per struck plane, from its rule edge (in the
+          gutter) to the attacked node (mapped into the padded board region). viewBox
+          0..100 maps to canvas %, non-scaling hairline. */}
       <svg
         width="100%"
         height="100%"
@@ -542,15 +585,18 @@ function ConstraintFrame({
           const targetId = strike.targetIds[0];
           const tp = targetId ? targetPoints[targetId] : undefined;
           if (!tp) return null;
-          const ruleX = 100 - (5 + i * 6);
+          // Rule edge lives in the gutter; the node lives in the padded board region.
+          const ruleX = 100 - ruleRightPct(i);
+          const ty = BOARD_Y0 + tp.y * (BOARD_Y1 - BOARD_Y0);
+          const tx = BOARD_X0 + tp.x * (BOARD_RIGHT_PCT - BOARD_X0);
           return (
             <motion.line
               key={p.id}
               data-testid="constraint-strike-line"
               x1={ruleX}
-              y1={tp.y * 100}
-              x2={tp.x * 100}
-              y2={tp.y * 100}
+              y1={ty}
+              x2={tx}
+              y2={ty}
               stroke={BAD}
               strokeWidth={0.5}
               vectorEffect="non-scaling-stroke"
@@ -575,7 +621,7 @@ function ConstraintFrame({
             initial={false}
             animate={violated ? { opacity: [0.3, 1, 0.85] } : { opacity: 1 }}
             transition={{ duration: 0.4, ease: "easeOut" }}
-            style={{ position: "absolute", top: "6%", bottom: "6%", right: `${5 + i * 6}%` }}
+            style={{ position: "absolute", top: "6%", bottom: "6%", right: `${ruleRightPct(i)}%` }}
           >
             {/* the boundary rule — 1px hairline, zero radius */}
             <div
@@ -636,9 +682,20 @@ function ConstraintFrame({
 // applied. Each draws its shaft (strokeDashoffset 1→0) and slides down, staggered, so
 // the "load pressing in" reads while the attacks land. Positions are deterministic
 // (no Math.random). pointer-events off so they never intercept canvas interaction.
-function ForceArrows({ arrows }: { arrows: { id: number; xPct: number }[] }) {
+function ForceArrows({
+  arrows,
+  x0,
+  x1,
+}: {
+  arrows: { id: number; xPct: number }[];
+  x0: number;
+  x1: number;
+}) {
   if (arrows.length === 0) return null;
-  const labelPct = arrows[Math.floor(arrows.length / 2)]?.xPct ?? 0.5;
+  // Map the node-normalised x (0..1) into the padded board region so the arrows sit over
+  // the load-bearing apex, not the reserved gutter.
+  const toPct = (v: number) => x0 + v * (x1 - x0);
+  const labelPct = toPct(arrows[Math.floor(arrows.length / 2)]?.xPct ?? 0.5);
   return (
     <div
       data-testid="force-arrows"
@@ -649,30 +706,32 @@ function ForceArrows({ arrows }: { arrows: { id: number; xPct: number }[] }) {
         className="mono"
         style={{
           position: "absolute",
-          left: `${labelPct * 100}%`,
-          top: "1%",
+          left: `${labelPct}%`,
+          top: "0.5%",
           transform: "translateX(-50%)",
           fontSize: 9,
           fontWeight: 600,
           letterSpacing: "0.14em",
           color: BAD,
+          opacity: 0.7,
         }}
       >
         LOAD
       </span>
       {arrows.map((a) => (
+        // Shorter shafts held ABOVE the thesis row + reduced opacity so the node text wins.
         <motion.svg
           key={a.id}
           width={26}
-          height={92}
-          viewBox="0 0 26 92"
-          initial={{ opacity: 0, y: -28 }}
-          animate={{ opacity: 1, y: 0 }}
+          height={58}
+          viewBox="0 0 26 58"
+          initial={{ opacity: 0, y: -22 }}
+          animate={{ opacity: 0.6, y: 0 }}
           transition={{ duration: 0.5, delay: a.id * 0.12, ease: "easeOut" }}
           style={{
             position: "absolute",
-            left: `${a.xPct * 100}%`,
-            top: "4.5%",
+            left: `${toPct(a.xPct)}%`,
+            top: "3.5%",
             marginLeft: -13,
             overflow: "visible",
           }}
@@ -681,7 +740,7 @@ function ForceArrows({ arrows }: { arrows: { id: number; xPct: number }[] }) {
             x1={13}
             y1={0}
             x2={13}
-            y2={72}
+            y2={42}
             stroke={BAD}
             strokeWidth={2}
             pathLength={1}
@@ -690,7 +749,7 @@ function ForceArrows({ arrows }: { arrows: { id: number; xPct: number }[] }) {
             animate={{ strokeDashoffset: 0 }}
             transition={{ duration: 0.5, delay: a.id * 0.12, ease: "easeOut" }}
           />
-          <polyline points="5,60 13,74 21,60" fill="none" stroke={BAD} strokeWidth={2} />
+          <polyline points="5,32 13,44 21,32" fill="none" stroke={BAD} strokeWidth={2} />
         </motion.svg>
       ))}
     </div>
