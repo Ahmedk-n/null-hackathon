@@ -1,8 +1,18 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { Attack, Graph } from "@/engine";
-import { rankLoadBearing, integrity, keystone } from "@/engine";
+import {
+  rankLoadBearing,
+  integrity,
+  keystone,
+  explainKeystone,
+  summariseLoadResult,
+  supportBreakdown,
+  marginalReinforcement,
+  failureCascade,
+} from "@/engine";
 import { MiniStructure, layoutStructure } from "@/ui/MiniStructure";
+import { STRATUM_LEVEL } from "@/canvas/depth";
 import type { TunnelEvent } from "@/context/tunnel";
 import {
   keystoneStore,
@@ -104,19 +114,28 @@ function ContextToggle({
   );
 }
 
-// One attack rendered as a ledger block: CATEGORY (uppercase) + SEVERITY (mono),
-// the target id muted beneath, and a severity bar (width = severity, red).
-function AttackRow({ attack }: { attack: Attack }) {
+// One attack rendered as a ledger block: CATEGORY (uppercase) + SEVERITY (mono), the
+// target's LABEL beneath (looked up from the working graph — the human-readable "what it
+// hits", not the raw id), a severity bar (width = severity, red), and — the biggest single
+// STRESS win — the attack's own `rationale`: the specific "why this breaks". The label
+// truncates (ellipsis, no overflow); the rationale wraps as prose beneath the bar.
+function AttackRow({ attack, targetLabel }: { attack: Attack; targetLabel: string }) {
   return (
     <div style={{ borderBottom: "1px solid var(--hair)", padding: "8px 0" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span className="label">{attack.category}</span>
-        <span className="mono" style={{ fontSize: 12, color: "var(--bad)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
+        <span className="label" style={{ flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {attack.category}
+        </span>
+        <span className="mono" style={{ fontSize: 12, color: "var(--bad)", flex: "0 0 auto" }}>
           {attack.severity.toFixed(2)}
         </span>
       </div>
-      <div className="mono" style={{ fontSize: 11, color: "var(--muted)", marginTop: 2 }}>
-        {attack.targetId}
+      <div
+        className="label"
+        title={targetLabel}
+        style={{ marginTop: 2, color: "var(--ink-2)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+      >
+        {"→ " + targetLabel}
       </div>
       <div style={{ marginTop: 5, height: 3, background: "var(--panel-2)" }}>
         <div
@@ -127,6 +146,87 @@ function AttackRow({ attack }: { attack: Attack }) {
           }}
         />
       </div>
+      {attack.rationale && (
+        <div
+          data-testid="attack-rationale"
+          style={{ marginTop: 5, fontFamily: "var(--sans)", fontSize: 11, color: "var(--muted)", lineHeight: 1.45 }}
+        >
+          {attack.rationale}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// V7-3 · LOAD RESULT — the collapse, summarised as data. `summariseLoadResult` re-runs the
+// engine on the clean base graph under the effective attacks and reports baseline → post-load
+// integrity (with the drop), whether the keystone SHIFTED under load, and which nodes failed.
+// `failureCascade` then orders those failures lowest-support-first so the readout tells "what
+// breaks first and why" instead of an unordered set. Gated on loadApplied. All labels are
+// looked up from the graph (never raw ids); ledger classes keep long labels from overflowing.
+function LoadResultPanel({
+  baseGraph,
+  attacks,
+}: {
+  baseGraph: Graph;
+  attacks: Attack[];
+}) {
+  const summary = useMemo(() => summariseLoadResult(baseGraph, attacks), [baseGraph, attacks]);
+  const cascade = useMemo(() => failureCascade(baseGraph, attacks), [baseGraph, attacks]);
+  const labelFor = (id: string | null) =>
+    (id && baseGraph.nodes.find((n) => n.id === id)?.label) || id || "—";
+
+  const baseline = summary.baselineIntegrity;
+  const post = summary.postLoadIntegrity;
+  const drop = summary.integrityDrop;
+  const survived = post >= summary.threshold * 100;
+  const keystoneShifted =
+    summary.keystoneBeforeLoad !== summary.keystoneAfterLoad &&
+    (summary.keystoneBeforeLoad !== null || summary.keystoneAfterLoad !== null);
+
+  return (
+    <div data-testid="load-result">
+      <SectionHeader>Load Result</SectionHeader>
+      <LedgerRow
+        label="Baseline → Post-Load"
+        value={`${baseline.toFixed(1)}% → ${post.toFixed(1)}%`}
+        accent={survived ? "var(--ok)" : "var(--bad)"}
+      />
+      <LedgerRow label="Integrity Drop" value={`−${Math.max(0, drop).toFixed(1)}`} accent="var(--bad)" />
+      {keystoneShifted && (
+        <LedgerRow
+          label="Keystone Shift"
+          value={`${labelFor(summary.keystoneBeforeLoad)} → ${labelFor(summary.keystoneAfterLoad)}`}
+        />
+      )}
+      {cascade.length > 0 ? (
+        <div style={{ marginTop: 6 }}>
+          <span className="label" style={{ display: "block", marginBottom: 4, color: "var(--bad)" }}>
+            Failure Cascade · {cascade.length} Fell
+          </span>
+          {cascade.map((step, i) => (
+            <div
+              key={step.id}
+              data-testid="cascade-row"
+              className="ledger-row"
+            >
+              <span className="label" title={step.label}>
+                {`${i + 1}. ${step.label}`}
+              </span>
+              <span className="ledger-value mono" style={{ color: "var(--bad)" }}>
+                {step.support.toFixed(2)}
+              </span>
+            </div>
+          ))}
+          <div className="label" style={{ marginTop: 4, fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em" }}>
+            Ordered By Remaining Support · Lowest Breaks First
+          </div>
+        </div>
+      ) : (
+        <div className="label" style={{ padding: "6px 0", color: "var(--ok)" }}>
+          Structure holds — nothing failed under load
+        </div>
+      )}
     </div>
   );
 }
@@ -141,11 +241,33 @@ function AttackRow({ attack }: { attack: Attack }) {
 // function on the clean base graph (no key, deterministic).
 function SensitivityBars({ graph, keystoneId }: { graph: Graph | null; keystoneId: string | null }) {
   const ranking = useMemo(() => (graph ? rankLoadBearing(graph) : []), [graph]);
+  // V7-3 · deterministic keystone explanation (number-derived sentence + dominance ratio).
+  const explanation = useMemo(() => (graph ? explainKeystone(graph) : null), [graph]);
   if (ranking.length === 0) return null;
   const max = Math.max(...ranking.map((r) => Math.abs(r.impact)), 1e-6);
+  const ratio = explanation?.impactRatio ?? 0;
+  const ratioText = ratio === Infinity ? "∞" : ratio >= 10 ? ratio.toFixed(0) : ratio.toFixed(1);
   return (
     <div>
       <SectionHeader>Knock-out Sensitivity</SectionHeader>
+      {explanation && explanation.keystoneId && (
+        <div data-testid="keystone-explanation" style={{ marginBottom: 8 }}>
+          <div
+            style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--ink-2)", lineHeight: 1.45 }}
+          >
+            {explanation.explanation}
+          </div>
+          {explanation.nextImpact > 0 && (
+            <span
+              className="chip mono"
+              data-testid="keystone-ratio"
+              style={{ marginTop: 6, display: "inline-block", color: "var(--bad)", borderColor: "var(--bad)" }}
+            >
+              {`${ratioText}× MORE LOAD-BEARING THAN NEXT`}
+            </span>
+          )}
+        </div>
+      )}
       {ranking.map((r, i) => {
         const isKeystone = i === 0 || r.id === keystoneId;
         const accent = isKeystone ? "var(--bad)" : "var(--ink-2)";
@@ -220,16 +342,28 @@ function RerunControl() {
 function ReinforcementPanel({
   plan,
   baseGraph,
+  attacks,
   pack,
 }: {
   plan: ReinforcementPlan;
   baseGraph: Graph | null;
+  attacks: Attack[];
   pack: DecisionContextPack | null;
 }) {
   const labelFor = (id: string) =>
     baseGraph?.nodes.find((n) => n.id === id)?.label ?? id;
   const before = plan.integrityBefore.toFixed(1);
   const after = plan.integrityAfter.toFixed(1);
+
+  // V7-3 · FIRM-UP PAYOFF — the integrity each assumption buys back on the attacked graph.
+  // Powers a "+N%" on every PROVE row and names the single highest-payoff assumption to
+  // firm up first. Pure engine (marginalReinforcement); recomputed from base + effective attacks.
+  const gains = useMemo(
+    () => (baseGraph && attacks.length > 0 ? marginalReinforcement(baseGraph, attacks) : []),
+    [baseGraph, attacks],
+  );
+  const gainById = useMemo(() => new Map(gains.map((g) => [g.id, g.gain])), [gains]);
+  const firmUpFirst = gains[0] && gains[0].gain > 0 ? gains[0] : null;
 
   // Harvested idea (founder-a): a VALIDATE-BY line — ONE concrete cheap experiment to prove the
   // keystone, tailored to imminent temporal events. Fetched AFTER mount from /api/reinforce
@@ -272,29 +406,50 @@ function ReinforcementPanel({
         </div>
       ) : plan.reachable ? (
         <>
-          {plan.targetIds.map((id) => (
+          {firmUpFirst && (
             <div
-              key={id}
-              data-testid="prove-row"
-              style={{
-                display: "flex",
-                gap: 6,
-                alignItems: "baseline",
-                padding: "6px 0",
-                borderBottom: "1px solid var(--hair)",
-              }}
+              data-testid="firm-up-first"
+              className="label"
+              style={{ padding: "0 0 6px", color: "var(--bad)", lineHeight: 1.4 }}
             >
-              <span className="label" style={{ color: "var(--ok)", flex: "0 0 auto" }}>
-                Prove ·
-              </span>
-              <span
-                className="mono"
-                style={{ fontSize: 11, color: "var(--ink)", textTransform: "uppercase" }}
-              >
-                {labelFor(id)}
-              </span>
+              {`Firm Up This First · ${firmUpFirst.label} (+${firmUpFirst.gain.toFixed(1)})`}
             </div>
-          ))}
+          )}
+          {plan.targetIds.map((id) => {
+            const gain = gainById.get(id);
+            return (
+              <div
+                key={id}
+                data-testid="prove-row"
+                style={{
+                  display: "flex",
+                  gap: 6,
+                  alignItems: "baseline",
+                  padding: "6px 0",
+                  borderBottom: "1px solid var(--hair)",
+                }}
+              >
+                <span className="label" style={{ color: "var(--ok)", flex: "0 0 auto" }}>
+                  Prove ·
+                </span>
+                <span
+                  className="mono"
+                  style={{ fontSize: 11, color: "var(--ink)", textTransform: "uppercase", flex: "1 1 auto", minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {labelFor(id)}
+                </span>
+                {gain != null && gain > 0 && (
+                  <span
+                    className="mono"
+                    data-testid="prove-gain"
+                    style={{ fontSize: 11, color: "var(--ok)", flex: "0 0 auto" }}
+                  >
+                    {`+${gain.toFixed(1)}`}
+                  </span>
+                )}
+              </div>
+            );
+          })}
           <div style={{ marginTop: 6 }}>
             <LedgerRow
               label="Integrity"
@@ -583,6 +738,75 @@ function WindTunnelSection({ baseGraph }: { baseGraph: Graph }) {
   );
 }
 
+// V7-3 · SUPPORT BREAKDOWN — "why integrity is that number". `supportBreakdown` decomposes
+// every node into ownConfidence × dependencyFactor = support with the EXACT aggregation rule
+// the solver uses (one source of truth), failed nodes flagged. Laid out bottom-up by strata
+// (leaves first — the order the solver fills them), mirroring the LivePipeline treatment.
+// Collapsible so it never crowds the rail; deterministic (pure engine, no timers).
+function SupportBreakdownPanel({ graph, keystoneId }: { graph: Graph; keystoneId: string | null }) {
+  const [open, setOpen] = useState(false);
+  const rows = useMemo(() => {
+    const breakdown = supportBreakdown(graph);
+    // Bottom-up: assumptions (deepest) → claims → thesis — the order the solver resolves them.
+    return [...breakdown.nodes].sort((a, b) => STRATUM_LEVEL[b.type] - STRATUM_LEVEL[a.type]);
+  }, [graph]);
+
+  return (
+    <div data-testid="support-breakdown">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        style={{
+          display: "flex",
+          width: "100%",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          background: "transparent",
+          border: "none",
+          borderBottom: "1px solid var(--hair-strong)",
+          padding: "0 0 6px",
+          margin: "0 0 6px",
+          cursor: "pointer",
+        }}
+      >
+        <span className="label">Support Breakdown</span>
+        <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+          {open ? "− OWN × DEP = SUPPORT" : "+ SHOW"}
+        </span>
+      </button>
+      {open &&
+        rows.map((node) => {
+          const isKey = node.id === keystoneId;
+          return (
+            <div
+              key={node.id}
+              data-testid="support-row"
+              className="ledger-row"
+              style={{ minHeight: 28 }}
+            >
+              <span
+                className="label"
+                title={node.label}
+                style={{ color: node.failed ? "var(--bad)" : isKey ? "var(--bad)" : "var(--muted)" }}
+              >
+                {isKey ? "◆ " : ""}
+                {node.label}
+              </span>
+              <span
+                className="ledger-value mono"
+                style={{ fontSize: 11, color: node.failed ? "var(--bad)" : "var(--ink)" }}
+              >
+                {`${node.ownConfidence.toFixed(2)} × ${node.dependencyFactor.toFixed(2)} = ${node.support.toFixed(2)}`}
+              </span>
+            </div>
+          );
+        })}
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -613,6 +837,10 @@ export function StressTab({
     () => [...attacks].sort((a, b) => b.severity - a.severity),
     [attacks],
   );
+
+  // Resolve a node id to its human-readable label (never surface raw ids in the readout).
+  const labelFor = (id: string) =>
+    (baseGraph ?? graph)?.nodes.find((n) => n.id === id)?.label ?? id;
 
   // V4-2 — constraint planes for the canvas (strikes derive from the current attacks).
   const planes = useMemo(() => constraintPlanes(pack), [pack]);
@@ -651,9 +879,14 @@ export function StressTab({
               Apply load to stress the structure
             </div>
           ) : (
-            sorted.map((a) => <AttackRow key={a.id} attack={a} />)
+            sorted.map((a) => (
+              <AttackRow key={a.id} attack={a} targetLabel={labelFor(a.targetId)} />
+            ))
           )}
         </div>
+
+        {/* V7-3 — load-result summary + ordered failure cascade (what breaks first, and why) */}
+        {loadApplied && baseGraph && <LoadResultPanel baseGraph={baseGraph} attacks={attacks} />}
 
         {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone) */}
         <SensitivityBars graph={baseGraph ?? graph} keystoneId={keystoneId} />
@@ -676,7 +909,7 @@ export function StressTab({
 
         {/* V3-2 — minimum-reinforcement prescription (the inverse of sensitivity) */}
         {reinforcementPlan && (
-          <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} pack={pack} />
+          <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} attacks={attacks} pack={pack} />
         )}
 
         {/* V3-7 — time-axis stress (grounded only; RAW has no temporal dimension) */}
@@ -722,8 +955,9 @@ export function StressTab({
         </div>
       </div>
 
-      {/* RIGHT — CONTEXT USED */}
+      {/* RIGHT — CONTEXT USED + SUPPORT BREAKDOWN (why integrity is that number) */}
       <div style={RIGHT}>
+        {graph && <SupportBreakdownPanel graph={graph} keystoneId={keystoneId} />}
         {pack ? (
           <ContextUsedPanel pack={pack} source={source ?? "fixture"} />
         ) : (

@@ -68,8 +68,9 @@ describe("StressTab (R4)", () => {
     const { container } = render(
       <StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />,
     );
-    // IntegrityGauge renders its label + a numeric percentage.
-    expect(screen.getByText(/structural integrity/i)).toBeDefined();
+    // IntegrityGauge renders its label + a numeric percentage. (The keystone-explanation
+    // sentence also contains the phrase "structural integrity", so match ≥ 1, not exactly one.)
+    expect(screen.getAllByText(/structural integrity/i).length).toBeGreaterThanOrEqual(1);
     const value = keystoneStore.getState().workingGraph
       ? Math.round(
           Array.from(container.querySelectorAll("text"))
@@ -137,6 +138,74 @@ describe("StressTab (R4)", () => {
     );
   });
 
+  // ── V7-3 · attack rationale + target LABEL (not raw id) ───────────────
+  it("renders each attack's rationale + the target's label beneath the severity", () => {
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    const rationales = screen.getAllByTestId("attack-rationale");
+    expect(rationales.length).toBeGreaterThanOrEqual(1);
+    // Every rationale carries the engine's specific "why it breaks" text.
+    const attacks = keystoneStore.getState().attacks;
+    const someRationale = attacks.find((a) => a.rationale)?.rationale;
+    expect(someRationale).toBeTruthy();
+    expect(rationales.some((r) => (r.textContent ?? "").includes(someRationale!))).toBe(true);
+    // The target is shown by LABEL, not raw id — the "→ <label>" line resolves through the graph.
+    const base = keystoneStore.getState().baseGraph!;
+    const targetLabel = base.nodes.find((n) => n.id === attacks[0].targetId)!.label;
+    expect(screen.getAllByText(new RegExp(targetLabel.slice(0, 12).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))).length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ── V7-3 · load-result summary + ordered failure cascade ──────────────
+  it("renders the LOAD RESULT summary with baseline→post-load and an ordered cascade", () => {
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph());
+    s.setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    s.setApplyContextWeights(true);
+    s.applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    const panel = screen.getByTestId("load-result");
+    expect(panel.textContent).toMatch(/BASELINE.*POST-LOAD/i);
+    expect(panel.textContent).toMatch(/→/);
+
+    // Grounded hero A collapses → a non-empty cascade, ordered lowest-support-first.
+    const rows = screen.getAllByTestId("cascade-row");
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    const supports = rows.map((r) => Number(r.querySelector(".ledger-value")!.textContent));
+    for (let i = 1; i < supports.length; i++) {
+      expect(supports[i - 1]).toBeLessThanOrEqual(supports[i]);
+    }
+  });
+
+  it("hides the LOAD RESULT panel before load is applied", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph()); // setGraph clears loadApplied
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(screen.queryByTestId("load-result")).toBeNull();
+  });
+
+  // ── V7-3 · keystone explanation (deterministic sentence + dominance ratio) ──
+  it("renders the keystone explanation sentence + a dominance-ratio chip", () => {
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    const box = screen.getByTestId("keystone-explanation");
+    // Number-derived sentence naming the impact in points.
+    expect(box.textContent).toMatch(/points/i);
+    // Dominance ratio chip: "N× more load-bearing than next".
+    expect(screen.getByTestId("keystone-ratio").textContent).toMatch(/MORE LOAD-BEARING/i);
+  });
+
+  // ── V7-3 · support breakdown (own × dependency = support) ──────────────
+  it("shows the support breakdown (own × dependency = support) when expanded", () => {
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    const panel = screen.getByTestId("support-breakdown");
+    // Collapsed by default — no rows.
+    expect(screen.queryAllByTestId("support-row").length).toBe(0);
+    fireEvent.click(panel.querySelector("button")!);
+    const rows = screen.getAllByTestId("support-row");
+    expect(rows.length).toBeGreaterThanOrEqual(3); // deep graph: assumptions + claims + thesis
+    // Each row shows the own × dependency = support decomposition.
+    expect(rows[0].querySelector(".ledger-value")!.textContent).toMatch(/\d\.\d{2} × \d\.\d{2} = \d\.\d{2}/);
+  });
+
   // ── V3-2 · DE-RISKING PLAN panel ──────────────────────────────────────
   it("renders the DE-RISKING PLAN panel after reinforce with PROVE + integrity rows", () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());
@@ -179,6 +248,12 @@ describe("StressTab (R4)", () => {
     expect(panel.textContent).toMatch(/INTEGRITY/i);
     expect(panel.textContent).toMatch(/→/);
     expect(panel.textContent).toMatch(/DETERMINISTIC/i);
+
+    // V7-3 · firm-up payoff — a "FIRM UP THIS FIRST" line + a "+N" gain on the prove row.
+    expect(screen.getByTestId("firm-up-first").textContent).toMatch(/FIRM UP THIS FIRST/i);
+    const gains = screen.getAllByTestId("prove-gain");
+    expect(gains.length).toBeGreaterThanOrEqual(1);
+    expect(gains[0].textContent).toMatch(/^\+\d/);
   });
 
   it("does not render the REINFORCE button when no onReinforce prop is passed", () => {
