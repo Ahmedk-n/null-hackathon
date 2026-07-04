@@ -37,8 +37,8 @@
 - [x] Referee table, scripted end-state pinned, route SSE, UI render tests + e2e TUNNEL leg. Deviation: keyless→scripted / key→live (StressTab has no mode prop; spec-correct, deterministic gate).
 - Files: src/context/tunnel.ts (+test), src/agents/tunnel.ts (+test), src/app/api/tunnel/route.ts (+test), src/ui/tabs/StressTab.tsx (harvest has landed by now), e2e.
 
-### V6-5 · Final sweep
-- [ ] Full gates + e2e all legs; GOAL.md v6 gates section; memory update; judge-lens sanity pass on the 90s demo arc (design→tunnel→skyline).
+### V6-5 · Final sweep ✅
+- [x] Full gates + e2e all legs (442 vitest · tsc clean · build 0 · REHEARSAL PASS landing→studio→A/B/R→DESIGN→SKYLINE + TUNNEL); GOAL.md v6 section added; memory updated. 90s demo arc intact: DESIGN rivals → TEST (grounded + wind tunnel) → ASSEMBLE (skyline crack).
 
 ## Loop protocol
 As v5: agents implement (no commits), orchestrator runs full gates and commits per item, ticks boxes, appends deviations. Concurrency by the file-ownership groups above; harvest agent's files are off-limits until its commit lands.

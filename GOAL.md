@@ -117,6 +117,21 @@ Success criteria (machine gates; loop exits when ALL green):
 - **V5-G5** Full gates: vitest 100%, tsc clean, NEXT_DIST_DIR=.next-gate build exit 0,
   `npm run e2e` REHEARSAL PASS (landing → studio → A/B/R legs).
 
+## v6 — DESIGN · TEST · ASSEMBLE (2026-07-04; the creative leap)
+
+Spec `docs/superpowers/specs/2026-07-04-keystone-v6-design.md`, plan `…/plans/2026-07-04-keystone-v6-plan.md`.
+Keystone becomes the full CAD loop for thinking. All items green (442 tests, e2e legs DESIGN + TUNNEL + SKYLINE):
+- **DESIGN** (tab 0): state a GOAL + CONSTRAINTS → three RIVAL structures (AGGRESSIVE / CONSERVATIVE /
+  HYBRID lenses) synthesized in parallel and stress-tested under IDENTICAL grounded load; the pure
+  solver ranks them; the survivor opens in studio. Generative design for thinking. `/api/design`.
+- **TEST**: grounded load + the **WIND TUNNEL** — a PROSECUTOR agent attacks, an ADVOCATE counters
+  with evidence, the deterministic solver referees every round and cannot be overridden (`/api/tunnel`,
+  runs on a session clone; keyless → scripted deterministic duel).
+- **ASSEMBLE**: `/skyline` renders the whole library as one structure; assumptions shared across
+  decisions become **shared foundations** — crack one, watch systemic collapse ripple across buildings.
+- Landing rewritten to the DESIGN·TEST·ASSEMBLE arc with full vocabulary; founder-a's explain/purity-
+  guard/reinforce harvested (merge-disposition in docs/founder-a/contracts.md).
+
 ## Reference docs
 
 - Base build plan: `docs/superpowers/plans/2026-07-03-keystone.md` (Tasks 1–14, exact code)
