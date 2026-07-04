@@ -198,12 +198,12 @@ describe("keystone store (context integration)", () => {
   });
 
   // ── V3-7 · time-axis stress ────────────────────────────────────────────
-  it("applyLoad derives failsInDay GROUNDED (hero A → 8) and resets the scrub", () => {
+  it("applyLoad derives failsInDay GROUNDED (hero A → 9) and resets the scrub", () => {
     const store = createKeystoneStore();
     store.getState().setGraph(fixtureContextGraph());
     store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
     store.getState().applyLoad(fixtureContextAttacks());
-    expect(store.getState().failsInDay).toBe(8);
+    expect(store.getState().failsInDay).toBe(9);
     expect(store.getState().timelineDay).toBe(0);
   });
 
@@ -212,11 +212,11 @@ describe("keystone store (context integration)", () => {
     store.getState().setGraph(fixtureContextGraph());
     store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
     store.getState().applyLoad(fixtureContextAttacks());
-    expect(store.getState().failsInDay).toBe(8);
+    expect(store.getState().failsInDay).toBe(9);
     store.getState().setApplyContextWeights(false);
     expect(store.getState().failsInDay).toBeNull();
     store.getState().setApplyContextWeights(true);
-    expect(store.getState().failsInDay).toBe(8);
+    expect(store.getState().failsInDay).toBe(9);
   });
 
   it("setTimelineDay re-runs the engine live — integrity craters as the deadline nears", () => {
@@ -243,7 +243,7 @@ describe("keystone store (context integration)", () => {
     store.getState().setGraph(fixtureContextGraph());
     store.getState().setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
     store.getState().applyLoad(fixtureContextAttacks());
-    expect(store.getState().failsInDay).toBe(8);
+    expect(store.getState().failsInDay).toBe(9);
 
     store.getState().reinforce();
     expect(store.getState().failsInDay).toBeNull(); // reinforced structure clears the crater line
@@ -251,7 +251,7 @@ describe("keystone store (context integration)", () => {
     // Scrubbing rebuilds from raw attacks (drops the plan) and re-derives the horizon.
     store.getState().setTimelineDay(5);
     expect(store.getState().reinforcementPlan).toBeNull();
-    expect(store.getState().failsInDay).toBe(8);
+    expect(store.getState().failsInDay).toBe(9);
   });
 
   it("scenario B survives the horizon (failsInDay null)", () => {
@@ -315,7 +315,7 @@ describe("keystone store (graph editing — V5-3)", () => {
     store.getState().setGraph(fixtureContextGraph());
     store.getState().renameNode("nope", "x");
     expect(store.getState().editError).not.toBeNull();
-    expect(store.getState().baseGraph!.nodes).toHaveLength(9);
+    expect(store.getState().baseGraph!.nodes).toHaveLength(13);
   });
 
   it("deleteNode is structural: removes the node and RESETS the stress verdict to baseline", () => {
@@ -339,13 +339,16 @@ describe("keystone store (graph editing — V5-3)", () => {
   it("deleteNode cascades: removing a claim prunes its now-orphaned subtree", () => {
     const store = createKeystoneStore();
     store.getState().setGraph(fixtureContextGraph());
-    // c_roi is the only parent of a_bound + a_load → deleting it orphans both.
+    // c_roi is the only parent of a_bound + a_load → deleting it orphans both, and a_bound's
+    // own sub-leaves (s_domain, s_split) cascade too: 13 − {c_roi, a_bound, a_load, s_domain, s_split} = 8.
     store.getState().deleteNode("c_roi");
     const ids = store.getState().baseGraph!.nodes.map((n) => n.id);
     expect(ids).not.toContain("c_roi");
     expect(ids).not.toContain("a_bound");
     expect(ids).not.toContain("a_load");
-    expect(ids).toHaveLength(6);
+    expect(ids).not.toContain("s_domain");
+    expect(ids).not.toContain("s_split");
+    expect(ids).toHaveLength(8);
     expect(store.getState().editError).toBeNull();
   });
 
@@ -354,7 +357,7 @@ describe("keystone store (graph editing — V5-3)", () => {
     store.getState().setGraph(fixtureContextGraph());
     store.getState().deleteNode("T");
     expect(store.getState().editError).toMatch(/thesis/i);
-    expect(store.getState().baseGraph!.nodes).toHaveLength(9);
+    expect(store.getState().baseGraph!.nodes).toHaveLength(13);
   });
 
   it("addAssumption appends to the parent claim's AND group, slugified + provenance modified", () => {
@@ -393,13 +396,13 @@ describe("keystone store (graph editing — V5-3)", () => {
     store.getState().setGraph(fixtureContextGraph());
     store.getState().addAssumption("k_credible", "child of an assumption");
     expect(store.getState().editError).toMatch(/claim|thesis/i);
-    expect(store.getState().baseGraph!.nodes).toHaveLength(9);
+    expect(store.getState().baseGraph!.nodes).toHaveLength(13);
   });
 
   it("addAssumption rejects past the manual node cap (25) with editError", () => {
     const store = createKeystoneStore();
-    store.getState().setGraph(fixtureContextGraph()); // 9 nodes
-    // Add until the cap bites. 9 + 16 = 25 (ok); the 17th (→26) is rejected.
+    store.getState().setGraph(fixtureContextGraph()); // 13 nodes
+    // Add until the cap bites. 13 + 12 = 25 (ok); the 13th (→26) is rejected.
     for (let i = 0; i < 20; i++) store.getState().addAssumption("c_exec", `Extra ${i}`);
     expect(store.getState().editError).not.toBeNull();
     expect(store.getState().baseGraph!.nodes).toHaveLength(25);

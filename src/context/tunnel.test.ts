@@ -160,9 +160,9 @@ describe("tunnel referee — ADVOCATE counter validation table", () => {
 });
 
 describe("tunnel referee — scripted scenario-R duel end-state (pinned)", () => {
-  it("ends STANDS with exactly 3 HOLDS / 2 CRACKS at ≈37.9% integrity", () => {
+  it("ends STANDS with exactly 3 HOLDS / 2 CRACKS at ≈44.9% integrity", () => {
     let s = initTunnelSession(scriptedDuelGraphR());
-    expect(integrity(s.graph)).toBeCloseTo(52.63, 1); // baseline
+    expect(integrity(s.graph)).toBeCloseTo(55.40, 1); // baseline
 
     const perRound: { holds: boolean; final: number }[] = [];
     for (const round of scriptedDuelR()) {
@@ -181,7 +181,7 @@ describe("tunnel referee — scripted scenario-R duel end-state (pinned)", () =>
     expect(cracks).toBe(2);
 
     const finalInt = integrity(s.graph);
-    expect(finalInt).toBeCloseTo(37.9, 1);
+    expect(finalInt).toBeCloseTo(44.88, 1);
     expect(finalInt >= HOLD_THRESHOLD).toBe(true); // STANDS
   });
 

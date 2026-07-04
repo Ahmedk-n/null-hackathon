@@ -3,8 +3,8 @@ import { describe, it, expect, afterEach, beforeAll } from "vitest";
 import { render, cleanup } from "@testing-library/react";
 import { KeystoneCanvas, collapseDelayFor, buildDelayFor } from "./KeystoneCanvas";
 import { pickLayoutMode } from "./layout";
-import { fixtureContextGraph, fixtureContextGraphB } from "@/context";
-import type { Attack } from "@/engine";
+import { fixtureContextGraph } from "@/context";
+import type { Attack, Graph } from "@/engine";
 import type { ContextWeightAdjustment } from "@/context";
 import type { ConstraintPlane } from "@/context/constraints";
 
@@ -48,8 +48,8 @@ const graph = fixtureContextGraph();
 // perspective present in SECTION and absent in PLAN, the L0..L3 stratum chrome rendered,
 // and evidence plates drawn for grounded assumptions. See plan Deviations.
 describe("KeystoneCanvas (V4-1 depth view — supersedes T10 tilt)", () => {
-  it("selects the 2.5D band for the 9-node fixture graph", () => {
-    expect(graph.nodes.length).toBe(9);
+  it("selects the 2.5D band for the 13-node fixture graph", () => {
+    expect(graph.nodes.length).toBe(13);
     expect(pickLayoutMode(graph.nodes.length)).toBe("layered-2-5d");
   });
 
@@ -91,25 +91,39 @@ describe("KeystoneCanvas (V4-1 depth view — supersedes T10 tilt)", () => {
     const { container } = render(
       <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
     );
-    // Hero A: k_credible, a_obs, a_audit, a_bound are grounded; a_load is ungrounded.
+    // Hero A (V7-1 deepened): k_credible + the four evidence-support sub-leaves
+    // (s_tracing, s_metrics, s_domain, s_split) + a_audit are grounded (6); a_load is ungrounded.
     const plates = container.querySelectorAll("[data-testid='evidence-plate']");
-    expect(plates.length).toBe(4);
+    expect(plates.length).toBe(6);
     const ungrounded = container.querySelectorAll("[data-testid='ungrounded-drop']");
     expect(ungrounded.length).toBe(1);
   });
 });
 
 describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
-  const flatGraph = fixtureContextGraphB();
+  // V7-1 · every scenario fixture is now Band 2 (≥9 nodes), so the Band-1 flat-mode
+  // contract is exercised against a small inline graph (thesis + 2 claims + 3 leaf
+  // assumptions, one grounded). Same intent: ≤8 nodes render flat with stratum chrome.
+  const flatGraph: Graph = {
+    thesisId: "T",
+    nodes: [
+      { id: "T", type: "thesis", label: "Small decision", confidence: 1, groups: [{ kind: "AND", childIds: ["c1", "c2"] }] },
+      { id: "c1", type: "claim", label: "Claim one", confidence: 1, groups: [{ kind: "AND", childIds: ["k"] }] },
+      { id: "c2", type: "claim", label: "Claim two", confidence: 1, groups: [{ kind: "OR", childIds: ["a1", "a2"] }] },
+      { id: "k", type: "assumption", label: "keystone", confidence: 0.8, groups: [], evidence: { source: "notes", fact: "grounded fact" } },
+      { id: "a1", type: "assumption", label: "a1", confidence: 0.8, groups: [], evidence: null },
+      { id: "a2", type: "assumption", label: "a2", confidence: 0.8, groups: [], evidence: null },
+    ],
+  };
 
-  it("selects the simple-2d band for the 7-node scenario B graph", () => {
+  it("selects the simple-2d band for a ≤8-node graph", () => {
     expect(flatGraph.nodes.length).toBeLessThanOrEqual(8);
     expect(pickLayoutMode(flatGraph.nodes.length)).toBe("simple-2d");
   });
 
   it("renders truly flat — perspective off, no tilt transform — even with tilt on", () => {
     const { container } = render(
-      <KeystoneCanvas graph={flatGraph} keystoneId="k_sre" failures={new Set()} tilt />,
+      <KeystoneCanvas graph={flatGraph} keystoneId="k" failures={new Set()} tilt />,
     );
     const wrap = container.querySelector<HTMLElement>("[data-canvas-perspective]");
     expect(wrap!.style.perspective).toBe("none");
@@ -120,11 +134,11 @@ describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
 
   it("still shows stratum chrome + evidence plates in the flat PLAN layout (V4-1 §6)", () => {
     const { container } = render(
-      <KeystoneCanvas graph={flatGraph} keystoneId="k_sre" failures={new Set()} tilt />,
+      <KeystoneCanvas graph={flatGraph} keystoneId="k" failures={new Set()} tilt />,
     );
     const chrome = container.querySelector<HTMLElement>("[data-testid='stratum-chrome']");
     expect(chrome!.textContent ?? "").toContain("L0 THESIS");
-    // Scenario B grounds only its keystone (k_sre); the rest float.
+    // The inline graph grounds only its keystone (k); the rest float.
     expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(1);
   });
 });

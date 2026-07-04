@@ -206,16 +206,17 @@ export function applyTunnelRound(
 /* ══════════════════════════════════════════════════════════════════════════
  * SCRIPTED DUEL — scenario R (authored, deterministic; ends STANDS 3/2).
  * ──────────────────────────────────────────────────────────────────────────
- * Five rounds refereed against fixtureContextGraphR() (baseline integrity ≈52.6%). The two CRACK
- * rounds are engineered honestly: R2's advocate rebuttal is BELOW the 0.5× floor → the referee
- * REJECTS it (NO-OP) and the attack stands (int ≈21%); R3 attacks-then-restores reliability but the
- * R2 conversion damage still drags the round below 35. R4 repairs conversion and R5 restores audit,
- * ending ≈37.9% → STANDS. Verified numerically by src/context/tunnel.test.ts.
- *   R1 attack capacity  → restore capacity        HOLD  ≈47.4
- *   R2 attack conversion→ rebuttal REJECTED (weak) CRACK ≈21.3
- *   R3 attack reliability→restore reliability      CRACK ≈21.3  (conversion still down)
- *   R4 attack e2e        → restore conversion      HOLD  ≈37.9
- *   R5 attack audit      → restore audit           HOLD  ≈37.9  → STANDS (3 HOLDS / 2 CRACKS)
+ * Five rounds refereed against fixtureContextGraphR() (baseline integrity ≈55.4% under the
+ * V7-1 depth-robust engine). The two CRACK rounds are engineered honestly: R2's advocate
+ * rebuttal is BELOW the 0.5× floor → the referee REJECTS it (NO-OP) and the attack stands
+ * (int ≈22%); R3 attacks-then-restores reliability (an OR-redundant leg → near-zero delta) so
+ * the R2 conversion damage still drags the round below 35. R4 repairs conversion and R5
+ * restores audit, ending ≈44.9% → STANDS. Verified numerically by src/context/tunnel.test.ts.
+ *   R1 attack capacity  → restore capacity        HOLD  ≈49.9
+ *   R2 attack conversion→ rebuttal REJECTED (weak) CRACK ≈22.4
+ *   R3 attack reliability→restore reliability      CRACK ≈22.4  (conversion still down)
+ *   R4 attack e2e        → restore conversion      HOLD  ≈44.9
+ *   R5 attack audit      → restore audit           HOLD  ≈44.9  → STANDS (3 HOLDS / 2 CRACKS)
  * ════════════════════════════════════════════════════════════════════════ */
 export function scriptedDuelR(): TunnelRound[] {
   return [

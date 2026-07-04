@@ -57,7 +57,7 @@ describe("context hero fixture", () => {
     const rawIntegrity = integrity(raw);
     expect(rawIntegrity).toBeGreaterThan(15);
     expect(rawIntegrity).toBeLessThan(25);
-    expect(rawIntegrity).toBeCloseTo(17.11, 0);
+    expect(rawIntegrity).toBeCloseTo(18.04, 0);
   });
 
   // REWEIGHTED = the hero pack (tomorrow's enterprise meeting) amplifies the
@@ -104,10 +104,10 @@ describe("scenario B (reinforce) fixture — holds under load", () => {
     expect(() => GraphSchema.parse(fixtureContextGraphB())).not.toThrow();
   });
 
-  it("is a 7-node structure in the simple-2d band (contrast with the 9-node hero)", () => {
+  it("is a 9-node structure in the layered-2-5d band (V7-1 deepened)", () => {
     const g = fixtureContextGraphB();
-    expect(g.nodes.length).toBe(7);
-    expect(pickLayoutMode(g.nodes.length)).toBe("simple-2d");
+    expect(g.nodes.length).toBe(9);
+    expect(pickLayoutMode(g.nodes.length)).toBe("layered-2-5d");
   });
 
   it("has a healthy baseline integrity (~69%) with k_sre as a dominant keystone", () => {
@@ -172,14 +172,14 @@ describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial
     expect(() => GraphSchema.parse(fixtureContextGraphR())).not.toThrow();
   });
 
-  it("is a 10-node structure in the layered-2-5d band (Band 2)", () => {
+  it("is a 13-node structure in the layered-2-5d band (Band 2)", () => {
     const g = fixtureContextGraphR();
-    expect(g.nodes.length).toBe(10);
+    expect(g.nodes.length).toBe(13);
     expect(pickLayoutMode(g.nodes.length)).toBe("layered-2-5d");
   });
 
-  it("has a standing baseline integrity (~52.6%)", () => {
-    expect(integrity(fixtureContextGraphR())).toBeCloseTo(52.63, 1);
+  it("has a standing baseline integrity (~55.4%)", () => {
+    expect(integrity(fixtureContextGraphR())).toBeCloseTo(55.40, 1);
   });
 
   it("has team_has_backend_capacity as the keystone (AND-path tie broken by node order)", () => {
@@ -194,11 +194,11 @@ describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial
     expect(ranked[0].impact).toBeGreaterThan(comp.impact + 1);
   });
 
-  it("grounds ≥60% of assumptions in real evidence (here 100%: 6/6, real paths + urls)", () => {
+  it("grounds ≥60% of assumptions in real evidence (here 8/9, real paths + urls)", () => {
     const assumptions = fixtureContextGraphR().nodes.filter((n) => n.type === "assumption");
     const grounded = assumptions.filter((n) => n.evidence && n.evidence.source);
     expect(grounded.length / assumptions.length).toBeGreaterThanOrEqual(0.6);
-    expect(grounded.length).toBe(6);
+    expect(grounded.length).toBe(8);
     // Provenance is real repo file paths + real urls (V4-3: judge-clickable).
     const sources = grounded.map((n) => n.evidence!.source);
     expect(sources).toContain("excalidraw-app/package.json");
@@ -214,7 +214,7 @@ describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial
     const failures = detectFailures(raw);
     expect(failures.has("team_has_backend_capacity")).toBe(false); // keystone holds raw
     expect(failures.has("differentiates_vs_competitors")).toBe(false); // partial hold, both ways
-    expect(integrity(raw)).toBeCloseTo(15.78, 1);
+    expect(integrity(raw)).toBeCloseTo(18.56, 1);
   });
 
   it("REWEIGHTED attacks (grounded in context): keystone CRACKS, thesis craters, differentiation holds", () => {
@@ -224,7 +224,7 @@ describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial
       reweightAttacksByContext(fixtureContextAttacksR(), pack.contextWeightAdjustments),
     );
     expect(integrity(reweighted)).toBeLessThan(10);
-    expect(integrity(reweighted)).toBeCloseTo(8.35, 1);
+    expect(integrity(reweighted)).toBeCloseTo(9.69, 1);
     const failures = detectFailures(reweighted);
     expect(failures.has("team_has_backend_capacity")).toBe(true); // keystone fails once grounded
     expect(failures.has("team_can_build_operate_infra")).toBe(true); // its claim cascades

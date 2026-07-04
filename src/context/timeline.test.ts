@@ -106,14 +106,14 @@ describe("adjustmentsAt — temporal-only day shifting", () => {
 });
 
 describe("failsInDays — the failure horizon", () => {
-  it("hero A (grounded) craters below the 10% line at day 8", () => {
+  it("hero A (grounded) craters below the 10% line at day 9", () => {
     const n = failsInDays(
       fixtureContextGraph(),
       fixtureContextAttacks(),
       fixtureDecisionContextPack(),
       CRATER_THRESHOLD,
     );
-    expect(n).toBe(8);
+    expect(n).toBe(9);
   });
 
   it("scenario B survives the whole 30-day horizon (null)", () => {

@@ -35,13 +35,13 @@ describe("minimalReinforcement — hero A (grounded, collapses ~6.4%)", () => {
 
     // Attacked structure is below the line; a fix exists.
     expect(plan.integrityBefore).toBeLessThan(THRESHOLD);
-    expect(plan.integrityBefore).toBeCloseTo(6.38, 1);
+    expect(plan.integrityBefore).toBeCloseTo(6.86, 1);
     expect(plan.reachable).toBe(true);
 
     // The keystone alone is the cheapest thing to prove.
     expect(plan.targetIds).toEqual(["k_credible"]);
     expect(plan.integrityAfter).toBeGreaterThanOrEqual(THRESHOLD);
-    expect(plan.integrityAfter).toBeCloseTo(50.62, 1);
+    expect(plan.integrityAfter).toBeCloseTo(54.43, 1);
   });
 
   it("is genuinely minimal — no smaller set survives", () => {

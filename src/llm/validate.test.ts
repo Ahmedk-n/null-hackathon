@@ -52,8 +52,8 @@ describe("validateGraph — structural rejects", () => {
     expect(validateGraph(g)).toBeNull();
   });
 
-  it("rejects too many nodes (13 all reachable → null)", () => {
-    const g = makeGraph(12); // thesis + 12 = 13 nodes
+  it("rejects too many nodes (23 all reachable → null)", () => {
+    const g = makeGraph(22); // thesis + 22 = 23 nodes (> NODE_MAX 22)
     expect(validateGraph(g)).toBeNull();
   });
 

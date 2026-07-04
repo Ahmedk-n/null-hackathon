@@ -131,14 +131,14 @@ describe("sampleSkylineEntries + crack (pinned)", () => {
   it("seeds three samples (R / A / B) with the expected node counts", () => {
     expect(samples.map((e) => e.id)).toEqual(["sample-r", "sample-a", "sample-b"]);
     const { buildings } = buildSkyline(samples);
-    expect(buildings.find((b) => b.entryId === "sample-r")!.nodeCount).toBe(10);
-    expect(buildings.find((b) => b.entryId === "sample-a")!.nodeCount).toBe(9);
-    expect(buildings.find((b) => b.entryId === "sample-b")!.nodeCount).toBe(7);
+    expect(buildings.find((b) => b.entryId === "sample-r")!.nodeCount).toBe(13);
+    expect(buildings.find((b) => b.entryId === "sample-a")!.nodeCount).toBe(13);
+    expect(buildings.find((b) => b.entryId === "sample-b")!.nodeCount).toBe(9);
   });
 
   it("building integrities match the pinned fixture baselines", () => {
     const { buildings } = buildSkyline(samples);
-    expect(buildings.find((b) => b.entryId === "sample-r")!.integrity).toBeCloseTo(52.63, 1);
+    expect(buildings.find((b) => b.entryId === "sample-r")!.integrity).toBeCloseTo(55.40, 1);
     expect(buildings.find((b) => b.entryId === "sample-a")!.integrity).toBeCloseTo(61.97, 1);
     expect(buildings.find((b) => b.entryId === "sample-b")!.integrity).toBeGreaterThanOrEqual(35);
   });
@@ -163,7 +163,7 @@ describe("sampleSkylineEntries + crack (pinned)", () => {
     expect(a.integrityBefore).toBeCloseTo(61.97, 1);
     expect(a.integrityAfter).toBeCloseTo(0, 5);
     expect(a.failed).toBe(true);
-    expect(r.integrityBefore).toBeCloseTo(52.63, 1);
+    expect(r.integrityBefore).toBeCloseTo(55.40, 1);
     expect(r.integrityAfter).toBeCloseTo(0, 5);
     expect(r.failed).toBe(true);
     expect(results.filter((x) => x.failed)).toHaveLength(2); // "2 COLLAPSE"

@@ -116,10 +116,17 @@ graph matching this JSON shape EXACTLY and return ONLY that JSON object (no pros
 
 HARD RULES:
 - EXACTLY ONE node of type "thesis", and "thesisId" MUST equal that node's id.
-- Between 5 and 12 nodes total. All ids are snake_case and unique.
+- Between 6 and 22 nodes total. All ids are snake_case and unique. GO GENUINELY DEEP where the
+  reasoning has real depth: aim for 4-5 layers (thesis → 3-4 claims → 2-4 assumptions each →
+  where natural, sub-assumptions or evidence-support nodes one or two levels further).
 - Node types are only "thesis" | "claim" | "assumption".
-- The thesis depends (via groups) on claims; claims depend on assumptions. Leaf assumptions have "groups": [].
+- The thesis depends (via groups) on claims; claims depend on assumptions. An assumption MAY
+  itself decompose — into sub-assumptions or first-class evidence-support nodes (also typed
+  "assumption") — via its own groups where the belief genuinely rests on deeper sub-claims;
+  otherwise a leaf assumption has "groups": []. Don't force depth where the reasoning is flat.
 - Use AND groups when every child must hold; OR groups when any one child suffices (redundancy).
+  Prefer AND groups of INDEPENDENT corroborating assumptions/evidence under a claim (the solver
+  rewards honest breadth/depth of support instead of punishing it).
 - confidence is each node's standalone solidity in [0,1]. GROUND every confidence in the supplied
   context pack: set it LOWER for assumptions the pack's facts actually stress, HIGHER where facts support them.
 

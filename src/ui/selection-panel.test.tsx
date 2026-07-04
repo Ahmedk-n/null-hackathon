@@ -127,8 +127,8 @@ describe("SelectionPanel — EDIT section (V5-3)", () => {
     const { getByTestId, getByRole } = render(
       <SelectionPanel graph={graph} selectedNodeId="c_roi" keystoneId="k_credible" {...h} />,
     );
-    // Deleting c_roi orphans a_bound + a_load → 2 dependents.
-    expect(getByTestId("delete-note").textContent).toMatch(/removes 2 dependent nodes/);
+    // Deleting c_roi orphans a_bound + a_load + a_bound's sub-leaves (s_domain, s_split) → 4 dependents.
+    expect(getByTestId("delete-note").textContent).toMatch(/removes 4 dependent nodes/);
     fireEvent.click(getByRole("button", { name: /delete node/i }));
     expect(h.onDelete).toHaveBeenCalledWith("c_roi");
   });

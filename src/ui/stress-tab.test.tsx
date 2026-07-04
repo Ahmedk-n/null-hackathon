@@ -205,7 +205,7 @@ describe("StressTab (R4)", () => {
 
     // Hero A grounded → craters below the crater line at day 8.
     const chip = screen.getByTestId("timeline-chip");
-    expect(chip.textContent).toMatch(/FAILS IN 8 DAYS/i);
+    expect(chip.textContent).toMatch(/FAILS IN 9 DAYS/i);
 
     // Dragging re-runs the engine live: day 13 craters (deadline imminent),
     // day 0 holds (deadline a fortnight out) — pressure builds as the horizon advances.

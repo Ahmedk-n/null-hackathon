@@ -16,7 +16,11 @@ function clamp01(n: number): number {
 }
 
 const NODE_MIN = 5;
-const NODE_MAX = 12; // pickLayoutMode: >25 band is UNBUILT; 12 keeps Band 1 (≤8) / Band 2 (≤25).
+// V7-1 · widened 12→22 so live graphs can go GENUINELY DEEP (thesis → claims → assumptions →
+// sub-assumptions / evidence-support nodes) now that the depth-robust typed-AND aggregation
+// (propagation.ts) lets deep honest trees integrate to a meaningful integrity instead of ~0.
+// Kept ≤25 so layout stays inside pickLayoutMode's built Band 2 (the >25 clustered band is UNBUILT).
+const NODE_MAX = 22;
 // V5-3 · manual editing relaxes the node-count band (the LLM path stays 5..12): a human may
 // prune a Structure smaller or grow it larger than an LLM proposal. 3 keeps a thesis + a claim
 // + one assumption viable; 25 is the top of pickLayoutMode's built bands.

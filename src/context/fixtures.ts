@@ -117,8 +117,14 @@ export function fixtureDecisionContextPack(decision?: string): DecisionContextPa
   };
 }
 
-// Product-AND aggregation (base engine), OR groups on non-keystone legs so the keystone
-// (k_credible) is STRICTLY load-bearing (real impact gap, not a sort-order tie). 9 nodes → Band 2.
+// V7-1 · DEEPER hero A (13 nodes, 5 layers) under the depth-robust typed-AND rule
+// (propagation.ts): thesis → claims (PRODUCT spine, so the keystone still craters it) →
+// assumptions → sub-assumption / evidence-support nodes. The keystone `k_credible` is a
+// LEAF on the single-child AND spine feeding c_exec AND c_reliab (so it is STRICTLY
+// load-bearing and visibly cracks). Depth lives in the NON-keystone branches: `a_obs`
+// and `a_bound` each decompose into two leaf evidence-support nodes aggregated by the
+// GEOMETRIC MEAN (all-children-leaf AND), so honest corroborating support stays
+// meaningful instead of multiplying the branch to ~0. 13 nodes → Band 2 (layered-2-5d).
 export function fixtureContextGraph(): Graph {
   return {
     thesisId: "T",
@@ -127,32 +133,40 @@ export function fixtureContextGraph(): Graph {
       { id: "c_exec", type: "claim", label: "We can execute safely near-term", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_credible"] }] },
       { id: "c_reliab", type: "claim", label: "Meets enterprise reliability now", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_credible"] }, { kind: "OR", childIds: ["a_obs", "a_audit"] }] },
       { id: "c_roi", type: "claim", label: "Migration ROI justifies it now", confidence: 1.0, groups: [{ kind: "OR", childIds: ["a_bound", "a_load"] }] },
-      // evidence sourced VERBATIM from the scripted gather fixtures (src/agents/fixtures.ts) so the
-      // rehearsed demo shows provenance too. Confidence numbers are PINNED — evidence is engine-inert.
-      { id: "k_credible", type: "assumption", label: "Can explain safe staged migration by meeting", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Credible near-term technical plan needed by the meeting (tomorrow)." } }, // KEYSTONE — feeds c_exec AND c_reliab
-      { id: "a_obs", type: "assumption", label: "Enough observability for distributed ops", confidence: 0.85, groups: [], evidence: { source: "src/", fact: "No tracing/metrics wiring found (observability is limited)." } },
+      // KEYSTONE — leaf on the single-child spine feeding c_exec AND c_reliab. Evidence
+      // sourced VERBATIM from the scripted gather fixtures (src/agents/fixtures.ts).
+      { id: "k_credible", type: "assumption", label: "Can explain safe staged migration by meeting", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Credible near-term technical plan needed by the meeting (tomorrow)." } },
+      // a_obs decomposes into two evidence-support leaves (all-leaf AND → geometric mean).
+      { id: "a_obs", type: "assumption", label: "Enough observability for distributed ops", confidence: 1.0, groups: [{ kind: "AND", childIds: ["s_tracing", "s_metrics"] }] },
+      { id: "s_tracing", type: "assumption", label: "Distributed tracing is wired", confidence: 0.85, groups: [], evidence: { source: "src/", fact: "No tracing wiring found (observability is limited)." } },
+      { id: "s_metrics", type: "assumption", label: "Per-service metrics exist", confidence: 0.85, groups: [], evidence: { source: "src/", fact: "No metrics/dashboards found for distributed ops." } },
       { id: "a_audit", type: "assumption", label: "Enterprise values auditability over purity", confidence: 0.8, groups: [], evidence: { source: "https://company.example.com/security", fact: "Auditability and reliability required to close." } },
-      { id: "a_bound", type: "assumption", label: "Services have clean boundaries", confidence: 0.9, groups: [], evidence: { source: "pyproject.toml", fact: "FastAPI monolith (Python) — boundaries not yet separated." } },
+      // a_bound decomposes too (depth in the ROI holding branch).
+      { id: "a_bound", type: "assumption", label: "Services have clean boundaries", confidence: 1.0, groups: [{ kind: "AND", childIds: ["s_domain", "s_split"] }] },
+      { id: "s_domain", type: "assumption", label: "Domain modules are separable", confidence: 0.9, groups: [], evidence: { source: "pyproject.toml", fact: "FastAPI monolith (Python) — domain modules not yet separated." } },
+      { id: "s_split", type: "assumption", label: "Split lines are stable", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Service split lines are still shifting week to week." } },
       { id: "a_load", type: "assumption", label: "Load is uneven across features", confidence: 0.85, groups: [], evidence: null }, // no relevant finding → ungrounded
     ],
   };
 }
 
-// RAW attack severities (context IGNORED). Tuned so the structure SURVIVES the
-// raw assault: the keystone `k_credible` and all three claims hold above the 0.35
-// failure threshold. Only when `reweightAttacksByContext` applies the hero pack
-// (tomorrow's enterprise meeting → ▲ execution) does the keystone attack cross the
-// threshold and fail, cascading c_exec + c_reliab and cratering integrity <10%.
+// RAW attack severities (context IGNORED). Tuned so the structure SURVIVES the raw
+// assault: the keystone `k_credible` and all three claims hold above the 0.35 failure
+// threshold (only the thesis dips). Only when `reweightAttacksByContext` applies the
+// hero pack (tomorrow's enterprise meeting → ▲ execution) does the keystone attack
+// cross the threshold and fail, cascading c_exec + c_reliab and cratering integrity <10%.
 //
-// Numbers worked against the engine (integrity = k²·m·r, keystone squared):
-//   RAW        → k=0.513 (HOLDS), integrity ≈ 17.1%, failures = {T} only.
-//   REWEIGHTED → atk_k 0.43→0.645 (×1.5 execution) → k=0.320 (FAILS),
-//                integrity ≈ 6.4%, failures = {T, c_exec, c_reliab, k_credible}; c_roi holds.
+// Numbers worked against the depth-robust engine (typed-AND: PRODUCT thesis spine,
+// GEOMETRIC-MEAN evidence groups; threshold 0.35):
+//   BASELINE   → 61.97% (standing); keystone k_credible strictly dominant (62.0 vs 3.6 next).
+//   RAW        → integrity 18.04%, failures = {T} only (keystone + all claims HOLD).
+//   REWEIGHTED → atk_k 0.43→0.645 (×1.5 execution) → k_credible FAILS; integrity 6.86%,
+//                failures = {T, c_exec, c_reliab, k_credible}; c_roi HOLDS at 85%.
 export function fixtureContextAttacks(): Attack[] {
   return [
     { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.43, rationale: "With tomorrow's meeting, there is no time to prove a safe staged migration — the plan is not credible yet." },
-    { id: "atk_obs", targetId: "a_obs", category: "reliability", severity: 0.1, rationale: "Observability is limited; distributed failure modes would be blind spots." },
-    { id: "atk_bound", targetId: "a_bound", category: "second-order", severity: 0.12, rationale: "Domain boundaries are still shifting; premature splits need re-merging." },
+    { id: "atk_obs", targetId: "s_tracing", category: "reliability", severity: 0.1, rationale: "Observability is limited; distributed failure modes would be blind spots." },
+    { id: "atk_bound", targetId: "s_domain", category: "second-order", severity: 0.12, rationale: "Domain boundaries are still shifting; premature splits need re-merging." },
     { id: "atk_audit", targetId: "a_audit", category: "auditability", severity: 0.1, rationale: "Audit trails across services are unproven for regulated buyers." },
   ];
 }
@@ -289,9 +303,11 @@ export function fixtureDecisionContextPackB(decision?: string): DecisionContextP
   };
 }
 
-// Scenario B graph — 7 nodes → Band 1 (simple-2d, pickLayoutMode ≤ 8). The keystone
-// `k_sre` feeds BOTH claims (AND), so it is uniquely load-bearing; the other assumptions
-// sit in OR groups (redundant), so knocking them out barely moves integrity.
+// Scenario B graph — 9 nodes → Band 2 (layered-2-5d). The keystone `k_sre` feeds BOTH
+// claims on the single-child AND spine, so it is uniquely load-bearing; the other
+// assumptions sit in OR groups (redundant). Depth: `a_runbook` decomposes into two
+// leaf evidence-support nodes (all-leaf AND → geometric mean), so the added corroboration
+// keeps that branch high instead of multiplying it down — depth WITHOUT self-inflicted collapse.
 export function fixtureContextGraphB(): Graph {
   return {
     thesisId: "T",
@@ -301,7 +317,9 @@ export function fixtureContextGraphB(): Graph {
       { id: "c_ready", type: "claim", label: "Team is operationally ready by the pilot", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_sre"] }, { kind: "OR", childIds: ["a_oncall", "a_budget"] }] },
       // evidence where natural (the operational-ownership gap grounds the SRE keystone), null elsewhere.
       { id: "k_sre", type: "assumption", label: "2 SREs hired & onboarded before the pilot", confidence: 0.95, groups: [], evidence: { source: "src/", fact: "No platform/infra owner in CODEOWNERS — operational ownership gap." } }, // KEYSTONE — feeds c_reliab AND c_ready
-      { id: "a_runbook", type: "assumption", label: "Runbooks cover the main incident classes", confidence: 0.85, groups: [], evidence: null },
+      { id: "a_runbook", type: "assumption", label: "Runbooks cover the main incident classes", confidence: 1.0, groups: [{ kind: "AND", childIds: ["s_incident", "s_drill"] }] },
+      { id: "s_incident", type: "assumption", label: "Incident classes are catalogued", confidence: 0.85, groups: [], evidence: null },
+      { id: "s_drill", type: "assumption", label: "Runbooks are drilled", confidence: 0.85, groups: [], evidence: null },
       { id: "a_oncall", type: "assumption", label: "On-call rotation is viable with the current team", confidence: 0.8, groups: [], evidence: null },
       { id: "a_budget", type: "assumption", label: "Budget approved for two SRE hires", confidence: 0.9, groups: [], evidence: null },
     ],
@@ -310,9 +328,13 @@ export function fixtureContextGraphB(): Graph {
 
 // RAW attack severities (context IGNORED) — a conservative plan draws milder fire.
 // Under the SAME hero-shaped reweight (▲ execution/reliability) the keystone attack
-// climbs only 0.10→0.115 and stays far below the 0.35 threshold, so the structure
-// HOLDS (see numbers block above). `atk_budget`'s "budget" category is unclassifiable
-// by normaliseCategory, so context leaves it unchanged.
+// climbs only 0.10→0.115 and stays far below the 0.35 threshold, so the structure HOLDS.
+// `atk_budget`'s "budget" category is unclassifiable by normaliseCategory → unchanged.
+//
+// Numbers worked against the depth-robust engine (typed-AND; threshold 0.35):
+//   BASELINE   → 69.04% healthy; keystone k_sre dominant (69.0 vs 7.7 next).
+//   RAW        → integrity 49.21%, ZERO failures (structure holds).
+//   REWEIGHTED → integrity 47.59%, ZERO failures, keystone k_sre still HOLDS. Discrimination, not collapse.
 export function fixtureContextAttacksB(): Attack[] {
   return [
     { id: "atk_sre", targetId: "k_sre", category: "execution risk", severity: 0.1, rationale: "Hiring two SREs before the pilot is a real delivery risk, but a bounded and well-understood one." },
@@ -336,24 +358,28 @@ export function fixtureContextAttacksB(): Attack[] {
  * DECISION: build Excalidraw's own paid realtime-collaboration backend now, vs. keep
  * relying on the open-source excalidraw-room + third-party embeds.
  *
- * DEMO BEAT — grounded collapse with a partial hold (numbers worked against the real
- * engine; integrity = thesis support ×100, AND=product, OR=max, threshold 0.35):
- *   BASELINE   → 52.63% (standing; thesis+claims pinned 1.0 per the fixture convention,
+ * DEMO BEAT — grounded collapse with a partial hold (numbers worked against the depth-
+ * robust engine; integrity = thesis support ×100, typed-AND [PRODUCT thesis spine,
+ * GEOMETRIC-MEAN evidence groups], OR=max, threshold 0.35):
+ *   BASELINE   → 55.40% (standing; thesis+claims pinned 1.0 per the fixture convention,
  *                assumption confidences reflect the live model's real skepticism).
- *   RAW        → integrity 15.78%; the load-bearing keystone team_has_backend_capacity
+ *   RAW        → integrity 18.56%; the load-bearing keystone team_has_backend_capacity
  *                HOLDS at support 0.400; the differentiation claim HOLDS at 0.900.
  *   REWEIGHTED → the pack's ▲execution 0.8 (roadmap meeting in 2 days, 6-person team,
  *                no backend history) amplifies the keystone's execution attack 0.50→0.70;
- *                the keystone CRACKS to 0.240, thesis craters to 8.35%, and
+ *                the keystone CRACKS to 0.240, thesis craters to 9.69%, and
  *                differentiates_vs_competitors STILL HOLDS at 0.900 — a partial collapse.
  * The keystone flips hold→fail purely from grounding the SAME attacks in context.
  *
- * KEYSTONE NOTE: the thesis is an AND of three claims and claim1 is an AND of three
- * assumptions, so knocking ANY AND-path assumption to zero zeroes the thesis — five
- * assumptions therefore TIE on load-bearing impact (only the OR-only leg
- * competitive_urgency_real has ~0 impact). keystone() resolves the tie by node order to
- * team_has_backend_capacity — the weakest-confidence, most-attacked leg (the "can a tiny
- * team build+operate its own infra" assumption), which is exactly the right demo keystone.
+ * KEYSTONE NOTE: the thesis is a PRODUCT of three claims, and the keystone
+ * team_has_backend_capacity sits alone on team_can_build_operate_infra's single-child AND
+ * spine, while backend_drives_conversion's conversion assumption (and its two sub-leaves)
+ * are likewise on hard spines — so knocking ANY of those AND-spine assumptions to zero
+ * zeroes the thesis and they TIE on load-bearing impact. The OR-leg assumptions
+ * (can_reimplement_e2e_collab, reliability_observability_ready, enterprise_pipeline_real,
+ * competitive_urgency_real) are redundant → ~0 impact. keystone() resolves the tie by node
+ * order to team_has_backend_capacity — the weakest-confidence, most-attacked leg, exactly
+ * the right demo keystone.
  * ════════════════════════════════════════════════════════════════════════ */
 
 // Seeds for the CONTEXT tab R segment — the three live gather summaries + the decision.
@@ -545,45 +571,53 @@ export function fixtureDecisionContextPackR(decision?: string): DecisionContextP
   };
 }
 
-// Scenario R graph — 10 nodes → Band 2. STRUCTURE + EVIDENCE verbatim from the live extract
-// (real repo file paths + real URLs). Confidence numbers are pinned by the fixture author
-// (thesis+claims 1.0 per the base-engine AND convention; assumption confidences carry the
-// live model's real relative skepticism — the capacity keystone lowest). Engine-inert evidence.
+// Scenario R graph — 13 nodes → Band 2. STRUCTURE + EVIDENCE from the live extract (real
+// repo file paths + real URLs), RE-AUTHORED DEEPER (V7-1): the keystone
+// `team_has_backend_capacity` now sits ALONE on the single-child AND spine of
+// team_can_build_operate_infra (so grounded execution load craters it), with the two
+// other build assumptions moved into an OR (redundant reliability path). Depth:
+// `conversion_is_collab_limited` decomposes into two leaf evidence-support nodes
+// (all-leaf AND → geometric mean). Confidence numbers pinned by the fixture author
+// (thesis/claims 1.0; assumption confidences carry the live model's relative skepticism —
+// the capacity keystone lowest). Engine-inert evidence.
 export function fixtureContextGraphR(): Graph {
   return {
     thesisId: "build_own_realtime_backend_now",
     nodes: [
       { id: "build_own_realtime_backend_now", type: "thesis", label: "Build paid realtime backend now", confidence: 1.0, groups: [{ kind: "AND", childIds: ["team_can_build_operate_infra", "backend_drives_conversion", "differentiates_vs_competitors"] }] },
-      { id: "team_can_build_operate_infra", type: "claim", label: "Team can build and operate infra", confidence: 1.0, groups: [{ kind: "AND", childIds: ["team_has_backend_capacity", "can_reimplement_e2e_collab", "reliability_observability_ready"] }] },
-      { id: "backend_drives_conversion", type: "claim", label: "Own backend improves paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["conversion_is_collab_limited", "enterprise_auditability_wins"] }] },
+      { id: "team_can_build_operate_infra", type: "claim", label: "Team can build and operate infra", confidence: 1.0, groups: [{ kind: "AND", childIds: ["team_has_backend_capacity"] }, { kind: "OR", childIds: ["can_reimplement_e2e_collab", "reliability_observability_ready"] }] },
+      { id: "backend_drives_conversion", type: "claim", label: "Own backend improves paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["conversion_is_collab_limited"] }, { kind: "OR", childIds: ["enterprise_auditability_wins", "enterprise_pipeline_real"] }] },
       { id: "differentiates_vs_competitors", type: "claim", label: "Backend keeps pace with rivals", confidence: 1.0, groups: [{ kind: "OR", childIds: ["competitive_urgency_real", "enterprise_auditability_wins"] }] },
-      // KEYSTONE — the load-bearing "a 6-person team has spare capacity" assumption.
+      // KEYSTONE — the load-bearing "a 6-person team has spare capacity" assumption (leaf on the spine).
       { id: "team_has_backend_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.8, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno, Czech Republic." } },
       { id: "can_reimplement_e2e_collab", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; local-first with idb-keyval and jotai for state." } },
       { id: "reliability_observability_ready", type: "assumption", label: "Reliability and observability adequate", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability: Sentry browser error tracking (@sentry/browser 9.0.1); disabled in Docker builds." } },
-      { id: "conversion_is_collab_limited", type: "assumption", label: "Collab quality gates paid conversion", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
+      // conversion assumption decomposes into two evidence-support leaves (geometric-mean AND).
+      { id: "conversion_is_collab_limited", type: "assumption", label: "Collab quality gates paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["conv_flat_growth", "conv_gated_by_collab"] }] },
+      { id: "conv_flat_growth", type: "assumption", label: "Paid growth is flat", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
+      { id: "conv_gated_by_collab", type: "assumption", label: "Collab is the conversion lever", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "Teams cite live collaboration as the reason they upgrade to Excalidraw+." } },
       { id: "enterprise_auditability_wins", type: "assumption", label: "Own backend enables enterprise auditability", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place to meet enterprise security/auditability needs." } },
+      { id: "enterprise_pipeline_real", type: "assumption", label: "Enterprise pipeline is real", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Several enterprise trials are waiting on an own-backend compliance story." } },
       { id: "competitive_urgency_real", type: "assumption", label: "tldraw funding pressures collab timeline", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively." } },
     ],
   };
 }
 
 // RAW attack severities. The keystone execution attack is the dominant load; the four
-// secondary attacks are milder (as scenario A does) so the ONE keystone flip is the beat.
-// SEVERITY ADJUSTMENTS (live → pinned; all within the live-plausible [0.15,0.55] band):
-//   atk_no_backend_capacity   execution   0.55 → 0.50  (keystone; ×1.4 execution → 0.70 grounded)
-//   atk_observability_gap     reliability 0.50 → 0.12  (softened so raw survives; ×1.35 → 0.162)
-//   atk_e2e_reimpl_hard       technical   0.40 → 0.12  (softened; ×1.25 → 0.150)
-//   atk_conversion_not_collab market      0.40 → 0.12  (softened; no market weight → unchanged)
-//   atk_auditability_overclaim auditability 0.45 → 0.12 (softened; ×1.3 → 0.156)
-// Numbers vs the real engine: RAW integrity 15.78% (keystone support 0.400 HOLDS), REWEIGHTED
-// integrity 8.35% (keystone 0.240 FAILS); differentiates_vs_competitors holds at 0.900 both ways.
+// secondary attacks are milder so the ONE keystone flip is the beat. All within the
+// live-plausible [0.12,0.55] band. Numbers vs the depth-robust engine (typed-AND):
+//   BASELINE   → 55.40% (standing).
+//   RAW        → integrity 18.56%; keystone team_has_backend_capacity HOLDS at 40.0%;
+//                differentiates_vs_competitors HOLDS at 90.0%.
+//   REWEIGHTED → the pack's ▲execution 0.8 amplifies the keystone attack 0.50→0.70; the
+//                keystone CRACKS to 24.0% (FAILS), thesis craters to 9.69%, and
+//                differentiates_vs_competitors STILL HOLDS at 90.0% — a partial collapse.
 export function fixtureContextAttacksR(): Attack[] {
   return [
     { id: "atk_no_backend_capacity", targetId: "team_has_backend_capacity", category: "execution risk", severity: 0.5, rationale: "A 6-person team with no backend history has no spare capacity; the roadmap meeting in 2 days forces a build commitment they cannot staff." },
     { id: "atk_observability_gap", targetId: "reliability_observability_ready", category: "reliability", severity: 0.12, rationale: "Owning realtime infra raises the reliability burden while observability is only Sentry error tracking." },
     { id: "atk_e2e_reimpl_hard", targetId: "can_reimplement_e2e_collab", category: "technical", severity: 0.12, rationale: "Reimplementing E2E-encrypted Socket.IO collab off excalidraw-room is deep work to scope before the 3-week talk." },
-    { id: "atk_conversion_not_collab", targetId: "conversion_is_collab_limited", category: "market", severity: 0.12, rationale: "The growth bottleneck is free-to-paid conversion; a backend build competes with that priority without proof collab quality gates conversion." },
+    { id: "atk_conversion_not_collab", targetId: "conv_flat_growth", category: "opportunity cost", severity: 0.35, rationale: "The growth bottleneck is free-to-paid conversion; a backend build competes with that priority without proof collab quality gates conversion." },
     { id: "atk_auditability_overclaim", targetId: "enterprise_auditability_wins", category: "auditability", severity: 0.12, rationale: "SOC 2 / DPA demands need audited controls and process, not merely owning infra." },
   ];
 }
@@ -613,10 +647,12 @@ export function fixtureContextAttacksR(): Attack[] {
  * yields the clean tournament beat the demo needs: ONE survivor, one stressed, one collapsed.
  *
  * VERDICTS (grounded integrity = thesis support ×100 under reweightAttacksByContext
- * with fixtureDecisionContextPackR; verified by src/ui/design-fixtures.test.ts):
- *   AGGRESSIVE  "BUILD OWN BACKEND NOW"          raw ≈46% → grounded ≈6%  ✗ COLLAPSED
- *   CONSERVATIVE"HARDEN MANAGED INFRA FIRST"     raw ≈53% → grounded ≈48% ✓ STANDS (survivor)
- *   HYBRID      "STAGE A MANAGED-TO-OWN ROLLOUT" raw ≈37% → grounded ≈14% ⚠ STRESSED
+ * with fixtureDecisionContextPackR; depth-robust typed-AND engine; verified by
+ * src/ui/design-fixtures.test.ts):
+ *   (raw = the candidate's unattacked baseline integrity; grounded = after context-reweighted load)
+ *   AGGRESSIVE  "BUILD OWN BACKEND NOW"          raw ≈48.5% → grounded ≈9.5%  ✗ COLLAPSED
+ *   CONSERVATIVE"HARDEN MANAGED INFRA FIRST"     raw ≈65.6% → grounded ≈48.5% ✓ STANDS (survivor)
+ *   HYBRID      "STAGE A MANAGED-TO-OWN ROLLOUT" raw ≈61.3% → grounded ≈22.8% ⚠ STRESSED
  * ════════════════════════════════════════════════════════════════════════ */
 
 export type DesignLens = "aggressive" | "conservative" | "hybrid";
@@ -639,14 +675,15 @@ export function fixtureDesignCandidatesR(): DesignCandidateFixture[] {
         thesisId: "T",
         nodes: [
           { id: "T", type: "thesis", label: "Build own realtime backend now", confidence: 1.0, groups: [{ kind: "AND", childIds: ["c_build", "c_convert", "c_compete"] }] },
-          { id: "c_build", type: "claim", label: "Team can build and operate it", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_capacity", "a_e2e", "a_reliab"] }] },
-          { id: "c_convert", type: "claim", label: "Own backend lifts paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["a_conversion", "a_audit"] }] },
+          { id: "c_build", type: "claim", label: "Team can build and operate it", confidence: 1.0, groups: [{ kind: "AND", childIds: ["k_capacity"] }, { kind: "OR", childIds: ["a_e2e", "a_reliab"] }] },
+          { id: "c_convert", type: "claim", label: "Own backend lifts paid conversion", confidence: 1.0, groups: [{ kind: "AND", childIds: ["a_conversion"] }, { kind: "OR", childIds: ["a_audit", "a_conv2"] }] },
           { id: "c_compete", type: "claim", label: "Keeps pace with funded rivals", confidence: 1.0, groups: [{ kind: "OR", childIds: ["a_urgency", "a_audit"] }] },
           { id: "k_capacity", type: "assumption", label: "Six-person team has spare capacity", confidence: 0.7, groups: [], evidence: { source: "https://www.brex.com/tools/charge-finder/excalidraw", fact: "Bootstrapped open-source company run by a roughly 6-person team in Brno." } },
           { id: "a_e2e", type: "assumption", label: "Can reimplement E2E Socket.IO collab", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Real-time collaboration: socket.io-client 4.7.2; E2E-encrypted." } },
           { id: "a_reliab", type: "assumption", label: "Reliability/observability adequate", confidence: 0.95, groups: [], evidence: { source: "excalidraw-app/package.json", fact: "Observability limited to Sentry browser error tracking." } },
           { id: "a_conversion", type: "assumption", label: "Collab quality gates conversion", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "Excalidraw+ subscription growth has been flat for two quarters." } },
           { id: "a_audit", type: "assumption", label: "Own backend enables enterprise audit", confidence: 0.9, groups: [], evidence: { source: "https://www.g2.com/products/excalidraw/reviews", fact: "SOC 2 Type II compliant with a DPA in place." } },
+          { id: "a_conv2", type: "assumption", label: "Enterprise pipeline is real", confidence: 0.85, groups: [], evidence: { source: "notes", fact: "Several enterprise trials await an own-backend compliance story." } },
           { id: "a_urgency", type: "assumption", label: "tldraw funding pressures timeline", confidence: 0.9, groups: [], evidence: { source: "notes", fact: "tldraw raised a $10M Series A and ships a realtime collab SDK aggressively." } },
         ],
       },

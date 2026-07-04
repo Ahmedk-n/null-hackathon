@@ -4,18 +4,19 @@ import { fixtureContextGraph, fixtureContextGraphB } from "@/context";
 import type { Graph } from "@/engine";
 
 describe("analysisDepth (V4-1 DEPTH metric)", () => {
-  it("hero A reasons 4 strata deep with 4/5 assumptions grounded", () => {
+  it("hero A reasons 4 strata deep with 6/9 assumptions grounded (V7-1 deepened)", () => {
     const d = analysisDepth(fixtureContextGraph());
-    // thesis + claims + assumptions + evidence stratum (k_credible/a_obs/a_audit/a_bound carry evidence)
+    // thesis + claims + assumptions + evidence stratum; 9 assumptions (incl. 4 sub-leaves),
+    // 6 grounded (k_credible, s_tracing, s_metrics, a_audit, s_domain, s_split); a_load ungrounded.
     expect(d.strata).toBe(4);
-    expect(d.assumptions).toBe(5);
-    expect(d.grounded).toBe(4); // a_load is ungrounded
+    expect(d.assumptions).toBe(9);
+    expect(d.grounded).toBe(6);
   });
 
-  it("scenario B carries the evidence stratum via its keystone (1/4 grounded)", () => {
+  it("scenario B carries the evidence stratum via its keystone (1/6 grounded)", () => {
     const d = analysisDepth(fixtureContextGraphB());
     expect(d.strata).toBe(4);
-    expect(d.assumptions).toBe(4);
+    expect(d.assumptions).toBe(6);
     expect(d.grounded).toBe(1); // only k_sre is grounded
   });
 

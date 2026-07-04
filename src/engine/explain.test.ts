@@ -117,7 +117,7 @@ describe("summariseLoadResult", () => {
     // Pins the OTHER half of the discrimination story: identical attacks, NO reweighting →
     // integrity ≈ 17%, keystone + claims all HOLD (this is why grounding-in-context matters).
     const s = summariseLoadResult(fixtureContextGraph(), fixtureContextAttacks());
-    expect(s.postLoadIntegrity).toBeCloseTo(17.11, 1);
+    expect(s.postLoadIntegrity).toBeCloseTo(18.04, 1);
     expect(s.failedNodeIds).toEqual(["T"]);
     for (const id of ["k_credible", "c_exec", "c_reliab", "c_roi"]) expect(s.holdingNodeIds).toContain(id);
   });

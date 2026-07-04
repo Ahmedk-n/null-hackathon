@@ -8,7 +8,7 @@
 // `provenance: "modified"` (human-edit flag, V5-3). Both are engine-inert. supportBreakdown
 // passes them through UNTOUCHED so the UI keeps the plate/flags on the decomposed node.
 import type { Attack, GroupKind, Graph, NodeType, NodeEvidence } from "./types";
-import { clamp01, computeSupport, FAILURE_THRESHOLD, integrity } from "./propagation";
+import { aggregateGroup, clamp01, computeSupport, FAILURE_THRESHOLD, integrity } from "./propagation";
 import { applyAttacks } from "./load";
 import { keystone, rankLoadBearing } from "./sensitivity";
 
@@ -17,7 +17,11 @@ import { keystone, rankLoadBearing } from "./sensitivity";
 export interface GroupContribution {
   kind: GroupKind;
   childIds: string[];
-  /** Aggregate of this group: product of child supports (AND) or max (OR). */
+  /**
+   * Aggregate of this group under the depth-robust rule (V7-1): OR = max; AND =
+   * geometric mean when every child is a leaf assumption (corroborating premises),
+   * product when a child is an internal sub-goal, passthrough for a single child.
+   */
   value: number;
 }
 
@@ -50,14 +54,15 @@ export function supportBreakdown(
   threshold: number = FAILURE_THRESHOLD,
 ): SupportBreakdown {
   const support = computeSupport(graph);
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
   const nodes: NodeSupport[] = graph.nodes.map((n) => {
     const ownConfidence = clamp01(n.confidence);
     const groups: GroupContribution[] = n.groups.map((g) => {
       const members = g.childIds.map((c) => support.get(c) ?? 0);
-      const value =
-        g.kind === "AND"
-          ? members.reduce((acc, m) => acc * m, 1)
-          : members.reduce((acc, m) => Math.max(acc, m), 0);
+      const allChildrenLeaf = g.childIds.every(
+        (c) => (byId.get(c)?.groups.length ?? 0) === 0,
+      );
+      const value = aggregateGroup(g.kind, members, allChildrenLeaf);
       return { kind: g.kind, childIds: [...g.childIds], value };
     });
     const dependencyFactor = groups.reduce((acc, g) => acc * g.value, 1);

@@ -55,7 +55,7 @@ describe("POST /api/attacks", () => {
 
 // ── W2-3 · scenario routing through the fixture chain ─────────────────────
 describe("scenario selection routes the fixture chain (W2-3)", () => {
-  it("extract with pack + no scenario returns the 9-node k_credible hero (T6 default)", async () => {
+  it("extract with pack + no scenario returns the 13-node k_credible hero (T6 default)", async () => {
     const res = await extractPOST(
       jsonReq("http://x/api/extract", {
         decision: "migrate",
@@ -63,11 +63,11 @@ describe("scenario selection routes the fixture chain (W2-3)", () => {
       }),
     );
     const graph = (await res.json()) as Graph;
-    expect(graph.nodes.length).toBe(9);
+    expect(graph.nodes.length).toBe(13);
     expect(graph.nodes.some((n) => n.id === "k_credible")).toBe(true);
   });
 
-  it("extract with pack + scenario 'B' returns the 7-node reinforce graph (k_sre)", async () => {
+  it("extract with pack + scenario 'B' returns the 9-node reinforce graph (k_sre)", async () => {
     const res = await extractPOST(
       jsonReq("http://x/api/extract", {
         decision: "reinforce",
@@ -77,7 +77,7 @@ describe("scenario selection routes the fixture chain (W2-3)", () => {
     );
     const graph = (await res.json()) as Graph;
     expect(graph).toEqual(fixtureContextGraphB());
-    expect(graph.nodes.length).toBe(7);
+    expect(graph.nodes.length).toBe(9);
     expect(graph.nodes.some((n) => n.id === "k_sre")).toBe(true);
   });
 
@@ -112,7 +112,7 @@ describe("live-gating invariants (V3-4)", () => {
       );
       expect(res.headers.get("x-keystone-source")).toBe("fixture");
       const graph = (await res.json()) as Graph;
-      expect(graph.nodes.length).toBe(9);
+      expect(graph.nodes.length).toBe(13);
       expect(graph.nodes.some((n) => n.id === "k_credible")).toBe(true);
     } finally {
       delete process.env.ANTHROPIC_API_KEY;
@@ -145,7 +145,7 @@ describe("live-gating invariants (V3-4)", () => {
       }),
     );
     const graph = (await res.json()) as Graph;
-    expect(graph.nodes.length).toBe(9);
+    expect(graph.nodes.length).toBe(13);
     expect(graph.nodes.some((n) => n.id === "k_credible")).toBe(true);
   });
 });
