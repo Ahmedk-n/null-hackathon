@@ -15,10 +15,10 @@
 - [ ] Tests: design fixtures pinned verdicts, route short-circuits, DesignTab render + tournament stamps, MiniStructure extraction (landing test stays green).
 - Files: src/ui/MiniStructure.tsx, src/landing/MiniCollapseHero.tsx, src/ui/tabs/DesignTab.tsx, src/llm/design.ts, src/app/api/design/route.ts, src/context/fixtures.ts (candidates), scripts/, src/app/KeystoneApp.tsx, shell.test, e2e (DESIGN leg).
 
-### V6-3 · Skyline
-- [ ] `src/lib/skyline.ts` (pure): buildSkyline + token-Jaccard shared-foundation matcher (≥0.5) + crackFoundation (engine knockout per member). Thorough unit tests (match/no-match table, crack re-verdicts, corrupted entries skipped).
-- [ ] `/skyline` page: SVG skyline, buildings (height ∝ nodes, integrity glow, nameplates), foundation columns, CRACK IT → drop/dim + readout, RESET. SAMPLE-seeded when library empty. Header explainer line.
-- [ ] e2e SKYLINE leg (load, crack a foundation on seeded samples, assert readout).
+### V6-3 · Skyline ✅ (pure skyline.ts: token-Jaccard ≥0.5 union-find matcher, crackFoundation knockout, tolerant; /skyline SVG towers + foundation columns + CRACK readout + RESET; SAMPLE-seeded, one aliased shared foundation R+A → both collapse "1 ASSUMPTION FEEDS 2 STRUCTURES · 2 COLLAPSE"; 22 tests; e2e leg delivered as e2e/skyline-leg.mjs for orchestrator splice)
+- [x] `src/lib/skyline.ts` (pure): buildSkyline + token-Jaccard shared-foundation matcher (≥0.5) + crackFoundation (engine knockout per member). Thorough unit tests.
+- [x] `/skyline` page: SVG skyline, buildings, foundation columns, CRACK IT → drop/dim + readout, RESET. SAMPLE-seeded when library empty. Header explainer line.
+- [x] e2e SKYLINE leg delivered as standalone runSkylineLeg snippet — orchestrator splices after V6-1's rehearsal edits.
 - Files: src/lib/skyline.ts (+test), src/app/skyline/page.tsx, src/ui/skyline/** (new), e2e (own leg — coordinate: V6-1 owns e2e this wave, so V6-3 WRITES its leg as a separate exported block appended after V6-1 lands OR hands the leg spec to the orchestrator; simplest: V6-3 delivers the leg as e2e/skyline-leg.snippet.mjs and the orchestrator splices) — DEVIATION allowed: orchestrator wires e2e.
 - Do NOT touch KeystoneApp (V6-1 owns it; the TopBar link is V6-1's).
 
