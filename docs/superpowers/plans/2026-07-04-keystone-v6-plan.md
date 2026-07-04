@@ -22,9 +22,9 @@
 - Files: src/lib/skyline.ts (+test), src/app/skyline/page.tsx, src/ui/skyline/** (new), e2e (own leg — coordinate: V6-1 owns e2e this wave, so V6-3 WRITES its leg as a separate exported block appended after V6-1 lands OR hands the leg spec to the orchestrator; simplest: V6-3 delivers the leg as e2e/skyline-leg.snippet.mjs and the orchestrator splices) — DEVIATION allowed: orchestrator wires e2e.
 - Do NOT touch KeystoneApp (V6-1 owns it; the TopBar link is V6-1's).
 
-### V6-4 · Landing + explanation layer
-- [ ] HOW IT WORKS rewritten to DESIGN → TEST → ASSEMBLE; vocabulary ledger gains the 5 new terms (spec definitions verbatim); VIEW SKYLINE link; README arc update.
-- [ ] Microcopy sweep: confirm every new surface's one-line explainer exists (deliver the strings; DesignTab/Tunnel/Skyline agents consume or orchestrator patches).
+### V6-4 · Landing + explanation layer ✅ (HOW IT WORKS → DESIGN·TEST·ASSEMBLE; 5 new vocab terms verbatim, ordered basics-first; VIEW SKYLINE CTA; README arc + 90s demo script; Landing.test asserts all)
+- [x] HOW IT WORKS rewritten to DESIGN → TEST → ASSEMBLE; vocabulary ledger gains the 5 new terms (spec definitions verbatim); VIEW SKYLINE link; README arc update.
+- [x] Microcopy sweep: landing explainer strings delivered; per-surface explainers are each owning-agent's contract (DesignTab/Tunnel/Skyline).
 - Files: src/landing/Landing.tsx (+test), README.md. Not MiniCollapseHero (V6-1 owns it).
 
 ## Wave 2 (after Wave 1 + harvest land)

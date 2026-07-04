@@ -25,6 +25,18 @@ describe("Landing (/) — V5-1", () => {
     expect(text).toContain("CONSTRAINT PLANE");
     expect(text).toContain("DE-RISKING");
 
+    // v6 vocabulary — the five new mechanics all explained (never cut).
+    expect(text).toContain("RIVAL CANDIDATES");
+    expect(text).toContain("STRATEGY LENS");
+    expect(text).toContain("WIND TUNNEL");
+    expect(text).toContain("SHARED FOUNDATION");
+    expect(text).toContain("SKYLINE");
+
+    // HOW IT WORKS — the DESIGN → TEST → ASSEMBLE arc (v6 spec §4).
+    expect(text).toContain("DESIGN");
+    expect(text).toContain("TEST");
+    expect(text).toContain("ASSEMBLE");
+
     // ENTER STUDIO CTA points at /studio.
     const studioLinks = getAllByRole("link").filter(
       (a) => a.getAttribute("href") === "/studio",
@@ -33,6 +45,13 @@ describe("Landing (/) — V5-1", () => {
     expect(studioLinks.some((a) => /enter studio/i.test(a.textContent ?? ""))).toBe(true);
     // The secondary "OPEN THE REAL SAMPLE" CTA also goes to the studio (scenario R default).
     expect(studioLinks.some((a) => /real sample/i.test(a.textContent ?? ""))).toBe(true);
+
+    // VIEW SKYLINE secondary CTA points at /skyline.
+    const skylineLinks = getAllByRole("link").filter(
+      (a) => a.getAttribute("href") === "/skyline",
+    );
+    expect(skylineLinks.length).toBeGreaterThanOrEqual(1);
+    expect(skylineLinks.some((a) => /view skyline/i.test(a.textContent ?? ""))).toBe(true);
 
     // The live mini-collapse hero mounts (initial frame — the assemble phase, tick 0).
     expect(container.querySelector('[data-testid="mini-collapse-hero"]')).not.toBeNull();

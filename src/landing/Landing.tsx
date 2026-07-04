@@ -19,26 +19,28 @@ const MANIFESTO: string[] = [
   "What would a CAD tool for thinking look like?",
 ];
 
-// HOW IT WORKS — the three-stage pipeline (plan §2.3).
+// HOW IT WORKS — the DESIGN → TEST → ASSEMBLE arc (v6 spec §4).
 const STEPS: { n: string; title: string; body: string }[] = [
   {
     n: "1",
-    title: "CONTEXT",
-    body: "Agents gather evidence — the repo, the web, the calendar — into a business, technical, and temporal picture of the decision.",
+    title: "DESIGN",
+    body: "State the goal. Three rival structures — one per strategy lens — are synthesized and stress-tested under identical load; the deterministic solver picks the survivor.",
   },
   {
     n: "2",
-    title: "GRAPH",
-    body: "The LLM proposes the Structure (thesis → claims → assumptions). Every confidence is grounded in a source fact or flagged as ungrounded.",
+    title: "TEST",
+    body: "Interrogate the survivor. Grounded load either collapses it or not, the wind tunnel cross-examines it — prosecutor vs advocate, solver as referee — and the De-risking plan prescribes the minimal set of assumptions to prove.",
   },
   {
     n: "3",
-    title: "STRESS",
-    body: "The deterministic solver applies load, finds the Keystone by knock-out sensitivity, and prescribes the provably-minimal De-risking plan.",
+    title: "ASSEMBLE",
+    body: "Every analysis joins the skyline. Shared foundations reveal which single assumption props up multiple decisions — and where systemic risk hides.",
   },
 ];
 
-// VOCABULARY — one-line definitions verbatim from the domain model (plan §domain model).
+// VOCABULARY — one-line definitions. Basics first (v5 domain model), then the v6 mechanics
+// (definitions verbatim-faithful to the v6 spec's vocabulary section) so a first-time reader
+// builds up from the Structure to the Skyline.
 const VOCAB: { term: string; def: string }[] = [
   { term: "KEYSTONE", def: "The load-bearing assumption: max knockout-sensitivity impact." },
   { term: "INTEGRITY", def: "Thesis support ×100; the verdict number. HOLDING ≥35 / STRESSED 10–35 / FAILED <10." },
@@ -47,6 +49,11 @@ const VOCAB: { term: string; def: string }[] = [
   { term: "CONSTRAINT PLANE", def: "A context constraint as a CAD datum frame; attacks matching its category STRIKE it → VIOLATED ×n." },
   { term: "LOAD / ATTACK", def: "Severity-weighted stress on an assumption; context grounding reweights severities." },
   { term: "DE-RISKING PLAN", def: "The provably-minimal set of assumptions to restore so the Structure survives (reinforcement)." },
+  { term: "RIVAL CANDIDATES", def: "Alternative Structures for the same goal, synthesized under different strategy lenses and stress-tested under identical grounded load. The survivor wins." },
+  { term: "STRATEGY LENS", def: "The stance a candidate is generated under: AGGRESSIVE (speed/upside), CONSERVATIVE (de-risk first), HYBRID (staged)." },
+  { term: "WIND TUNNEL", def: "An adversarial interrogation of one Structure: a PROSECUTOR agent proposes novel attacks, an ADVOCATE agent counters with evidence; the pure solver referees every round and cannot be overridden." },
+  { term: "SHARED FOUNDATION", def: "An assumption that appears (by deterministic label similarity) in more than one saved decision; a load-bearing column under multiple buildings. Cracking it re-verdicts every structure resting on it." },
+  { term: "SKYLINE", def: "The whole library rendered as one assembly: every decision a building, shared foundations beneath." },
 ];
 
 function VocabRow({ term, def }: { term: string; def: string }) {
@@ -217,15 +224,24 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           </div>
         </section>
 
-        {/* ENTER STUDIO CTA. */}
+        {/* CTAs — ENTER STUDIO primary, VIEW SKYLINE secondary, plus the real-sample shortcut. */}
         <section style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-          <Link
-            href="/studio"
-            className="btn btn-primary"
-            style={{ textDecoration: "none", fontSize: 14, padding: "16px 40px", letterSpacing: "0.14em" }}
-          >
-            Enter Studio
-          </Link>
+          <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14 }}>
+            <Link
+              href="/studio"
+              className="btn btn-primary"
+              style={{ textDecoration: "none", fontSize: 14, padding: "16px 40px", letterSpacing: "0.14em" }}
+            >
+              Enter Studio
+            </Link>
+            <Link
+              href="/skyline"
+              className="btn"
+              style={{ textDecoration: "none", fontSize: 14, padding: "16px 40px", letterSpacing: "0.14em" }}
+            >
+              View Skyline
+            </Link>
+          </div>
           <Link
             href="/studio"
             className="btn"

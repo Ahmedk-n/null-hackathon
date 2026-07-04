@@ -8,6 +8,15 @@ A CAD tool for thinking treats a decision as a **load-bearing structure**: the L
 shape, and a deterministic solver decides whether the structure stands — which assumption is the
 keystone, which constraints it violates, and how it fails under load.
 
+Keystone is the full CAD loop — **DESIGN · TEST · ASSEMBLE**:
+
+- **DESIGN** — state a goal; three rival structures are synthesized under different strategy lenses
+  and stress-tested under identical load. The solver picks the survivor.
+- **TEST** — interrogate the survivor: grounded load, an adversarial **wind tunnel** (two agents
+  argue, a deterministic solver referees), and the minimal de-risking plan.
+- **ASSEMBLE** — every decision joins the **skyline**; shared foundations reveal which single
+  assumption props up multiple structures — where systemic risk hides.
+
 ## Manifesto → mechanism
 
 The track names four properties of thought. Keystone renders each as engineering geometry:
@@ -18,6 +27,14 @@ The track names four properties of thought. Keystone renders each as engineering
 | **Beliefs have dependencies** | The graph is an **AND/OR dependency network**. Support propagates from evidence up through assumptions and claims to the thesis; knock out a support and the loss ripples along the real edges. |
 | **Plans have load-bearing assumptions** | A pure solver finds the **keystone** — the single assumption whose removal costs the most integrity — via knockout sensitivity, then computes the **minimal reinforcement set** that heals the structure. |
 | **Taste has geometry** | The Z-axis encodes **reasoning depth**, not decoration. Strata descend `L0 THESIS → L1 CLAIMS → L2 ASSUMPTIONS → L3 EVIDENCE`. Grounded assumptions rest on evidence **plates**; ungrounded ones **float** with nothing beneath them. A `DEPTH n/4 · GROUNDED m/k` metric reads the shape as judgment quality. |
+
+The v6 loop adds three mechanics on top of that geometry:
+
+| Mechanic | What Keystone builds |
+|---|---|
+| **Generative design** | One goal yields **rival candidates** — three structures under different **strategy lenses** (AGGRESSIVE / CONSERVATIVE / HYBRID), stress-tested under identical grounded load. The pure engine ranks them by integrity; the survivor wins. The LLM never ranks. |
+| **Wind tunnel** | An **adversarial interrogation** of one structure: a PROSECUTOR agent proposes novel attacks, an ADVOCATE agent counters with evidence, and the pure solver **referees** every round — its verdict cannot be overridden. Agents propose; only the referee moves numbers. |
+| **Skyline** | The whole library rendered as one **assembly** — each decision a building, **shared foundations** as columns beneath. Cracking one foundation re-verdicts every structure resting on it, exposing systemic risk. |
 
 ## The honest architecture claim
 
@@ -43,17 +60,20 @@ and **pinned as fixtures**, so R replays deterministically offline while every c
 R baseline integrity **52.6%**, keystone `team_has_backend_capacity`, 5 constraint planes,
 evidence coverage **6/6**.
 
-## Demo script (60 seconds)
+## Demo script (90 seconds)
 
-1. **R → Analyse.** Strata assemble on the canvas; grounded assumptions land on evidence plates,
-   the ungrounded one floats.
-2. **Apply Load (raw).** Attacks hit the structure; integrity drops to **15.8%** but the keystone
-   **holds**.
-3. **Ground in Context.** The `roadmap meeting in 2 days` evidence sharpens the attack (0.50 → 0.70):
-   the keystone **cracks**, a constraint plane shows `VIOLATED`, and a causal callout cites a **real
-   source**.
-4. **Reinforce.** The solver returns the **minimal** set of supports; the structure heals.
-5. **Timeline.** A `FAILS IN N DAYS` readout dates the collapse.
+1. **DESIGN — type the goal.** In the DESIGN tab, state *"win enterprise collaboration revenue
+   without burning the team"* and GENERATE RIVALS. Three structures assemble, then collapse
+   **simultaneously** under identical grounded load until one stands. Open the survivor in the studio.
+2. **TEST — grounded load.** The `roadmap meeting in 2 days` evidence sharpens the attacks; the
+   keystone **cracks**, a constraint plane shows `VIOLATED`, and a causal callout cites a **real
+   source**. The solver returns the **minimal** de-risking set that heals it.
+3. **TEST — wind tunnel (2 rounds).** PROSECUTOR proposes a novel attack, the solver referees,
+   ADVOCATE counters with a pack citation, the solver referees again. The transcript reads
+   `PROSECUTOR ▶ / SOLVER ■ / ADVOCATE ◀`; the session clone lands on `STANDS` or `FALLS`.
+4. **ASSEMBLE — skyline crack.** Open `/skyline`: every saved decision is a building, shared
+   foundations columns beneath. Crack one foundation — the buildings resting on it re-verdict and
+   drop: `1 ASSUMPTION FEEDS N STRUCTURES · M COLLAPSE`.
 
 ## How to run
 
