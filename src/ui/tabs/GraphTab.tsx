@@ -1,5 +1,6 @@
 "use client";
 import { useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { keystoneStore, useKeystone } from "@/store/useKeystone";
 // GRAPH shows the CLEAN STANDING structure — baseline numbers come straight from the
 // pure engine on the base graph, never the store's post-stress (workingGraph) selectors.
@@ -14,6 +15,32 @@ import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { SelectionPanel } from "@/ui/SelectionPanel";
 import { LedgerRow, SectionHeader, Field, EmptyCanvas } from "@/ui/primitives";
 import type { ContextWeightAdjustment } from "@/context";
+
+// V9-2 · TRUE 3D leg. Lazy-loaded (ssr:false) so the ~26MB three.js bundle only loads when
+// the 3D view is actually chosen — it never bloats the initial studio load and never runs on
+// the server (three.js needs a real WebGL/DOM context). A calm placeholder holds the frame
+// while the chunk streams in.
+const Keystone3D = dynamic(() => import("@/canvas/Keystone3D"), {
+  ssr: false,
+  loading: () => (
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "var(--muted)",
+        fontFamily: "var(--mono)",
+        fontSize: 11,
+        letterSpacing: "0.14em",
+        textTransform: "uppercase",
+      }}
+    >
+      Loading 3D…
+    </div>
+  ),
+});
 
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
 const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
@@ -43,19 +70,22 @@ const RIGHT: React.CSSProperties = {
   background: "var(--panel)",
 };
 
-// V4-1 — PLAN ⟷ SECTION segmented control (replaces the old TILT checkbox). SECTION is
-// the perspective strata view; PLAN is a top-down flat inspection. Terminal/ledger
-// styling: uppercase tracked .mono labels, hairline frame, zero radius.
+// V4-1 · PLAN ⟷ SECTION segmented control (replaces the old TILT checkbox); V9-2 adds a
+// third segment — **3D** — the true react-three-fiber orbit view. PLAN is a top-down flat
+// inspection, SECTION the 2.5D perspective strata, 3D a real WebGL scene. Terminal/ledger
+// styling: uppercase tracked .mono labels, hairline frame, zero radius. SECTION is disabled
+// in Band 1 (flat); 3D is always available (it renders whatever standing graph is present).
+type ViewMode = "plan" | "section" | "3d";
 function DepthViewToggle({
-  section,
+  mode,
   flat,
   onChange,
 }: {
-  section: boolean;
+  mode: ViewMode;
   flat: boolean;
-  onChange: (section: boolean) => void;
+  onChange: (mode: ViewMode) => void;
 }) {
-  const seg = (active: boolean): React.CSSProperties => ({
+  const seg = (active: boolean, disabled: boolean): React.CSSProperties => ({
     flex: 1,
     padding: "7px 8px",
     fontFamily: "var(--mono)",
@@ -63,12 +93,12 @@ function DepthViewToggle({
     letterSpacing: "0.12em",
     textTransform: "uppercase",
     textAlign: "center",
-    cursor: flat ? "default" : "pointer",
+    cursor: disabled ? "default" : "pointer",
     border: "none",
     borderRadius: 0,
     background: active ? "var(--ink)" : "transparent",
     color: active ? "var(--bg)" : "var(--muted)",
-    opacity: flat ? 0.5 : 1,
+    opacity: disabled ? 0.5 : 1,
   });
   return (
     <div>
@@ -78,26 +108,39 @@ function DepthViewToggle({
       >
         <button
           type="button"
-          aria-pressed={!section}
-          disabled={flat}
-          onClick={() => onChange(false)}
-          style={seg(!section)}
+          aria-pressed={mode === "plan"}
+          onClick={() => onChange("plan")}
+          style={seg(mode === "plan", false)}
         >
           Plan
         </button>
         <button
           type="button"
-          aria-pressed={section}
+          aria-pressed={mode === "section"}
           disabled={flat}
-          onClick={() => onChange(true)}
-          style={seg(section)}
+          onClick={() => onChange("section")}
+          style={seg(mode === "section", flat)}
         >
           Section
         </button>
+        <button
+          type="button"
+          data-testid="view-3d"
+          aria-pressed={mode === "3d"}
+          onClick={() => onChange("3d")}
+          style={seg(mode === "3d", false)}
+        >
+          3D
+        </button>
       </div>
-      {flat && (
+      {flat && mode !== "3d" && (
         <div className="label" style={{ marginTop: 4, fontSize: 10, color: "var(--muted)" }}>
           Band 1 · flat plan only
+        </div>
+      )}
+      {mode === "3d" && (
+        <div className="label" style={{ marginTop: 4, fontSize: 10, color: "var(--muted)" }}>
+          Drag to orbit · scroll to zoom
         </div>
       )}
     </div>
@@ -107,12 +150,21 @@ function DepthViewToggle({
 // V9-1 — VIEW control. Hosts the render mode (PLAN / SECTION today; a 3D option plugs in
 // here in V9-2) plus a DETAIL toggle. The render-mode seam is deliberately isolated so the
 // 3D leg can be added without disturbing PLAN/SECTION or the DETAIL disclosure.
-function DetailToggle({ detail, onChange }: { detail: boolean; onChange: (v: boolean) => void }) {
+function DetailToggle({
+  detail,
+  disabled = false,
+  onChange,
+}: {
+  detail: boolean;
+  disabled?: boolean;
+  onChange: (v: boolean) => void;
+}) {
   return (
     <button
       type="button"
       data-testid="detail-toggle"
       aria-pressed={detail}
+      disabled={disabled}
       onClick={() => onChange(!detail)}
       style={{
         marginTop: 8,
@@ -123,11 +175,12 @@ function DetailToggle({ detail, onChange }: { detail: boolean; onChange: (v: boo
         letterSpacing: "0.12em",
         textTransform: "uppercase",
         textAlign: "center",
-        cursor: "pointer",
+        cursor: disabled ? "default" : "pointer",
         border: "1px solid var(--hair-strong)",
         borderRadius: 0,
-        background: detail ? "var(--ink)" : "transparent",
-        color: detail ? "var(--bg)" : "var(--muted)",
+        background: detail && !disabled ? "var(--ink)" : "transparent",
+        color: detail && !disabled ? "var(--bg)" : "var(--muted)",
+        opacity: disabled ? 0.5 : 1,
       }}
     >
       {detail ? "Detail · On" : "Detail · Off"}
@@ -228,6 +281,11 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   // failed marker); DETAIL reveals the chrome (stratum labels, constraint rail, force arrows)
   // and the per-node evidence/confidence. Clicking a node always fills the SelectionPanel.
   const [detail, setDetail] = useState(false);
+  // V9-2 — TRUE 3D leg. When true the center board swaps the 2.5D KeystoneCanvas for the
+  // lazy-loaded <Keystone3D> react-three-fiber scene (native orbit/zoom/pan). The 2.5D-only
+  // affordances (PLAN/SECTION tilt, DETAIL chrome, stratum focus) are inert in 3D, so they
+  // disable while it's active. Local to the GRAPH surface; STRESS is untouched.
+  const [is3D, setIs3D] = useState(false);
 
   // V4-1 — DEPTH metric + the strata actually present (drives the focus buttons).
   const depth = useMemo(() => (displayGraph ? analysisDepth(displayGraph) : null), [displayGraph]);
@@ -342,22 +400,33 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           <SectionHeader>View</SectionHeader>
           {(() => {
             const flat = stats.mode === "simple-2d";
+            // In Band 1 SECTION is disabled, so the effective non-3D mode is always PLAN there.
+            const mode: "plan" | "section" | "3d" = is3D ? "3d" : tilt && !flat ? "section" : "plan";
             return (
               <>
-                {/* V9-2 SEAM — render-mode control. Today PLAN/SECTION; the 3D leg slots in
-                    alongside these two without touching the DETAIL disclosure below. */}
+                {/* V9-2 — render-mode control: PLAN / SECTION (2.5D) / 3D (react-three-fiber).
+                    Selecting 3D swaps the center board for the lazy <Keystone3D> scene; PLAN and
+                    SECTION drive the store `tilt`. The DETAIL disclosure below is 2.5D-only, so
+                    it disables in 3D. */}
                 <DepthViewToggle
-                  section={tilt && !flat}
+                  mode={mode}
                   flat={flat}
-                  onChange={(s) => {
-                    keystoneStore.getState().setTilt(s);
+                  onChange={(next) => {
+                    if (next === "3d") {
+                      setIs3D(true);
+                      return;
+                    }
+                    setIs3D(false);
+                    const section = next === "section";
+                    keystoneStore.getState().setTilt(section);
                     // Leaving SECTION clears focus so nodes never stay stuck-dimmed while
                     // the (now disabled) focus buttons can't reset it.
-                    if (!s) setFocusLayer(null);
+                    if (!section) setFocusLayer(null);
                   }}
                 />
                 <DetailToggle
                   detail={detail}
+                  disabled={is3D}
                   onChange={(v) => {
                     setDetail(v);
                     // Turning DETAIL off clears any stratum focus so nodes never stay dimmed
@@ -368,10 +437,10 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
                 <StratumFocus
                   strata={strata}
                   focusLayer={focusLayer}
-                  disabled={flat || !tilt || !detail}
+                  disabled={flat || !tilt || !detail || is3D}
                   onFocus={setFocusLayer}
                 />
-                {detail && depth && (
+                {!is3D && detail && depth && (
                   <>
                     <LedgerRow label="Depth" value={`${depth.strata}/4 strata`} />
                     <LedgerRow
@@ -404,27 +473,40 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
         </div>
       </div>
 
-      {/* CENTER — 3D adaptive canvas */}
+      {/* CENTER — adaptive board. PLAN/SECTION render the 2.5D KeystoneCanvas; 3D swaps in the
+          lazy react-three-fiber scene (native orbit/zoom/pan — its own controls replace the 2D
+          zoom buttons). Both read the SAME standing base graph + keystone; failures stay empty
+          on GRAPH. Selecting a node in 3D drives the SAME SelectionPanel via setSelectedNode. */}
       <div style={{ flex: 1, minWidth: 0 }}>
-        <KeystoneCanvas
-          graph={displayGraph}
-          keystoneId={keystoneId}
-          // Standing structure: no failures, no glow/buckle/LOAD arrows, no constraint
-          // STRIKES. Planes still render as un-violated standing datums (on-brand).
-          failures={EMPTY_SET}
-          tilt={tilt}
-          focusLayer={focusLayer}
-          loadApplied={false}
-          attacks={NO_ATTACKS}
-          rawAttacks={NO_ATTACKS}
-          contextAdjustments={contextAdjustments}
-          constraintPlanes={planes}
-          buildKey={baseGraph}
-          onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
-          fitSignal={fitSignal}
-          detail={detail}
-          selectedId={selectedNodeId}
-        />
+        {is3D ? (
+          <Keystone3D
+            graph={displayGraph}
+            keystoneId={keystoneId}
+            failures={EMPTY_SET}
+            selectedId={selectedNodeId}
+            onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
+          />
+        ) : (
+          <KeystoneCanvas
+            graph={displayGraph}
+            keystoneId={keystoneId}
+            // Standing structure: no failures, no glow/buckle/LOAD arrows, no constraint
+            // STRIKES. Planes still render as un-violated standing datums (on-brand).
+            failures={EMPTY_SET}
+            tilt={tilt}
+            focusLayer={focusLayer}
+            loadApplied={false}
+            attacks={NO_ATTACKS}
+            rawAttacks={NO_ATTACKS}
+            contextAdjustments={contextAdjustments}
+            constraintPlanes={planes}
+            buildKey={baseGraph}
+            onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
+            fitSignal={fitSignal}
+            detail={detail}
+            selectedId={selectedNodeId}
+          />
+        )}
       </div>
 
       {/* RIGHT — SELECTION + ENCODING */}

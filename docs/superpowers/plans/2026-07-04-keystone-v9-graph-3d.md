@@ -18,7 +18,7 @@ Decisions: minimalism = progressive disclosure + strip chrome (no new agent); 3D
 
 ## Wave 2 (after V9-1 — plugs into the reworked VIEW control)
 
-### V9-2 · True 3D view (react-three-fiber)
+### V9-2 ✅ True 3D view — react-three-fiber Keystone3D: nodes as boxes on the depth strata (thesis top -> assumptions on grid floor), keystone red-emissive, drei Line edges, Html billboard labels (no CDN font), OrbitControls; lazy next/dynamic ssr:false (studio First Load stays 140kB); WebGL fallback notice; PLAN/SECTION/3D VIEW control. 526 pass, build 0.
 - [ ] Add deps: `three`, `@react-three/fiber`, `@react-three/drei`. Client-only (dynamic import with ssr:false — no SSR/hydration).
 - [ ] New `src/canvas/Keystone3D.tsx`: render the decision graph in real 3D — nodes as 3D objects positioned on the depth strata (thesis high → evidence low, reuse depth.ts elevations + dagre x/y mapped to 3D), edges as lines, keystone highlighted, failed nodes styled; OrbitControls (rotate/zoom/pan). Deterministic layout; labels as billboards/drei Text or html. Reads the same graph/keystone/failures the 2.5D canvas uses (standing structure on GRAPH per the earlier fix).
 - [ ] GraphTab VIEW control gains a **3D** option alongside PLAN/SECTION; selecting it swaps the board for Keystone3D. Lazy-load so the 3D bundle only loads when chosen.
