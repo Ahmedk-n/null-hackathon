@@ -15,8 +15,25 @@ import {
   INK_2,
   MUTED,
   HAIR_STRONG,
+  OK,
+  WARN,
 } from "@/ui/tokens";
 import { LAYER_Z as STRATUM_Z, EVIDENCE_Z, KEYSTONE_Z_BUMP } from "./depth";
+
+// V9-1 · minimalist node box — smaller/cleaner than the old 200×72. The evidence plate,
+// crack overlay and ungrounded drop derive their offsets from these so the box can shrink
+// without re-authoring the geometry.
+const NODE_W = 200;
+const NODE_H = 56;
+
+// V9-1 · a single integrity/status dot replaces the always-on confidence readout at rest.
+// green = grounded/high, amber = soft, red = weak or failed.
+function statusColor(confidence: number, isFailed: boolean): string {
+  if (isFailed) return BAD;
+  if (confidence >= 0.66) return OK;
+  if (confidence >= 0.4) return WARN;
+  return BAD;
+}
 
 /**
  * Causal callout attached to the keystone when it cracks (W1-5). Sourced from real
@@ -69,6 +86,19 @@ export interface StructuralNodeData {
   dimmed?: boolean;
   /** V4-1 · fade this node's evidence plate when a non-evidence stratum is focused. */
   plateDimmed?: boolean;
+  /**
+   * V9-1 · PROGRESSIVE DISCLOSURE. When false (the minimal GRAPH default) the node
+   * shows only a short label + a status dot + the keystone/failed marker; the confidence
+   * number, evidence plate and ungrounded drop stay HIDDEN (the full detail lives in the
+   * SelectionPanel). Defaults true so STRESS and the existing canvas contract keep the
+   * rich rendering.
+   */
+  detail?: boolean;
+  /**
+   * V9-1 · this node is the current selection — expands its confidence inline and draws a
+   * selection ring even while the board is in minimal (detail-off) mode.
+   */
+  selected?: boolean;
   [key: string]: unknown;
 }
 
@@ -86,7 +116,15 @@ const FALL_EASE = [0.7, 0, 0.84, 0] as const;
 export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const [hover, setHover] = useState(false);
 
+  // V9-1 · progressive disclosure. `detail` (the global DETAIL toggle) reveals the full
+  // node; a `selected` node expands inline even while the board stays minimal. At rest
+  // the board is quiet: dot + label + keystone/failed marker only.
+  const showDetail = data.detail ?? true;
+  const selected = data.selected ?? false;
+  const expand = showDetail || selected;
+
   const accent = data.isKeystone ? KEYSTONE : ACCENT[data.type];
+  const dotColor = statusColor(data.confidence, data.isFailed);
   const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? KEYSTONE_Z_BUMP : 0);
   // V4-1 — stratum focus dims the strata you're not inspecting.
   const dimmed = data.dimmed ?? false;
@@ -150,17 +188,22 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
             ? { duration: 0.5, delay: buildDelay, ease: [0.22, 1, 0.36, 1] }
             : { duration: 0.4, ease: "easeOut" }
       }
+      data-expanded={expand ? "true" : undefined}
       style={{
         transformStyle: "preserve-3d",
         position: "relative",
-        width: 200,
-        height: 72,
+        width: NODE_W,
+        height: NODE_H,
         border: `1px solid ${accent}`,
         borderLeft: `3px solid ${accent}`,
         background: data.isFailed ? BAD_BG : PANEL,
         boxShadow: data.isFailed ? failedShadow : restingShadow,
+        // V9-1 · a selected node draws a calm ring so the board still reads which node the
+        // SelectionPanel is describing, without adding on-canvas text.
+        outline: selected && !data.isFailed ? `1.5px solid ${accent}` : undefined,
+        outlineOffset: 2,
         filter: hover && !data.isFailed ? "brightness(1.04)" : "none",
-        padding: 8,
+        padding: 7,
         boxSizing: "border-box",
         color: INK,
       }}
@@ -176,7 +219,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         style={{
           display: "flex",
           justifyContent: "space-between",
-          alignItems: "baseline",
+          alignItems: "center",
           fontFamily: "var(--sans)",
           fontSize: 9,
           fontWeight: 600,
@@ -185,19 +228,41 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
           color: accent,
         }}
       >
-        <span>{data.isFailed ? "FAILED" : data.isKeystone ? "KEYSTONE" : data.type}</span>
-        <span
-          className="mono"
-          style={{ fontSize: 10, color: data.isFailed ? BAD : MUTED }}
-        >
-          {data.confidence.toFixed(2)}
+        <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
+          {/* V9-1 · integrity/status dot — the always-on health signal (green/amber/red). */}
+          <span
+            data-testid="node-status-dot"
+            aria-hidden
+            style={{
+              width: 7,
+              height: 7,
+              borderRadius: "50%",
+              background: dotColor,
+              flex: "0 0 auto",
+            }}
+          />
+          {/* Keystone/failed are load-bearing signals — always shown. The plain type label
+              only appears once the node is expanded, so a resting board stays quiet. */}
+          {(data.isFailed || data.isKeystone || expand) && (
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {data.isFailed ? "FAILED" : data.isKeystone ? "KEYSTONE" : data.type}
+            </span>
+          )}
         </span>
+        {expand && (
+          <span
+            className="mono"
+            style={{ fontSize: 10, color: data.isFailed ? BAD : MUTED, flex: "0 0 auto" }}
+          >
+            {data.confidence.toFixed(2)}
+          </span>
+        )}
       </div>
       <div
         style={{
           fontFamily: "var(--sans)",
           fontSize: 12,
-          marginTop: 6,
+          marginTop: 4,
           lineHeight: 1.25,
           // Clamp to 2 lines so a long label can't spill past the 72px box toward the
           // evidence plate below. Keep the clamp on the LABEL only — putting overflow
@@ -227,7 +292,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       {/* V4-1 — evidence stratum (L3). A grounded assumption drops a source-plate onto
           the evidence plane below it; an ungrounded assumption floats over nothing.
           V5-3 — a human-MODIFIED node detaches its plate: the cited fact no longer backs it. */}
-      {data.type === "assumption" && data.evidence != null && data.evidence.length > 0 && data.provenance !== "modified" && (
+      {showDetail && data.type === "assumption" && data.evidence != null && data.evidence.length > 0 && data.provenance !== "modified" && (
         <EvidencePlate
           evidence={data.evidence}
           zDelta={plateZDelta}
@@ -238,7 +303,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
           dimmed={data.plateDimmed ?? false}
         />
       )}
-      {data.type === "assumption" && data.evidence === null && !data.isFailed && (
+      {showDetail && data.type === "assumption" && data.evidence === null && !data.isFailed && (
         <UngroundedDrop hover={hover} dimmed={data.plateDimmed ?? false} />
       )}
 
@@ -257,9 +322,10 @@ function CrackOverlay({ strength, drawDelay = 0 }: { strength: number; drawDelay
   ];
   return (
     <svg
-      width={200}
-      height={72}
+      width={NODE_W}
+      height={NODE_H}
       viewBox="0 0 200 72"
+      preserveAspectRatio="none"
       style={{ position: "absolute", inset: 0, pointerEvents: "none", overflow: "visible" }}
     >
       {lines.map((l, i) => (
@@ -339,7 +405,7 @@ function CausalCalloutTag({
       transition={{ duration: 0.4, delay: appearDelay, ease: "easeOut" }}
       style={{
         position: "absolute",
-        left: 200,
+        left: NODE_W,
         top: -10,
         width: 214,
         display: "flex",
@@ -416,7 +482,7 @@ function EvidencePlate({
         position: "absolute",
         left: 0,
         right: 0,
-        top: 72,
+        top: NODE_H,
         transform: `translateZ(${zDelta}px)`,
         transformStyle: "preserve-3d",
         pointerEvents: "none",
@@ -502,7 +568,7 @@ function UngroundedDrop({ hover, dimmed }: { hover: boolean; dimmed: boolean }) 
       style={{
         position: "absolute",
         left: "50%",
-        top: 72,
+        top: NODE_H,
         transform: "translateX(-50%)",
         pointerEvents: "none",
         opacity: dimmed ? 0.3 : 0.85,

@@ -47,6 +47,10 @@ export interface MiniReadout {
 
 const ROLE_ACCENT: Record<MiniRole, string> = { thesis: THESIS, claim: CLAIM, assumption: MUTED };
 
+// A one-glyph role code for COMPACT (thumbnail) nodes — boxes too small to hold a wrapped
+// label without garbling. Keeps the structure legible as typed, keystone-highlighted blocks.
+const ROLE_GLYPH: Record<MiniRole, string> = { thesis: "T", claim: "C", assumption: "A" };
+
 // Crack polylines drawn across the keystone box when it fails (self-drawing via a CSS
 // strokeDashoffset transition). 3 lines, expressed in the keystone box's own coordinate space.
 const CRACKS = ["10,0 30,20 20,30 44,44", "60,0 72,18 68,44", "38,4 50,24 46,44"];
@@ -79,7 +83,10 @@ export function layoutStructure(
   ): MiniPlaced[] => {
     const n = list.length;
     const spacing = width / (n + 1);
-    const w = Math.min(baseW, Math.max(44, spacing * 0.92));
+    // Width tracks the row's spacing so boxes NEVER overlap, even for dense rows
+    // (e.g. the 9-assumption context graph). Capped at baseW for sparse rows, floored
+    // so a box stays wide enough to hold its compact role glyph.
+    const w = Math.max(22, Math.min(baseW, spacing * 0.86));
     return list.map((node, i) => ({
       id: node.id,
       role: node.type as MiniRole,
@@ -279,10 +286,21 @@ export function MiniStructure({
                 ? "0 0 26px 4px rgba(178,58,46,0.85)"
                 : "inset 0 0 0 1px rgba(178,58,46,0.35), 0 0 12px 0 rgba(178,58,46,0.4)"
               : "0 6px 12px rgba(26,26,21,0.10)";
+            // COMPACT = a thumbnail box too small to hold a wrapped label legibly
+            // (the auto-laid structures: rivals, studio graphs). It shows a single,
+            // centered role glyph instead of a clipped/garbled tag+label. Tall
+            // hand-placed boxes (the hero) stay in the full tag + label mode.
+            const compact = n.h < 40;
+            const fontSize = n.role === "thesis" ? 12 : 10;
+            const lineHeightPx = fontSize * 1.2;
+            // Lines that fit under the tag row within the box (full mode only).
+            const maxLines = Math.max(1, Math.floor((n.h - 22) / lineHeightPx));
             return (
               <div
                 key={n.id}
                 data-node={n.id}
+                data-failed={failed ? "true" : undefined}
+                title={n.label}
                 style={{
                   position: "absolute",
                   left: n.cx - n.w / 2,
@@ -293,38 +311,67 @@ export function MiniStructure({
                   borderLeft: `3px solid ${accent}`,
                   background: failed ? "#f6ecea" : PANEL,
                   boxShadow: glow,
-                  padding: "5px 7px",
+                  padding: compact ? "2px 3px" : "5px 7px",
                   boxSizing: "border-box",
                   overflow: "hidden",
+                  display: compact ? "flex" : undefined,
+                  alignItems: compact ? "center" : undefined,
+                  justifyContent: compact ? "center" : undefined,
                   opacity: shown ? (failed ? 0.55 : 1) : 0,
                   transform: shown ? "translateY(0)" : "translateY(12px)",
                   transition:
                     "opacity 0.45s ease, transform 0.45s cubic-bezier(0.22,1,0.36,1), border-color 0.3s ease, box-shadow 0.3s ease, background 0.3s ease",
                 }}
               >
-                <span
-                  style={{
-                    fontFamily: "var(--sans)",
-                    fontSize: 8,
-                    fontWeight: 600,
-                    letterSpacing: "0.12em",
-                    textTransform: "uppercase",
-                    color: accent,
-                  }}
-                >
-                  {failed ? "FAILED" : n.tag}
-                </span>
-                <div
-                  style={{
-                    fontFamily: "var(--sans)",
-                    fontSize: n.role === "thesis" ? 12 : 10,
-                    lineHeight: 1.2,
-                    marginTop: 2,
-                    color: INK,
-                  }}
-                >
-                  {n.label}
-                </div>
+                {compact ? (
+                  <span
+                    aria-label={n.tag}
+                    style={{
+                      fontFamily: "var(--sans)",
+                      fontSize: Math.min(14, Math.max(9, n.w * 0.32)),
+                      fontWeight: 700,
+                      lineHeight: 1,
+                      color: accent,
+                    }}
+                  >
+                    {failed ? "✕" : isKey ? "◆" : ROLE_GLYPH[n.role]}
+                  </span>
+                ) : (
+                  <>
+                    <span
+                      style={{
+                        display: "block",
+                        fontFamily: "var(--sans)",
+                        fontSize: 8,
+                        fontWeight: 600,
+                        letterSpacing: "0.12em",
+                        textTransform: "uppercase",
+                        color: accent,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {failed ? "FAILED" : n.tag}
+                    </span>
+                    <div
+                      style={{
+                        fontFamily: "var(--sans)",
+                        fontSize,
+                        lineHeight: 1.2,
+                        marginTop: 2,
+                        color: INK,
+                        display: "-webkit-box",
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: maxLines,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {n.label}
+                    </div>
+                  </>
+                )}
 
                 {/* Keystone cracks — self-draw when the keystone fails. */}
                 {isKey && (

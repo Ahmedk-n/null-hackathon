@@ -5,14 +5,14 @@ Decisions: minimalism = progressive disclosure + strip chrome (no new agent); 3D
 
 ## Wave 1 (parallel, disjoint)
 
-### V9-1 · Minimalist, expandable graph (declutter + progressive disclosure)
+### V9-1 ✅ Minimalist, expandable graph — nodes minimal by default (label+status dot), full detail on click (SelectionPanel), constraint rail/strata/force-arrows behind a DETAIL toggle, thinner edges/calmer grid, 200x56 boxes; PLAN/SECTION VIEW control with a 3D seam. 521 pass.
 - [ ] `src/canvas/StructuralNode.tsx`: node shows MINIMAL by default — short label + a small integrity/keystone dot; the confidence number, evidence plate, quantities, rationale, source excerpt are HIDDEN until the node is expanded (click to expand/collapse, or expand the selected node). Keep the keystone glow + failed/crack states. Much less text on the board at rest.
 - [ ] `src/canvas/KeystoneCanvas.tsx`: declutter — the constraint rail, stratum L0–L3 labels, force arrows, and dense overlays become TOGGLEABLE (default to a clean minimal board; a small "DETAIL" / layer toggle reveals them). Thin the edges, calmer grid. Reduce simultaneous on-screen text.
 - [ ] `src/ui/tabs/GraphTab.tsx`: a clean VIEW control that will host PLAN / SECTION (existing) and later 3D (V9-2); a DETAIL toggle for the chrome; keep zoom controls. The ledger/rail stays but trimmed of low-value rows.
 - [ ] Verbosity: audit the GRAPH surface for redundant labels/rows and cut. Keep it deterministic; keep T10/canvas tests green (retarget deliberately where the default-hidden change moves assertions).
 - Files: src/canvas/{StructuralNode,KeystoneCanvas}.tsx, src/ui/tabs/GraphTab.tsx, canvas tests.
 
-### V9-3 · Landing graph labels (isolated)
+### V9-3 ✅ Landing graph labels — MiniStructure layout widths no longer overlap in dense rows; compact glyph mode for tiny boxes; hero labels line-clamp+ellipsis (no clip). Legible in all phases.
 - [ ] Fix the unreadable/broken labels in the landing graph visuals — `src/landing/MiniStructure.tsx` / `src/ui/MiniStructure.tsx` (whichever the landing hero + SystemAtWork use) + `src/landing/MiniCollapseHero.tsx` + `src/landing/SystemAtWork.tsx`. Labels must be legible (size, truncation, no overlap, no clipping). Screenshot-verify the landing.
 - Files: src/landing/**, src/ui/MiniStructure.tsx (only if landing-owned rendering).
 

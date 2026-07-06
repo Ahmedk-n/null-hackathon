@@ -104,6 +104,37 @@ function DepthViewToggle({
   );
 }
 
+// V9-1 — VIEW control. Hosts the render mode (PLAN / SECTION today; a 3D option plugs in
+// here in V9-2) plus a DETAIL toggle. The render-mode seam is deliberately isolated so the
+// 3D leg can be added without disturbing PLAN/SECTION or the DETAIL disclosure.
+function DetailToggle({ detail, onChange }: { detail: boolean; onChange: (v: boolean) => void }) {
+  return (
+    <button
+      type="button"
+      data-testid="detail-toggle"
+      aria-pressed={detail}
+      onClick={() => onChange(!detail)}
+      style={{
+        marginTop: 8,
+        width: "100%",
+        padding: "7px 8px",
+        fontFamily: "var(--mono)",
+        fontSize: 10,
+        letterSpacing: "0.12em",
+        textTransform: "uppercase",
+        textAlign: "center",
+        cursor: "pointer",
+        border: "1px solid var(--hair-strong)",
+        borderRadius: 0,
+        background: detail ? "var(--ink)" : "transparent",
+        color: detail ? "var(--bg)" : "var(--muted)",
+      }}
+    >
+      {detail ? "Detail · On" : "Detail · Off"}
+    </button>
+  );
+}
+
 // V4-1 — stratum focus buttons: ALL · L0 · L1 · L2 · L3 (only the strata present).
 // Selecting a level dims the other strata on the canvas and nudges the camera toward it.
 function StratumFocus({
@@ -193,6 +224,10 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const [minConf, setMinConf] = useState(0);
   // V4-1 — stratum focus (L0..L3), local to the GRAPH inspection surface. null = ALL.
   const [focusLayer, setFocusLayer] = useState<number | null>(null);
+  // V9-1 — DETAIL disclosure. The board is MINIMAL by default (label + status dot + keystone/
+  // failed marker); DETAIL reveals the chrome (stratum labels, constraint rail, force arrows)
+  // and the per-node evidence/confidence. Clicking a node always fills the SelectionPanel.
+  const [detail, setDetail] = useState(false);
 
   // V4-1 — DEPTH metric + the strata actually present (drives the focus buttons).
   const depth = useMemo(() => (displayGraph ? analysisDepth(displayGraph) : null), [displayGraph]);
@@ -252,7 +287,6 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
             }
           />
           <LedgerRow label="Keystone" value={keystoneId ?? "—"} accent="var(--keystone)" />
-          <LedgerRow label="Layout Mode" value={stats.mode} />
           <LedgerRow
             label="Weakest Assumption"
             value={stats.weakest ? stats.weakest.confidence.toFixed(2) : "—"}
@@ -299,16 +333,19 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           <LedgerRow label="Matches" value={`${matches.length} / ${stats.nodeCount}`} />
         </div>
 
-        {/* V4-1 — DEPTH VIEW: PLAN (top-down flat) ⟷ SECTION (perspective strata), plus
-            stratum focus (L0..L3) that dims the other strata and nudges the camera. The
-            Z-axis now ENCODES reasoning depth, not decoration. Band 1 (simple-2d) renders
-            PLAN-only, so SECTION + focus are muted there. */}
+        {/* V9-1 — VIEW: the render mode (PLAN top-down ⟷ SECTION perspective strata; a 3D
+            option plugs in here in V9-2) + the DETAIL disclosure toggle. The board stays
+            MINIMAL by default; DETAIL reveals the stratum labels, constraint rail, force
+            arrows and per-node evidence. Stratum focus is a DETAIL affordance (it dims the
+            strata chrome), so it's disabled until DETAIL is on. Band 1 renders PLAN-only. */}
         <div>
-          <SectionHeader>Depth View</SectionHeader>
+          <SectionHeader>View</SectionHeader>
           {(() => {
             const flat = stats.mode === "simple-2d";
             return (
               <>
+                {/* V9-2 SEAM — render-mode control. Today PLAN/SECTION; the 3D leg slots in
+                    alongside these two without touching the DETAIL disclosure below. */}
                 <DepthViewToggle
                   section={tilt && !flat}
                   flat={flat}
@@ -319,13 +356,22 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
                     if (!s) setFocusLayer(null);
                   }}
                 />
+                <DetailToggle
+                  detail={detail}
+                  onChange={(v) => {
+                    setDetail(v);
+                    // Turning DETAIL off clears any stratum focus so nodes never stay dimmed
+                    // while the (now disabled) focus buttons can't reset it.
+                    if (!v) setFocusLayer(null);
+                  }}
+                />
                 <StratumFocus
                   strata={strata}
                   focusLayer={focusLayer}
-                  disabled={flat || !tilt}
+                  disabled={flat || !tilt || !detail}
                   onFocus={setFocusLayer}
                 />
-                {depth && (
+                {detail && depth && (
                   <>
                     <LedgerRow label="Depth" value={`${depth.strata}/4 strata`} />
                     <LedgerRow
@@ -376,6 +422,8 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           buildKey={baseGraph}
           onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
           fitSignal={fitSignal}
+          detail={detail}
+          selectedId={selectedNodeId}
         />
       </div>
 

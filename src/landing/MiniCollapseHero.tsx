@@ -51,16 +51,17 @@ const EMPTY: ReadonlySet<string> = new Set();
 // language: hairline edges, mono role tags, red keystone glow + cracks, small
 // integrity numeral). Coordinates are in a fixed 700×340 stage. ──────────────
 const NODES: MiniPlaced[] = [
-  // L2 · assumptions (appear first, bottom-up)
-  { id: "k_credible", role: "assumption", tag: "KEYSTONE", label: "Credible staged plan by meeting", cx: 142, cy: 258, w: 96, h: 44, appear: 4 },
-  { id: "a_obs", role: "assumption", tag: "ASSUMPTION", label: "Enough observability", cx: 246, cy: 258, w: 92, h: 44, appear: 8 },
-  { id: "a_audit", role: "assumption", tag: "ASSUMPTION", label: "Auditability over purity", cx: 350, cy: 258, w: 92, h: 44, appear: 12 },
-  { id: "a_bound", role: "assumption", tag: "ASSUMPTION", label: "Clean service boundaries", cx: 454, cy: 258, w: 92, h: 44, appear: 16 },
-  { id: "a_load", role: "assumption", tag: "ASSUMPTION", label: "Uneven load across features", cx: 558, cy: 258, w: 92, h: 44, appear: 20 },
+  // L2 · assumptions (appear first, bottom-up). Spread across the full stage width and
+  // sized tall enough to hold each label in two lines without clipping.
+  { id: "k_credible", role: "assumption", tag: "KEYSTONE", label: "Credible staged plan by meeting", cx: 62, cy: 258, w: 108, h: 52, appear: 4 },
+  { id: "a_obs", role: "assumption", tag: "ASSUMPTION", label: "Enough observability", cx: 206, cy: 258, w: 108, h: 52, appear: 8 },
+  { id: "a_audit", role: "assumption", tag: "ASSUMPTION", label: "Auditability over purity", cx: 350, cy: 258, w: 108, h: 52, appear: 12 },
+  { id: "a_bound", role: "assumption", tag: "ASSUMPTION", label: "Clean service boundaries", cx: 494, cy: 258, w: 108, h: 52, appear: 16 },
+  { id: "a_load", role: "assumption", tag: "ASSUMPTION", label: "Uneven load across features", cx: 638, cy: 258, w: 108, h: 52, appear: 20 },
   // L1 · claims
-  { id: "c_exec", role: "claim", tag: "CLAIM", label: "Execute safely near-term", cx: 150, cy: 145, w: 120, h: 46, appear: 26 },
-  { id: "c_reliab", role: "claim", tag: "CLAIM", label: "Meets enterprise reliability", cx: 340, cy: 145, w: 120, h: 46, appear: 30 },
-  { id: "c_roi", role: "claim", tag: "CLAIM", label: "Migration ROI justifies it", cx: 510, cy: 145, w: 120, h: 46, appear: 34 },
+  { id: "c_exec", role: "claim", tag: "CLAIM", label: "Execute safely near-term", cx: 150, cy: 145, w: 120, h: 52, appear: 26 },
+  { id: "c_reliab", role: "claim", tag: "CLAIM", label: "Meets enterprise reliability", cx: 340, cy: 145, w: 120, h: 52, appear: 30 },
+  { id: "c_roi", role: "claim", tag: "CLAIM", label: "Migration ROI justifies it", cx: 510, cy: 145, w: 120, h: 52, appear: 34 },
   // L0 · thesis
   { id: "T", role: "thesis", tag: "THESIS", label: "Migrate to microservices", cx: 340, cy: 32, w: 168, h: 48, appear: 40 },
 ];

@@ -85,6 +85,8 @@ describe("MiniStructure (renderer)", () => {
       />,
     );
     const keyBox = container.querySelector(`[data-node="${keyId}"]`)!;
-    expect(keyBox.textContent).toMatch(/FAILED/);
+    // Auto-laid (thumbnail) nodes render compact — the failed state is carried on the
+    // node's data attribute (and its red styling) rather than a clipped "FAILED" word.
+    expect(keyBox.getAttribute("data-failed")).toBe("true");
   });
 });

@@ -100,6 +100,86 @@ describe("KeystoneCanvas (V4-1 depth view — supersedes T10 tilt)", () => {
   });
 });
 
+// V9-1 — MINIMALIST / PROGRESSIVE DISCLOSURE. The board is minimal when `detail={false}`:
+// the L0..L3 stratum chrome, the constraint rail, the force arrows and every per-node
+// evidence plate / ungrounded drop are HIDDEN, and each node renders just a status dot +
+// label + keystone/failed marker. DETAIL (`detail` defaults true, or the GRAPH toggle sets
+// it) brings the full chrome back. A `selectedId` node expands inline (data-expanded) even
+// while the rest of the board stays minimal, so clicking reveals detail without un-quieting
+// the whole board. This is the founder's "minimalist + expandable" contract.
+describe("KeystoneCanvas (V9-1 minimalist board — detail off by default on GRAPH)", () => {
+  it("hides the stratum chrome, evidence plates and ungrounded drops when detail is off", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} detail={false} />,
+    );
+    expect(container.querySelector("[data-testid='stratum-chrome']")).toBeNull();
+    expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(0);
+    expect(container.querySelectorAll("[data-testid='ungrounded-drop']").length).toBe(0);
+  });
+
+  it("hides the constraint rail when detail is off, even though planes are supplied", () => {
+    const planes: ConstraintPlane[] = [
+      { id: "con_time", label: "TIME · CREDIBLE PLAN NEEDED…", categories: ["timeline", "execution"] },
+    ];
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        constraintPlanes={planes}
+        detail={false}
+      />,
+    );
+    expect(container.querySelector("[data-testid='constraint-planes']")).toBeNull();
+  });
+
+  it("hides the force arrows when detail is off, even under load", () => {
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        loadApplied
+        detail={false}
+      />,
+    );
+    expect(container.querySelector("[data-testid='force-arrows']")).toBeNull();
+  });
+
+  it("renders one status dot per node in the minimal board", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} detail={false} />,
+    );
+    expect(container.querySelectorAll("[data-testid='node-status-dot']").length).toBe(
+      graph.nodes.length,
+    );
+  });
+
+  it("brings the chrome + plates back when detail is on (the DETAIL toggle)", () => {
+    const { container } = render(
+      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} detail />,
+    );
+    expect(container.querySelector("[data-testid='stratum-chrome']")).not.toBeNull();
+    expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(6);
+  });
+
+  it("expands ONLY the selected node inline while the rest of the board stays minimal", () => {
+    const { container } = render(
+      <KeystoneCanvas
+        graph={graph}
+        keystoneId="k_credible"
+        failures={new Set()}
+        detail={false}
+        selectedId="a_load"
+      />,
+    );
+    // The keystone is always marked (its marker is a load-bearing signal) but not "expanded";
+    // only the selected node carries data-expanded in the minimal board.
+    const expanded = container.querySelectorAll("[data-expanded='true']");
+    expect(expanded.length).toBe(1);
+  });
+});
+
 describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
   // V7-1 · every scenario fixture is now Band 2 (≥9 nodes), so the Band-1 flat-mode
   // contract is exercised against a small inline graph (thesis + 2 claims + 3 leaf

@@ -170,6 +170,8 @@ export function KeystoneCanvas({
   buildKey,
   onSelect,
   fitSignal,
+  detail = true,
+  selectedId = null,
 }: {
   graph: Graph;
   keystoneId: string | null;
@@ -203,6 +205,16 @@ export function KeystoneCanvas({
   buildKey?: object | null;
   onSelect?: (id: string) => void;
   fitSignal?: number;
+  /**
+   * V9-1 · MINIMALIST BOARD. When false, the board strips its chrome — the L0..L3 stratum
+   * labels, the constraint rail and the force arrows are hidden, and each node renders
+   * minimal (label + status dot + keystone/failed marker only). The GRAPH tab drives this
+   * false by default and reveals it with a DETAIL toggle; STRESS keeps the default (true)
+   * so its collapse chrome (force arrows, constraint strikes, evidence plates) is intact.
+   */
+  detail?: boolean;
+  /** V9-1 · the selected node id — expanded inline + ringed even while the board is minimal. */
+  selectedId?: string | null;
 }) {
   const effectiveLoadApplied = loadApplied ?? failures.size > 0;
 
@@ -213,8 +225,9 @@ export function KeystoneCanvas({
   // (tilt=false) is a top-down flat inspection with no perspective.
   const flat = pickLayoutMode(graph.nodes.length) === "simple-2d";
   const section = tilt && !flat;
-  // Constraints docked → the board reserves a right gutter for the rail.
-  const hasPlanes = constraintPlanes.length > 0;
+  // Constraints docked → the board reserves a right gutter for the rail. In the minimal
+  // (detail-off) board the rail is hidden, so no gutter is reserved and nodes use the full width.
+  const hasPlanes = detail && constraintPlanes.length > 0;
 
   // W1-6a — play the assembly build-in only the first time we see this graph identity.
   const buildIdentity: object = buildKey ?? graph;
@@ -268,6 +281,8 @@ export function KeystoneCanvas({
           evidenceDropDelay: EVIDENCE_DROP_DELAY,
           dimmed,
           plateDimmed,
+          detail,
+          selected: n.id === selectedId,
         },
       };
     });
@@ -281,8 +296,10 @@ export function KeystoneCanvas({
             source: childId,
             target: parent.id,
             style: {
-              stroke: fromKeystone ? KEYSTONE : HAIR_STRONG,
-              strokeWidth: fromKeystone ? 2.5 : 1.5,
+              // V9-1 · thinner, calmer support edges; the keystone load-path stays a touch
+              // heavier so it still reads as the spine without shouting.
+              stroke: fromKeystone ? KEYSTONE : HAIR,
+              strokeWidth: fromKeystone ? 1.8 : 1,
             },
             animated: fromKeystone,
           });
@@ -300,6 +317,8 @@ export function KeystoneCanvas({
     rawAttacks,
     contextAdjustments,
     focusLayer,
+    detail,
+    selectedId,
   ]);
 
   // V4-1 — the strata present in this graph (drives the stratum chrome). Evidence
@@ -432,13 +451,16 @@ export function KeystoneCanvas({
             nodesDraggable={!section}
             proOptions={{ hideAttribution: true }}
           >
-            {/* W3-1 — ruled CAD graph paper: fine minor grid + a coarser major grid. */}
-            <Background id="grid-fine" variant={BackgroundVariant.Lines} gap={26} color={HAIR} />
+            {/* W3-1 — ruled CAD graph paper. V9-1 calms it: the fine grid only rules in the
+                DETAIL board; at rest a single faint major grid keeps the paper quiet. */}
+            {detail && (
+              <Background id="grid-fine" variant={BackgroundVariant.Lines} gap={26} color={HAIR} />
+            )}
             <Background
               id="grid-coarse"
               variant={BackgroundVariant.Lines}
               gap={130}
-              color={HAIR_STRONG}
+              color={detail ? HAIR_STRONG : HAIR}
             />
             <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} />
             {/* FIX 2 — zoom in/out/fit buttons, restyled to the terminal/CAD aesthetic
@@ -450,20 +472,28 @@ export function KeystoneCanvas({
               fitViewOptions={fitOptionsFor(hasPlanes)}
             />
           </ReactFlow>
-          {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
-          <StratumChrome strata={strata} focusLayer={focusLayer} />
-          {/* V4-2 — constraint boundary planes, DOCKED in the right gutter (never over nodes). */}
-          <ConstraintFrame
-            planes={constraintPlanes}
-            strikes={strikes}
-            active={effectiveLoadApplied}
-            targetPoints={targetPoints}
-          />
-          <ForceArrows
-            arrows={forceArrows}
-            x0={hasPlanes ? BOARD_X0 : 12}
-            x1={hasPlanes ? BOARD_RIGHT_PCT : 88}
-          />
+          {/* V9-1 — chrome is DETAIL-only. The minimal board hides the L0..L3 stratum labels,
+              the constraint rail and the force arrows so the structure reads at a glance; the
+              DETAIL toggle brings them back. The keystone glow + crack/failure visuals live on
+              the nodes themselves, so the important signals survive minimal mode. */}
+          {detail && (
+            <>
+              {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
+              <StratumChrome strata={strata} focusLayer={focusLayer} />
+              {/* V4-2 — constraint boundary planes, DOCKED in the right gutter (never over nodes). */}
+              <ConstraintFrame
+                planes={constraintPlanes}
+                strikes={strikes}
+                active={effectiveLoadApplied}
+                targetPoints={targetPoints}
+              />
+              <ForceArrows
+                arrows={forceArrows}
+                x0={hasPlanes ? BOARD_X0 : 12}
+                x1={hasPlanes ? BOARD_RIGHT_PCT : 88}
+              />
+            </>
+          )}
         </div>
       </motion.div>
     </motion.div>
