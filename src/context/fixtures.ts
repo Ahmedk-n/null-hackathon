@@ -758,16 +758,60 @@ export function fixtureDesignCandidatesR(): DesignCandidateFixture[] {
  * ════════════════════════════════════════════════════════════════════════ */
 export type ScenarioId = "A" | "B" | "R";
 
+/**
+ * The AGENT SOURCE seed for a scenario — the per-kind input fields the AgentGather
+ * component shows (repo URL / branch, website / competitors, temporal notes). A pinned
+ * scenario carries the REAL source values it was generated from, so selecting it prefills
+ * those fields with actual data (not blank) — the judge sees where the research came from
+ * without typing anything. Fields align 1:1 with AgentGather's local state; any kind may be
+ * omitted (then that kind's fields stay empty). CUSTOM carries no sources (all blank / live).
+ */
+export interface ScenarioSourceSeed {
+  technical?: { repoUrl?: string; branch?: string };
+  business?: { website?: string; competitors?: string[] };
+  temporal?: { notes?: string };
+}
+
 export interface ScenarioMeta {
   id: ScenarioId;
   label: string;
   input: ContextInput;
+  /** Real source-field values this scenario was gathered from (prefilled in AgentGather). */
+  sources?: ScenarioSourceSeed;
 }
 
 export const SCENARIOS: Record<ScenarioId, ScenarioMeta> = {
-  R: { id: "R", label: "R — EXCALIDRAW · REAL", input: REAL_CONTEXT_INPUT },
-  A: { id: "A", label: "A — Migrate before pilot (collapses)", input: HERO_CONTEXT_INPUT },
-  B: { id: "B", label: "B — Reinforce first (holds)", input: REINFORCE_CONTEXT_INPUT },
+  // R sources are VERBATIM from the live run (scripts/scenario-r.artifacts.json): the technical
+  // agent cloned github.com/excalidraw/excalidraw@master, the business agent crawled
+  // excalidraw.com + the three competitors, the temporal agent parsed the roadmap notes.
+  R: {
+    id: "R",
+    label: "R — EXCALIDRAW · REAL",
+    input: REAL_CONTEXT_INPUT,
+    sources: {
+      technical: { repoUrl: "https://github.com/excalidraw/excalidraw", branch: "master" },
+      business: { website: "https://excalidraw.com", competitors: ["tldraw", "Figma FigJam", "Miro"] },
+      temporal: {
+        notes:
+          "Excalidraw+ subscription growth has been flat for two quarters. Competitor tldraw just raised a $10M Series A and is shipping a realtime collaboration SDK aggressively. Internal team planning meeting on the collaboration roadmap is in 2 days. A conference talk on our collaboration story has a submission deadline in 3 weeks. The next quarterly board update covering the monetization plan is in 6 weeks.",
+      },
+    },
+  },
+  // A / B are illustrative fintech scenarios with no real repo/website to point at, so only the
+  // temporal notes are seeded (the raw agenda a founder would paste) — technical/business fields
+  // stay empty, which is honest for a hypothetical company.
+  A: {
+    id: "A",
+    label: "A — Migrate before pilot (collapses)",
+    input: HERO_CONTEXT_INPUT,
+    sources: { temporal: { notes: HERO_CONTEXT_INPUT.temporalContextText } },
+  },
+  B: {
+    id: "B",
+    label: "B — Reinforce first (holds)",
+    input: REINFORCE_CONTEXT_INPUT,
+    sources: { temporal: { notes: REINFORCE_CONTEXT_INPUT.temporalContextText } },
+  },
 };
 
 export function isScenarioId(v: unknown): v is ScenarioId {

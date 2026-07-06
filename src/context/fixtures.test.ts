@@ -17,6 +17,7 @@ import {
   fixtureContextGraphR,
   fixtureContextAttacksR,
   fixtureDecisionContextPackR,
+  SCENARIOS,
 } from "./fixtures";
 import { reweightAttacksByContext } from "./weights";
 import { pickLayoutMode } from "@/canvas/layout";
@@ -243,5 +244,29 @@ describe("scenario R (Excalidraw · real) fixture — grounded collapse, partial
     expect(integrity(reweighted)).toBeLessThan(integrity(raw));
     expect(detectFailures(raw).has("team_has_backend_capacity")).toBe(false);
     expect(detectFailures(reweighted).has("team_has_backend_capacity")).toBe(true);
+  });
+});
+
+describe("scenario source seeds (real agent-input prefill)", () => {
+  it("carries the REAL Excalidraw source values on scenario R", () => {
+    const s = SCENARIOS.R.sources;
+    expect(s?.technical?.repoUrl).toBe("https://github.com/excalidraw/excalidraw");
+    expect(s?.technical?.branch).toBe("master");
+    expect(s?.business?.website).toBe("https://excalidraw.com");
+    expect(s?.business?.competitors).toEqual(["tldraw", "Figma FigJam", "Miro"]);
+    // Real temporal notes mention the 2-day roadmap meeting and tldraw's raise.
+    expect(s?.temporal?.notes).toMatch(/roadmap/i);
+    expect(s?.temporal?.notes).toMatch(/tldraw/i);
+    expect(s?.temporal?.notes).toMatch(/2 days/i);
+  });
+
+  it("seeds only the temporal notes for the illustrative A / B scenarios", () => {
+    for (const id of ["A", "B"] as const) {
+      const s = SCENARIOS[id].sources;
+      expect(s?.temporal?.notes).toBe(SCENARIOS[id].input.temporalContextText);
+      // No fabricated repo/website for a hypothetical company.
+      expect(s?.technical).toBeUndefined();
+      expect(s?.business).toBeUndefined();
+    }
   });
 });

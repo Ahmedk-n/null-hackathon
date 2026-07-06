@@ -363,6 +363,9 @@ export function ContextTab({
 
   function ContextPane({ kind }: { kind: GatherKind }) {
     const manual = MANUAL[kind];
+    // The pinned scenario's REAL source values for this kind (blank on CUSTOM). Keyed on `mode`
+    // so an explicit scenario switch re-seeds the source fields, mirroring the manual textareas.
+    const seed = mode === "custom" ? undefined : SCENARIOS[mode].sources?.[kind];
     return (
       <div style={PANE}>
         <div style={COL}>
@@ -370,6 +373,8 @@ export function ContextTab({
               direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
           <AgentGather
             kind={kind}
+            seed={seed}
+            seedKey={mode}
             onSummary={(s) => manual.set(mergeSummary(manual.value, s))}
             onFindings={(facts) => onGatherFindings?.(kind, facts)}
           />

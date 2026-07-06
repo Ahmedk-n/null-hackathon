@@ -71,24 +71,58 @@ function SourceChip({ source }: { source: "live" | "fixture" }) {
   );
 }
 
+/** The prefilled source-field values for a scenario (fields align 1:1 with the local inputs). */
+export interface AgentSeed {
+  repoUrl?: string;
+  branch?: string;
+  website?: string;
+  /** Prefilled as a comma-joined string (buildSource splits it back apart). */
+  competitors?: string[];
+  notes?: string;
+}
+
 export function AgentGather({
   kind,
   onSummary,
   onFindings,
+  seed,
+  seedKey,
 }: {
   kind: GatherKind;
   onSummary: (summary: string) => void;
   /** V3-8: lifts the gathered facts so live extraction can ground confidences (V3-6). */
   onFindings?: (facts: GatherFinding[]) => void;
+  /** Prefilled real source values for the active scenario (blank when CUSTOM / absent). */
+  seed?: AgentSeed;
+  /** Changes when the scenario changes — the trigger to RE-SEED the fields (mirrors how the
+   *  manual textareas re-seed on an explicit mode click). Editing a source field is purely
+   *  local, so it never trips the ContextTab edit-flip that drops the scenario pin. */
+  seedKey?: string;
 }) {
   const { events, findings, running, run } = useAgentStream();
 
-  // Per-kind source inputs (local state).
-  const [repoUrl, setRepoUrl] = useState("");
-  const [branch, setBranch] = useState("");
-  const [website, setWebsite] = useState("");
-  const [competitors, setCompetitors] = useState("");
-  const [notes, setNotes] = useState("");
+  // Per-kind source inputs (local state) — initialised from the scenario seed so a pinned
+  // demo shows the REAL source values (blank for CUSTOM / an unseeded kind).
+  const [repoUrl, setRepoUrl] = useState(seed?.repoUrl ?? "");
+  const [branch, setBranch] = useState(seed?.branch ?? "");
+  const [website, setWebsite] = useState(seed?.website ?? "");
+  const [competitors, setCompetitors] = useState(seed?.competitors?.join(", ") ?? "");
+  const [notes, setNotes] = useState(seed?.notes ?? "");
+
+  // RE-SEED when the scenario changes. Keyed on `seedKey` (the mode id) — NOT on `seed`'s
+  // object identity, which the parent recreates every render and would clobber user edits.
+  // `seed` is read fresh here but intentionally excluded from deps for that reason.
+  const seededRef = useRef(seedKey);
+  useEffect(() => {
+    if (seededRef.current === seedKey) return; // skip the mount pass; state already seeded
+    seededRef.current = seedKey;
+    setRepoUrl(seed?.repoUrl ?? "");
+    setBranch(seed?.branch ?? "");
+    setWebsite(seed?.website ?? "");
+    setCompetitors(seed?.competitors?.join(", ") ?? "");
+    setNotes(seed?.notes ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [seedKey]);
 
   // Surface the summary to the parent when the agent finishes. Keep the latest
   // callback in a ref so the effect fires purely on `findings` changing.

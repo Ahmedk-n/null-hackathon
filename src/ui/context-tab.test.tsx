@@ -139,6 +139,59 @@ describe("ContextTab (R3-UI static structure)", () => {
     expect(decision).toBeTruthy();
   });
 
+  // ── Excalidraw (R) source fields are PREFILLED with real data ───────────
+  it("prefills the AgentGather source fields with the real Excalidraw values on mode R", () => {
+    const { container } = render(
+      <ContextTab onAnalyse={() => {}} analysing={false} mode="R" onModeChange={() => {}} />,
+    );
+    // BUSINESS pane (default sub-tab): website + competitors prefilled from the scenario sources.
+    const findInput = (val: string) =>
+      [...container.querySelectorAll("input, textarea")].find(
+        (el) => (el as HTMLInputElement).value === val,
+      );
+    expect(findInput(SCENARIOS.R.sources!.business!.website!)).toBeTruthy();
+    expect(findInput("https://excalidraw.com")).toBeTruthy();
+    expect(findInput(SCENARIOS.R.sources!.business!.competitors!.join(", "))).toBeTruthy();
+
+    // TECHNICAL pane: repo URL + branch prefilled.
+    fireEvent.click(container.querySelector('[data-tab="technical"]')!);
+    expect(findInput("https://github.com/excalidraw/excalidraw")).toBeTruthy();
+    expect(findInput("master")).toBeTruthy();
+
+    // TEMPORAL pane: the real roadmap notes prefilled.
+    fireEvent.click(container.querySelector('[data-tab="temporal"]')!);
+    expect(findInput(SCENARIOS.R.sources!.temporal!.notes!)).toBeTruthy();
+  });
+
+  it("re-seeds the source fields when switching to R, and clears them on CUSTOM", () => {
+    // Start on custom (blank source fields), then switch to R → fields fill with real data.
+    let mode: "R" | "custom" = "custom";
+    const { container, rerender } = render(
+      <ContextTab
+        onAnalyse={() => {}}
+        analysing={false}
+        mode={mode}
+        onModeChange={(m) => (mode = m as "R" | "custom")}
+      />,
+    );
+    const website = () =>
+      ([...container.querySelectorAll("input")].find((i) =>
+        (i as HTMLInputElement).placeholder?.includes("acme"),
+      ) as HTMLInputElement | undefined)?.value;
+    expect(website()).toBe(""); // custom → blank
+
+    rerender(
+      <ContextTab onAnalyse={() => {}} analysing={false} mode="R" onModeChange={() => {}} />,
+    );
+    expect(website()).toBe("https://excalidraw.com");
+
+    // …and switching back to custom re-blanks them.
+    rerender(
+      <ContextTab onAnalyse={() => {}} analysing={false} mode="custom" onModeChange={() => {}} />,
+    );
+    expect(website()).toBe("");
+  });
+
   // ── V3-5 · mode chip ────────────────────────────────────────────────────
   it("shows a PINNED · SCENARIO A chip on mode A and CUSTOM · LIVE on custom", () => {
     const pinned = render(
