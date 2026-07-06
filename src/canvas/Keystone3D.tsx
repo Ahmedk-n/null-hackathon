@@ -275,6 +275,14 @@ function Node({
   const emissive = isFailed ? 0.55 : isKeystone ? 0.6 : selected ? 0.4 : hover ? 0.28 : 0.06;
   const cardW = isKeystone ? 196 : 168;
 
+  // PROGRESSIVE DISCLOSURE — the crux of decluttering 13 nodes. A node shows its FULL info card
+  // only when it is the load-bearing apex (keystone, always), the SELECTED node (SelectionPanel
+  // target), or HOVERED. Every other node shows a low-profile compact chip (short label + status
+  // dot + support %), so the default frame carries ~1–2 full cards and 11 tiny chips instead of
+  // 13 colliding cards. All the data still lives on each node — a click promotes it to full.
+  const full = isKeystone || selected || hover;
+  const shortLabel = node.label.length > 24 ? node.label.slice(0, 23).trimEnd() + "…" : node.label;
+
   return (
     <group position={pos}>
       <mesh
@@ -329,19 +337,68 @@ function Node({
         </mesh>
       )}
 
-      {/* Billboard info card — DOM via drei <Html>, so it reuses the CAD fonts/tokens with NO
-          network font (troika <Text> would fetch Roboto → breaks offline/CSP). pointerEvents
-          off → it never steals an OrbitControls drag; distanceFactor shrinks distant cards so
-          the scene declutters as you orbit out. The node MESH is the click target. */}
-      <Html
-        center
-        distanceFactor={17}
-        position={[0, radius + 0.7, 0]}
-        pointerEvents="none"
-        zIndexRange={[100, 0]}
-        prepend
-      >
-        <div
+      {/* COMPACT CHIP (default) — a low-profile, always-camera-facing label: status dot + short
+          label + support %. Small enough that 11 of them coexist without colliding. DOM via drei
+          <Html> so it reuses the CAD fonts/tokens with NO network font. pointerEvents off → never
+          steals an OrbitControls drag; the node MESH is the click target. Higher distanceFactor
+          than the full card → physically smaller in-scene. */}
+      {!full && (
+        <Html
+          center
+          distanceFactor={22}
+          position={[0, radius + 0.45, 0]}
+          pointerEvents="none"
+          zIndexRange={[40, 0]}
+          prepend
+        >
+          <div
+            style={{
+              transform: "translateY(-50%)",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+              whiteSpace: "nowrap",
+              fontFamily: "var(--sans)",
+              background: `${PANEL}f2`,
+              border: `1px solid ${HAIR_STRONG}`,
+              borderLeft: `3px solid ${bandColor}`,
+              padding: "2px 6px",
+              userSelect: "none",
+              pointerEvents: "none",
+              opacity: 0.94,
+            }}
+          >
+            <span
+              style={{ width: 7, height: 7, background: bandColor, display: "inline-block", flex: "0 0 auto" }}
+            />
+            <span style={{ fontSize: 10.5, fontWeight: 600, color: INK }}>{shortLabel}</span>
+            <span
+              style={{
+                fontFamily: "var(--mono)",
+                fontSize: 8.5,
+                letterSpacing: "0.04em",
+                color: MUTED,
+              }}
+            >
+              {Math.round(support * 100)}%
+            </span>
+          </div>
+        </Html>
+      )}
+
+      {/* FULL info card — shown only for the keystone (always), the selected node, or on hover.
+          Full wrapped label, CONF + SUPPORT meters, status, keystone knock-out reason, top
+          evidence source + quote, notes. distanceFactor shrinks distant cards as you orbit out. */}
+      {full && (
+        <Html
+          center
+          distanceFactor={17}
+          position={[0, radius + 0.7, 0]}
+          pointerEvents="none"
+          zIndexRange={[100, 0]}
+          prepend
+        >
+          <div
           style={{
             width: cardW,
             transform: "translateY(-50%)",
@@ -474,8 +531,9 @@ function Node({
               </div>
             </div>
           )}
-        </div>
-      </Html>
+          </div>
+        </Html>
+      )}
     </group>
   );
 }
@@ -727,7 +785,10 @@ export default function Keystone3D({
           // frameloop="demand" — render only on interaction/invalidate (OrbitControls damping
           // drives its own invalidations), so the 3D view is idle-cheap and non-animated at rest.
           frameloop="demand"
-          camera={{ position: [11, 6.5, 21], fov: 45 }}
+          // Elevated 3/4 default framing: raised on +Y and offset on +X so the strata separate
+          // (thesis high → assumptions low) and the whole WORLD_W×WORLD_H structure fits, looking
+          // slightly down the depth fan rather than head-on. OrbitControls target stays at origin.
+          camera={{ position: [9, 14, 23], fov: 45 }}
           dpr={[1, 2]}
           gl={{ antialias: true }}
         >
