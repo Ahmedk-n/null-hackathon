@@ -507,3 +507,54 @@ button:focus-visible {
     animation: none !important;
   }
 }
+
+/* ── DESIGN tournament + I/O grids on mobile (M-2) ───────────────────── */
+/* The tournament (three rival structures) and the GOAL/CONSTRAINTS pair are
+   fixed multi-column grids inline; below ~700px there isn't room, so they
+   collapse to a single stacked column. `!important` is required because the
+   grid-template-columns lives on the elements' inline `style` prop, which
+   otherwise beats an external rule. DesignTab stays scrollable (its own root
+   is overflow:auto), so the stacked cards just extend the scroll. */
+@media (max-width: 700px) {
+  .design-tournament,
+  .design-io-grid {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── TopBar actions on mobile (M-2) ─────────────────────────────────── */
+/* Five actions (Skyline · Fit · Reset · Print Memo · Account) overflow a
+   390px header. Below ~640px the pushing spacer collapses and the cluster
+   claims the remaining width, scrolling horizontally (non-wrapping, buttons
+   don't shrink) instead of forcing page h-scroll — the same treatment the
+   StatusStrip got (T1). The 52px header height is unchanged (no wrap). */
+@media (max-width: 640px) {
+  .topbar-spacer {
+    display: none;
+  }
+  .topbar-actions {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .topbar-actions > * {
+    flex: 0 0 auto;
+  }
+}
+.topbar-actions {
+  scrollbar-width: none; /* Firefox */
+}
+.topbar-actions::-webkit-scrollbar {
+  display: none; /* Chromium/WebKit */
+}
+
+/* ── GRAPH / STRESS three-pane reflow (M-1) ─────────────────────────── */
+/* The heavy layout work is done in GraphTab/StressTab via the `useIsNarrow(820)`
+   hook (SSR-safe, defaults to desktop): below the breakpoint each tab swaps its
+   fixed rail·canvas·rail flex row for a single column whose ROOT is the scroll
+   container (necessary because <main> in KeystoneApp is overflow:hidden) — canvas
+   first with an explicit height, then a LEDGER/SELECTION (GRAPH) or ANALYSIS/CONTEXT
+   (STRESS) PaneSwitch, then the chosen full-width rail. The reflow is JS-driven (state
+   + a swapped rail, all inline styles), so it can't be expressed as a media query alone
+   — this note documents the seam; there is no layout CSS to add here. */

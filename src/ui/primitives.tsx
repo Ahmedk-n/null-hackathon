@@ -237,7 +237,9 @@ export function TopBar({
           </span>
         )}
       </div>
-      <div style={{ flex: 1 }} />
+      {/* M-2: the spacer collapses below ~640px (theme.css) so the actions row can claim the
+          remaining width and scroll internally instead of pushing the page wider than the viewport. */}
+      <div className="topbar-spacer" style={{ flex: 1 }} />
       {timestamp && (
         <span
           className="mono topbar-stamp"
@@ -246,7 +248,10 @@ export function TopBar({
           {formatStamp(timestamp)}
         </span>
       )}
-      {actions && <div style={{ display: "flex", gap: 8 }}>{actions}</div>}
+      {/* M-2: below ~640px this action cluster becomes a horizontally scrollable, non-wrapping
+          row (theme.css) — like the StatusStrip (T1) — so five buttons never force page h-scroll
+          and the 52px header height stays fixed. */}
+      {actions && <div className="topbar-actions" style={{ display: "flex", gap: 8 }}>{actions}</div>}
     </header>
   );
 }

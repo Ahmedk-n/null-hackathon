@@ -28,6 +28,9 @@ import { constraintPlanes } from "@/context/constraints";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
 import { SectionHeader, Button, EmptyCanvas, LedgerRow } from "@/ui/primitives";
+// M-1 — narrow-viewport reflow: below ~820px the fixed rail·canvas·rail row stacks into one
+// scrollable column (canvas first, an ANALYSIS/CONTEXT switch swaps the rails beneath it).
+import { useIsNarrow, PaneSwitch } from "@/ui/useIsNarrow";
 import type { ContextWeightAdjustment, DecisionContextPack } from "@/context";
 import type { ReinforcementPlan } from "@/engine";
 
@@ -975,11 +978,28 @@ export function StressTab({
   // Result panel render off this single `useLoadSummary` call — see the comment on that hook.
   const { summary: loadSummary, cascade: loadCascade } = useLoadSummary(baseGraph, attacks);
 
-  return (
-    <div style={{ display: "flex", height: "100%" }}>
-      {/* LEFT — VERDICT + ATTACK BASIS first (the "read this first" cluster), then the
-          attack/collapse/keystone/de-risk story, deep interrogation tools folded below. */}
-      <div style={RAIL}>
+  // M-1 — below ~820px the three-pane row reflows to a single scrollable column: canvas first
+  // (explicit height, since it can't be `flex:1` when stacked), then an ANALYSIS/CONTEXT switch
+  // that swaps which rail shows beneath it. Desktop (narrow === false, always so on the server
+  // and in jsdom) is untouched. `mobilePane` is inert on desktop where both rails render.
+  const narrow = useIsNarrow(820);
+  const [mobilePane, setMobilePane] = useState<"analysis" | "context">("analysis");
+  // Reflow styles. Narrow: full-width rails (fixed widths, min-widths, side borders dropped so
+  // nothing exceeds the viewport); canvas gets an explicit height (it can't be `flex:1` stacked).
+  const railStyle: React.CSSProperties = narrow
+    ? { ...RAIL, width: "100%", minWidth: 0, borderRight: "none", overflowY: "visible" }
+    : RAIL;
+  const rightStyle: React.CSSProperties = narrow
+    ? { ...RIGHT, width: "100%", minWidth: 0, borderLeft: "none", overflowY: "visible" }
+    : RIGHT;
+  const canvasStyle: React.CSSProperties = narrow
+    ? { height: "58vh", minHeight: 320, flex: "0 0 auto", position: "relative" }
+    : { flex: 1, minWidth: 0, position: "relative" };
+
+  // LEFT — VERDICT + ATTACK BASIS first (the "read this first" cluster), then the
+  // attack/collapse/keystone/de-risk story, deep interrogation tools folded below.
+  const leftRail = (
+      <div style={railStyle}>
         {/* T4 — VERDICT: one line, top of rail, same numbers as Load Result (never a second
             engine read — see `useLoadSummary`). */}
         <VerdictHeader loadApplied={loadApplied} baseGraph={baseGraph} summary={loadSummary} cascade={loadCascade} />
@@ -1070,9 +1090,11 @@ export function StressTab({
           <RerunControl />
         </CollapsibleSection>
       </div>
+  );
 
-      {/* CENTER — 3D adaptive canvas + integrity gauge overlay */}
-      <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+  // CENTER — 3D adaptive canvas + integrity gauge overlay
+  const canvasPane = (
+      <div style={canvasStyle}>
         {graph ? (
           <KeystoneCanvas
             graph={graph}
@@ -1103,9 +1125,11 @@ export function StressTab({
           <IntegrityGauge value={integrityValue} />
         </div>
       </div>
+  );
 
-      {/* RIGHT — CONTEXT USED + SUPPORT BREAKDOWN (why integrity is that number) */}
-      <div style={RIGHT}>
+  // RIGHT — CONTEXT USED + SUPPORT BREAKDOWN (why integrity is that number)
+  const rightRail = (
+      <div style={rightStyle}>
         {graph && <SupportBreakdownPanel graph={graph} keystoneId={keystoneId} />}
         {pack ? (
           <ContextUsedPanel pack={pack} source={source ?? "fixture"} />
@@ -1115,6 +1139,32 @@ export function StressTab({
           </div>
         )}
       </div>
+  );
+
+  // M-1 — narrow: canvas first, then the ANALYSIS/CONTEXT switch, then the chosen rail, all in
+  // one column the ROOT scrolls (root is overflow-y:auto here because <main> is overflow:hidden
+  // in KeystoneApp; without this the stacked column can't reach its bottom panel). Desktop keeps
+  // the original fixed rail·canvas·rail flex row, unchanged.
+  return narrow ? (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto" }}>
+      {canvasPane}
+      <div style={{ padding: "var(--pad) var(--pad) 0" }}>
+        <PaneSwitch
+          options={[
+            { id: "analysis", label: "Analysis" },
+            { id: "context", label: "Context" },
+          ]}
+          value={mobilePane}
+          onChange={setMobilePane}
+        />
+      </div>
+      {mobilePane === "analysis" ? leftRail : rightRail}
+    </div>
+  ) : (
+    <div style={{ display: "flex", height: "100%" }}>
+      {leftRail}
+      {canvasPane}
+      {rightRail}
     </div>
   );
 }

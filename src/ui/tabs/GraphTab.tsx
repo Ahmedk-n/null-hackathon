@@ -14,6 +14,9 @@ import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { SelectionPanel } from "@/ui/SelectionPanel";
 import { LedgerRow, SectionHeader, Field, EmptyCanvas } from "@/ui/primitives";
+// M-1 — narrow-viewport reflow: below ~820px the fixed rail·canvas·rail row stacks into one
+// scrollable column (canvas first, a LEDGER/SELECTION switch swaps the rails beneath it).
+import { useIsNarrow, PaneSwitch } from "@/ui/useIsNarrow";
 import type { ContextWeightAdjustment } from "@/context";
 
 // V9-2 · TRUE 3D leg. Lazy-loaded (ssr:false) so the ~26MB three.js bundle only loads when
@@ -286,6 +289,12 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   // affordances (PLAN/SECTION tilt, DETAIL chrome, stratum focus) are inert in 3D, so they
   // disable while it's active. Local to the GRAPH surface; STRESS is untouched.
   const [is3D, setIs3D] = useState(false);
+  // M-1 — below ~820px the three-pane row reflows to a single scrollable column: canvas first
+  // (explicit height, since it can't be `flex:1` when stacked), then a LEDGER/SELECTION switch
+  // that swaps which rail shows beneath it. Desktop (narrow === false, always so on the server
+  // and in jsdom) is untouched. `mobilePane` is inert on desktop where both rails render.
+  const narrow = useIsNarrow(820);
+  const [mobilePane, setMobilePane] = useState<"ledger" | "selection">("ledger");
 
   // V4-1 — DEPTH metric + the strata actually present (drives the focus buttons).
   const depth = useMemo(() => (displayGraph ? analysisDepth(displayGraph) : null), [displayGraph]);
@@ -327,10 +336,22 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
     return <EmptyCanvas />;
   }
 
-  return (
-    <div style={{ display: "flex", height: "100%" }}>
-      {/* LEFT — GRAPH LEDGER + FILTER + TILT */}
-      <div style={RAIL}>
+  // M-1 — reflow styles. Desktop: fixed rails + flex canvas. Narrow: full-width rails (the
+  // 340/300 widths, min-widths and side borders dropped so nothing exceeds the viewport) and a
+  // canvas with an explicit height (it can't be `flex:1` once stacked or it collapses to 0).
+  const railStyle: React.CSSProperties = narrow
+    ? { ...RAIL, width: "100%", minWidth: 0, borderRight: "none", overflowY: "visible" }
+    : RAIL;
+  const rightStyle: React.CSSProperties = narrow
+    ? { ...RIGHT, width: "100%", minWidth: 0, borderLeft: "none", overflowY: "visible" }
+    : RIGHT;
+  const canvasStyle: React.CSSProperties = narrow
+    ? { height: "58vh", minHeight: 320, flex: "0 0 auto" }
+    : { flex: 1, minWidth: 0 };
+
+  // LEFT — GRAPH LEDGER + FILTER + TILT
+  const leftRail = (
+      <div style={railStyle}>
         <div>
           <SectionHeader>Graph Ledger</SectionHeader>
           <LedgerRow label="Nodes" value={stats.nodeCount} />
@@ -480,12 +501,14 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           ))}
         </div>
       </div>
+  );
 
-      {/* CENTER — adaptive board. PLAN/SECTION render the 2.5D KeystoneCanvas; 3D swaps in the
-          lazy react-three-fiber scene (native orbit/zoom/pan — its own controls replace the 2D
-          zoom buttons). Both read the SAME standing base graph + keystone; failures stay empty
-          on GRAPH. Selecting a node in 3D drives the SAME SelectionPanel via setSelectedNode. */}
-      <div style={{ flex: 1, minWidth: 0 }}>
+  // CENTER — adaptive board. PLAN/SECTION render the 2.5D KeystoneCanvas; 3D swaps in the
+  // lazy react-three-fiber scene (native orbit/zoom/pan — its own controls replace the 2D
+  // zoom buttons). Both read the SAME standing base graph + keystone; failures stay empty
+  // on GRAPH. Selecting a node in 3D drives the SAME SelectionPanel via setSelectedNode.
+  const canvasPane = (
+      <div style={canvasStyle}>
         {is3D ? (
           <Keystone3D
             graph={displayGraph}
@@ -516,9 +539,11 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           />
         )}
       </div>
+  );
 
-      {/* RIGHT — SELECTION + ENCODING */}
-      <div style={RIGHT}>
+  // RIGHT — SELECTION + ENCODING
+  const rightRail = (
+      <div style={rightStyle}>
         <SelectionPanel
           graph={displayGraph}
           selectedNodeId={selectedNodeId}
@@ -531,6 +556,32 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           onDelete={(id) => keystoneStore.getState().deleteNode(id)}
         />
       </div>
+  );
+
+  // M-1 — narrow: canvas first, then the LEDGER/SELECTION switch, then the chosen rail, all in
+  // one column the ROOT scrolls (root is overflow-y:auto here because <main> is overflow:hidden
+  // in KeystoneApp; without this the stacked column can't reach its bottom panel). Desktop keeps
+  // the original fixed rail·canvas·rail flex row, unchanged.
+  return narrow ? (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto" }}>
+      {canvasPane}
+      <div style={{ padding: "var(--pad) var(--pad) 0" }}>
+        <PaneSwitch
+          options={[
+            { id: "ledger", label: "Ledger" },
+            { id: "selection", label: "Selection" },
+          ]}
+          value={mobilePane}
+          onChange={setMobilePane}
+        />
+      </div>
+      {mobilePane === "ledger" ? leftRail : rightRail}
+    </div>
+  ) : (
+    <div style={{ display: "flex", height: "100%" }}>
+      {leftRail}
+      {canvasPane}
+      {rightRail}
     </div>
   );
 }

@@ -194,8 +194,9 @@ export function DesignTab({
           load; the solver picks the survivor.
         </p>
 
-        {/* GOAL + CONSTRAINTS. */}
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap)" }}>
+        {/* GOAL + CONSTRAINTS. M-2: the `design-io-grid` class collapses this to one column
+            below ~700px (theme.css) so the two textareas don't cramp on a phone. */}
+        <div className="design-io-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap)" }}>
           <label style={{ display: "block" }}>
             <span className="label" style={{ display: "block", marginBottom: 5 }}>
               Goal
@@ -239,6 +240,7 @@ export function DesignTab({
         {verdicts && (
           <div
             data-testid="tournament"
+            className="design-tournament"
             style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--gap)", marginTop: 4 }}
           >
             {verdicts.map((v, idx) => {
