@@ -337,13 +337,9 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           <LedgerRow label="Links" value={stats.links} />
           <LedgerRow label="Assumptions" value={stats.assumptions.length} />
           <LedgerRow label="Claims" value={stats.claimCount} />
-          <LedgerRow
-            label="Integrity"
-            value={`${Math.round(integrityValue)}%`}
-            accent={
-              integrityValue >= 60 ? "var(--ok)" : integrityValue >= 35 ? "var(--warn)" : "var(--bad)"
-            }
-          />
+          {/* G-3 — the integrity % read-out lived here AND on the <IntegrityGauge> ring below
+              AND in the global StatusStrip: three copies of one number on one tab. Dropped the
+              rail row (the gauge is the visual signature; the StatusStrip keeps the number). */}
           <LedgerRow label="Keystone" value={keystoneId ?? "—"} accent="var(--keystone)" />
           <LedgerRow
             label="Weakest Assumption"
@@ -440,6 +436,18 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
                   disabled={flat || !tilt || !detail || is3D}
                   onFocus={setFocusLayer}
                 />
+                {/* G-3 — make the disabled FOCUS state self-explanatory. FOCUS dims the SECTION
+                    strata chrome, so it only lights up in SECTION + DETAIL; the caption names
+                    the missing prerequisite instead of leaving the buttons greyed with no why. */}
+                {!is3D && (flat || !tilt || !detail) && (
+                  <div className="label" style={{ marginTop: 4, fontSize: 10, color: "var(--muted)" }}>
+                    {flat
+                      ? "Focus needs Section · Band 1 is flat"
+                      : !tilt
+                        ? "Focus needs Section view"
+                        : "Focus needs Detail · On"}
+                  </div>
+                )}
                 {!is3D && detail && depth && (
                   <>
                     <LedgerRow label="Depth" value={`${depth.strata}/4 strata`} />

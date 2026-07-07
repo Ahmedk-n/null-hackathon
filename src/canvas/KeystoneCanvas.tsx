@@ -130,29 +130,55 @@ const BOARD_Y0 = 12; // top pad %
 const BOARD_Y1 = 90; // bottom pad %
 
 // fitView padding — when constraints are docked, reserve the right gutter so nodes never
-// extend under the rail; otherwise fall back to a symmetric 12% frame.
+// extend under the rail; otherwise fall back to a tight symmetric frame.
+// T3 — tightened 12% → 6% now the layout aspect matches the board: the wasted margin was
+// coming from the wide-and-short graph, not from padding, so the frame can hug the graph and
+// hand the reclaimed pixels to zoom (legibility).
 function fitPaddingFor(hasPlanes: boolean) {
   return hasPlanes
-    ? ({ top: "12%", bottom: "12%", left: `${BOARD_X0}%`, right: `${RIGHT_GUTTER_PCT}%` } as const)
-    : ("12%" as const);
+    ? ({ top: "6%", bottom: "6%", left: `${BOARD_X0}%`, right: `${RIGHT_GUTTER_PCT}%` } as const)
+    : ("6%" as const);
 }
 
-// FIX 2 — let smaller graphs fit LARGER (comfortable default text) while the padding that
-// keeps the keystone from clipping (left 12% / right gutter 15%) is untouched. The Controls
-// + wheel zoom are the real lever for the width-bound 13-node case.
-const FIT_MAX_ZOOM = 1.4;
+// T3 — the fit is WIDTH-bound for the 13-node graph, so this cap almost never binds; it only
+// governs small graphs (which may fill taller than wide). Raised 1.4 → 1.8 so a small
+// height-bound graph fills instead of floating tiny. The 13-node legibility win comes from the
+// rebalanced layout aspect (layout.ts) + the tighter padding above, not from this number —
+// the two prior "FIX 2" passes tuned this cap without moving the width-bound fit at all.
+const FIT_MAX_ZOOM = 1.8;
 function fitOptionsFor(hasPlanes: boolean) {
   return { padding: fitPaddingFor(hasPlanes), maxZoom: FIT_MAX_ZOOM } as const;
 }
 
-// Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action).
-// Lives inside <ReactFlow> so useReactFlow() resolves the flow instance context.
-function FitController({ fitSignal, hasPlanes }: { fitSignal?: number; hasPlanes: boolean }) {
+// Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action) OR whenever the
+// board mode changes (PLAN⟷SECTION, DETAIL on/off) — a mode switch reshapes the frame (SECTION
+// tilts, DETAIL docks the constraint gutter), so the default must re-fit to stay centered and
+// full without a manual FIT. Lives inside <ReactFlow> so useReactFlow() resolves the context.
+function FitController({
+  fitSignal,
+  hasPlanes,
+  section,
+}: {
+  fitSignal?: number;
+  hasPlanes: boolean;
+  section: boolean;
+}) {
   const { fitView } = useReactFlow();
+  // Explicit FIT action (TopBar) — animated.
   useEffect(() => {
     if (fitSignal === undefined) return;
     fitView({ ...fitOptionsFor(hasPlanes), duration: 400 });
   }, [fitSignal, fitView, hasPlanes]);
+  // Mode change — re-fit to the reshaped frame. Skipped on first mount (the <ReactFlow
+  // fitView> prop already fits the initial view) so it only fires on an actual toggle.
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    fitView({ ...fitOptionsFor(hasPlanes), duration: 400 });
+  }, [section, hasPlanes, fitView]);
   return null;
 }
 
@@ -462,7 +488,7 @@ export function KeystoneCanvas({
               gap={130}
               color={detail ? HAIR_STRONG : HAIR}
             />
-            <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} />
+            <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} section={section} />
             {/* FIX 2 — zoom in/out/fit buttons, restyled to the terminal/CAD aesthetic
                 (zero radius, hairline border, mono, paper ground). They call the flow API,
                 so zoom works even in SECTION mode where pointer-based pan is disabled. */}

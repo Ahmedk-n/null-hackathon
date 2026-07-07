@@ -23,8 +23,12 @@ import { LAYER_Z as STRATUM_Z, EVIDENCE_Z, KEYSTONE_Z_BUMP } from "./depth";
 // V9-1 · minimalist node box — smaller/cleaner than the old 200×72. The evidence plate,
 // crack overlay and ungrounded drop derive their offsets from these so the box can shrink
 // without re-authoring the geometry.
-const NODE_W = 200;
-const NODE_H = 56;
+// T3 — narrowed to 168 (kept in lockstep with layout.ts NODE_W) so a 7-wide rank stops
+// forcing the fit to shrink to nothing; height bumped to 66 so a 2-line label at the raised
+// font still clears the box. The narrower box wraps the label sooner but the 2-line clamp +
+// hover title keep it legible and lossless.
+const NODE_W = 150;
+const NODE_H = 68;
 
 // V9-1 · a single integrity/status dot replaces the always-on confidence readout at rest.
 // green = grounded/high, amber = soft, red = weak or failed.
@@ -261,7 +265,9 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       <div
         style={{
           fontFamily: "var(--sans)",
-          fontSize: 12,
+          // T3 — 13px (up from 12): the fit now lands at a higher zoom, so the label reads
+          // without a manual zoom; the 2-line clamp below still guards the box height.
+          fontSize: 13,
           marginTop: 4,
           lineHeight: 1.25,
           // Clamp to 2 lines so a long label can't spill past the 72px box toward the
