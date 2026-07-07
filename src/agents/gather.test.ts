@@ -100,13 +100,23 @@ describe("gather (with a key + a stub mcpServers): the MCP branch is taken", () 
     anthropicBetaCreateMock.mockResolvedValue(researchReply);
   });
 
-  it("technical: passes mcpServers into structuredCall and emits a live done (no clone attempted)", async () => {
+  it("technical: two-phase MCP flow — exploreWithTools (phase 1, unforced) THEN the forced emit (phase 2) — live done, no clone attempted", async () => {
     structuredCallMock.mockResolvedValue(stubLiveFindings("technical"));
     const events: AgentEvent[] = [];
     const findings = await gather("technical", {}, (e) => events.push(e), () => FIXED_TS, STUB_MCP_SERVERS);
 
+    // PHASE 1 — exploreWithTools calls the raw beta SDK directly (not structuredCall) with the
+    // connected MCP servers attached and NO forced tool_choice, so the model can actually call
+    // mcp_toolset tools instead of being pinned to an emit-only shape.
+    expect(anthropicBetaCreateMock).toHaveBeenCalled();
+    const researchReq = anthropicBetaCreateMock.mock.calls[0][0];
+    expect(researchReq.mcp_servers).toEqual(STUB_MCP_SERVERS);
+    expect(researchReq.tool_choice).toBeUndefined();
+
+    // PHASE 2 — the forced emit runs AFTER phase 1, fed phase 1's research synthesis.
     expect(structuredCallMock).toHaveBeenCalledTimes(1);
-    expect(structuredCallMock.mock.calls[0][0]).toMatchObject({ mcpServers: STUB_MCP_SERVERS });
+    expect(structuredCallMock.mock.calls[0][0].user).toContain("Research synthesis with sources.");
+
     expect(findings.kind).toBe("technical");
     const last = events[events.length - 1];
     expect(last.type).toBe("done");

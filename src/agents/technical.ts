@@ -20,7 +20,7 @@ import type { Emit, GatherFinding, GatherFindings, Now, TechnicalSource } from "
 import { GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
 import { retryOnce } from "./retry";
-import { structuredCall } from "@/llm/structured";
+import { structuredCall, exploreWithTools } from "@/llm/structured";
 import type { McpServerDef } from "@/lib/mcp/connector";
 
 const CLONE_TIMEOUT_MS = 60_000;
@@ -193,15 +193,30 @@ categories above as the digest actually evidences — do not repeat the same cat
 the digest has signal for CI, tests, observability, AND tech-debt. Prefer facts that carry a real
 sourceExcerpt and quantities.`;
 
-// MCP branch (plan Task 11) — when the founder has a connected GitHub (or other repo-hosting)
-// MCP server, prefer reading the REAL repo (files/issues/PRs) through it over an anonymous
-// shallow clone (which can't see private repos and only ever sees a file listing, never issue/PR
-// history). This is a single forced emit_findings call with the connected servers attached
-// (structuredCall's mcpServers branch) rather than the clone -> local-digest -> emit pipeline.
-const TECH_MCP_EMIT_SYSTEM = `You are Keystone's technical context agent. You have MCP tools connected (e.g. GitHub)
-for the founder's actual repository — use them to read real files, manifests, CI config, and open
-issues/PRs before answering. Call the emit_findings tool with the structured result. Use ONLY facts
-you actually observed via the connected tools — never invent files, versions, issues, or counts.
+// MCP branch (P4.5 — real two-phase flow) — when the founder has a connected GitHub (or other
+// repo-hosting) MCP server, prefer reading the REAL repo (files/issues/PRs/CI) through it over an
+// anonymous shallow clone (which can't see private repos and only ever sees a file listing, never
+// issue/PR history). PHASE 1 (below) is a genuine multi-turn exploration — via
+// `exploreWithTools`, deliberately WITHOUT a forced tool_choice — so the model can actually call
+// the connected MCP tools before answering; PHASE 2 is the existing forced emit_findings call
+// (structuredCall), now fed the phase-1 research transcript instead of trying to explore AND
+// emit in one forced-tool_choice call (which — the P4 bug — locks the model onto the emit tool
+// and makes mcp_toolset uncallable in that same request).
+const TECH_MCP_RESEARCH_SYSTEM = `You are Keystone's technical context agent. You have MCP tools connected (e.g. GitHub) for the
+founder's actual repository. Use them to investigate thoroughly: read the README, manifests/lockfiles
+(package.json, pyproject.toml, go.mod, etc.), key source files, CI config, open issues, and recent
+PRs. Call as many tool uses as you need across your turns to build a real picture.
+
+When you have genuinely investigated, STOP calling tools and write a THOROUGH technical synthesis in
+prose: stack/framework, architecture (monolith vs services), infrastructure, deployment,
+observability maturity, testing/CI, open issues/PRs relevant to the decision, and technical-debt
+signals. For every claim, cite the EXACT file path or issue/PR id (e.g. "#142") you actually read,
+plus a short verbatim excerpt. Do not fabricate — only state what you actually read via the tools.`;
+
+const TECH_MCP_EMIT_SYSTEM = `You are Keystone's technical context agent. Below is the transcript of your investigation via
+connected MCP tools (e.g. GitHub) — tool calls, tool results, and your synthesis. Convert it into
+structured findings by calling the emit_findings tool. Use ONLY facts grounded in the transcript —
+never invent files, versions, issues, or counts.
 
 Determine the real technical context a founder would paste into a decision tool: stack/framework,
 architecture (monolith vs services), infrastructure, deployment, observability maturity, testing/CI,
@@ -210,23 +225,24 @@ open issues/PRs relevant to the decision, and technical-debt signals.
 For EACH fact populate the rich fields:
   - "label": short tag (e.g. "Framework", "CI", "Tests", "Observability", "Tech debt", "Open issue").
   - "value": a terse headline.
-  - "source": a REAL, SPECIFIC repo file path, or an issue/PR reference (e.g. "#142"), you actually
-    read via the connected tools. NEVER a blank string or a vague placeholder — if you cannot name
-    the specific file/issue/PR a fact rests on, drop the fact rather than emit an unsourced one.
+  - "source": a REAL, SPECIFIC repo file path, or an issue/PR reference (e.g. "#142"), from the
+    transcript. NEVER a blank string or a vague placeholder — if you cannot name the specific
+    file/issue/PR a fact rests on, drop the fact rather than emit an unsourced one.
   - "category": one of stack | infra | ci | tests | observability | team | tech-debt | integration.
-  - "sourceExcerpt": a SHORT VERBATIM line/snippet from what you read.
+  - "sourceExcerpt": a SHORT VERBATIM line/snippet from the transcript.
   - "quantities": counts/versions as {metric,value,unit?}.
   - "entities": named frameworks/libraries/tools.
   - "implication": one sentence on why this matters for the founder's decision.
   - "confidence": 0..1.
 
-Produce at least 7 facts (more if the tools support it), kind "technical", spanning multiple
+Produce at least 7 facts (more if the transcript supports it), kind "technical", spanning multiple
 categories — files AND issues/PRs where available, not just one. Prefer facts that carry a real
 sourceExcerpt.`;
 
-/** MCP-connected read (no clone): a single forced emit call with the connected servers
- *  attached. Returns null (never throws) on any failure or a too-thin reply, so the caller
- *  falls through to the shallow-clone path (if a repoUrl was given) or the fixture. */
+/** MCP-connected read (no clone): PHASE 1 a genuine multi-turn exploration (`exploreWithTools`,
+ *  unforced tool_choice) over the connected servers, PHASE 2 the forced emit_findings call over
+ *  that research transcript. Returns null (never throws) on any failure or a too-thin reply, so
+ *  the caller falls through to the shallow-clone path (if a repoUrl was given) or the fixture. */
 async function gatherTechnicalViaMcp(
   source: TechnicalSource,
   emit: Emit,
@@ -234,18 +250,32 @@ async function gatherTechnicalViaMcp(
   mcpServers: McpServerDef[],
 ): Promise<GatherFindings | null> {
   try {
-    emit({ type: "status", message: "Reading the repository via connected MCP tools (e.g. GitHub)…", ts: now() });
+    // PHASE 1 — real exploration. The model can actually call the connected MCP tools (read
+    // files, list issues/PRs, etc.) across turns because this call has no forced tool_choice.
+    emit({ type: "status", message: "Investigating the repository via connected MCP tools (e.g. GitHub)…", ts: now() });
+    const researchUser = source.repoUrl
+      ? `Repo: ${source.repoUrl}\n\nInvestigate this repository via the connected MCP tools (README, manifests, key source files, CI config, open issues, recent PRs) before answering.`
+      : "Investigate the connected repository via the connected MCP tools (README, manifests, key source files, CI config, open issues, recent PRs) before answering.";
+    const transcript = await retryOnce(() =>
+      exploreWithTools({
+        system: TECH_MCP_RESEARCH_SYSTEM,
+        user: researchUser,
+        mcpServers,
+      }),
+    );
+
+    // PHASE 2 — forced-tool finalizer over the research transcript. Separate call because a
+    // forced tool_choice cannot coexist with genuine multi-turn tool exploration (see
+    // exploreWithTools's doc comment in src/llm/structured.ts).
+    emit({ type: "status", message: "Synthesizing technical findings (forced emit)…", ts: now() });
     const findings: GatherFindings = await retryOnce(() =>
       structuredCall({
         system: TECH_MCP_EMIT_SYSTEM,
-        user: source.repoUrl
-          ? `Repo: ${source.repoUrl}\n\nUse the connected MCP tools to read the real repository (files, manifests, CI, issues/PRs) before answering.`
-          : "Use the connected MCP tools to read the real, connected repository (files, manifests, CI, issues/PRs) before answering.",
+        user: `Repo: ${source.repoUrl ?? "(connected via MCP)"}\n\nRESEARCH TRANSCRIPT:\n\n${transcript}`,
         schema: GatherFindingsSchema,
         toolName: "emit_findings",
         toolDescription:
           "Emit the technical findings (rich typed, grounded in real MCP-read repo content) as one structured object.",
-        mcpServers,
       }),
     );
     return findings.facts.length >= MIN_FACTS ? findings : null;
