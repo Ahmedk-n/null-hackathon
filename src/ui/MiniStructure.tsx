@@ -149,6 +149,13 @@ export interface MiniStructureProps {
   testId?: string;
   /** Optional accent ring on the panel (the tournament survivor). */
   accented?: boolean;
+  /**
+   * When true, the fixed `width`×`height` stage is scaled to fit its container
+   * (via a CSS container-query box + `aspect-ratio`), so the hand-placed 700-wide
+   * hero stage never clips or forces horizontal scroll on narrow columns/phones.
+   * Off by default — auto-laid callers (tournament, pipeline) keep their behavior.
+   */
+  fit?: boolean;
   style?: CSSProperties;
 }
 
@@ -169,10 +176,44 @@ export function MiniStructure({
   tickMs = 80,
   testId,
   accented = false,
+  fit = false,
   style,
 }: MiniStructureProps) {
   const nodeById: Record<string, MiniPlaced> = Object.fromEntries(nodes.map((n) => [n.id, n]));
   const isFailed = (id: string) => (failedIds ? failedIds.has(id) : false);
+
+  // Stage framing. In `fit` mode the fixed coordinate space is scaled to the
+  // container's inline size (100cqw ÷ the stage width), reserving height via
+  // `aspect-ratio` — so it fills its column responsively and never clips.
+  const stageWrap: CSSProperties = fit
+    ? {
+        padding: "12px 0 16px",
+        containerType: "inline-size",
+        position: "relative",
+        width: "100%",
+        aspectRatio: `${width} / ${height}`,
+      }
+    : { display: "flex", justifyContent: "center", padding: "12px 0 16px" };
+  const stageInner: CSSProperties = fit
+    ? {
+        position: "absolute",
+        top: 0,
+        left: 0,
+        width,
+        height,
+        transformOrigin: "top left",
+        transform: `scale(calc(100cqw / ${width}px))`,
+        opacity: stageOpacity,
+        transition: `opacity ${tickMs}ms linear`,
+      }
+    : {
+        position: "relative",
+        width,
+        height,
+        maxWidth: "100%",
+        opacity: stageOpacity,
+        transition: `opacity ${tickMs}ms linear`,
+      };
 
   return (
     <div
@@ -231,18 +272,9 @@ export function MiniStructure({
         </>
       )}
 
-      {/* Stage — fixed coordinate space, centered. */}
-      <div style={{ display: "flex", justifyContent: "center", padding: "12px 0 16px" }}>
-        <div
-          style={{
-            position: "relative",
-            width,
-            height,
-            maxWidth: "100%",
-            opacity: stageOpacity,
-            transition: `opacity ${tickMs}ms linear`,
-          }}
-        >
+      {/* Stage — fixed coordinate space (scaled to fit in `fit` mode). */}
+      <div style={stageWrap}>
+        <div style={stageInner}>
           {/* Hairline dependency edges (behind the nodes). */}
           <svg
             width={width}

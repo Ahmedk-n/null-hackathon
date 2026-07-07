@@ -275,6 +275,87 @@ body {
   }
 }
 
+/* ── Landing hero (V9 redesign) ─────────────────────────────────────── */
+/* Two-column, above-the-fold: LEFT copy + CTAs + pipeline, RIGHT the live
+   terminal viewport. Collapses to a single stacked column (copy → panel) on
+   narrow viewports so the live structure stays visible with no h-scroll. */
+.hero-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.04fr) minmax(0, 0.96fr);
+  gap: 44px;
+  align-items: center;
+}
+@media (max-width: 940px) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+    align-items: stretch;
+  }
+}
+
+/* Blueprint / graph-paper depth behind the hero — very low-contrast hairlines
+   on the warm paper, fading out toward the edges so it reads as a datum grid,
+   not a busy field. Minor 26px cells + emphasized 130px majors. */
+.blueprint-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--hair) 62%, transparent) 0 1px,
+      transparent 1px 26px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--hair) 62%, transparent) 0 1px,
+      transparent 1px 26px
+    ),
+    repeating-linear-gradient(
+      to right,
+      color-mix(in srgb, var(--hair-strong) 55%, transparent) 0 1px,
+      transparent 1px 130px
+    ),
+    repeating-linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--hair-strong) 55%, transparent) 0 1px,
+      transparent 1px 130px
+    );
+  -webkit-mask-image: radial-gradient(120% 90% at 68% 32%, #000 0%, #000 52%, transparent 100%);
+  mask-image: radial-gradient(120% 90% at 68% 32%, #000 0%, #000 52%, transparent 100%);
+}
+
+/* The live decision viewport — a framed terminal panel; a subtle scanline-free
+   header strip sits above the shared MiniStructure. */
+.term-viewport {
+  border: 1px solid var(--hair-strong);
+  background: var(--panel);
+  box-shadow: 0 1px 0 var(--hair-strong), 0 18px 40px -28px rgba(26, 26, 21, 0.5);
+}
+.term-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--hair);
+  background: var(--panel-2);
+}
+.live-dot {
+  width: 7px;
+  height: 7px;
+  background: var(--keystone);
+  border-radius: 50%;
+  flex: 0 0 auto;
+  animation: live-pulse 1.8s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 /* ── React Flow zoom controls (FIX 2) ───────────────────────────────── */
 /* Override React Flow's default rounded/shadowed control chrome to match the
    terminal/CAD ledger aesthetic: zero radius, hairline frame, paper ground,

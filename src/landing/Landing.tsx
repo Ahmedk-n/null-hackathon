@@ -180,88 +180,145 @@ export default function Landing({ startedAt }: { startedAt: string }) {
         </Link>
       </header>
 
+      {/* Terminal status strip — sells the ledger identity; server-stamped session. */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 8,
+          minHeight: 30,
+          padding: "5px var(--pad)",
+          borderBottom: "1px solid var(--hair)",
+          background: "var(--panel)",
+        }}
+      >
+        <span className="label" style={{ letterSpacing: "0.14em" }}>
+          SESSION
+        </span>
+        <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+          {startedAt}
+        </span>
+        <span style={{ color: "var(--hair-strong)" }}>·</span>
+        <span className="chip">PINNED FIXTURE</span>
+        <span className="chip">REAL SOLVER</span>
+        <div style={{ flex: 1 }} />
+        <span className="label landing-hide-narrow" style={{ letterSpacing: "0.14em" }}>
+          DETERMINISTIC · KEYLESS · NEVER 500s
+        </span>
+      </div>
+
+      {/* ── HERO ── two columns, above the fold: LEFT copy + CTAs + pipeline,
+          RIGHT the live terminal viewport, over a low-contrast blueprint grid. */}
+      <section
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          borderBottom: "1px solid var(--hair-strong)",
+        }}
+      >
+        <div className="blueprint-grid" aria-hidden />
+        <div
+          style={{
+            position: "relative",
+            maxWidth: 1180,
+            margin: "0 auto",
+            padding: "44px 24px 52px",
+          }}
+        >
+          <div className="hero-grid">
+            {/* LEFT — the pitch. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+              <span className="label" style={{ letterSpacing: "0.18em", color: "var(--muted)" }}>
+                ▣ CAD FOR DECISIONS · GROUNDED IN YOUR REAL CONTEXT
+              </span>
+
+              <h1
+                style={{
+                  fontFamily: "var(--sans)",
+                  fontSize: "clamp(30px, 4.6vw, 46px)",
+                  fontWeight: 700,
+                  letterSpacing: "-0.02em",
+                  lineHeight: 1.06,
+                  margin: 0,
+                }}
+              >
+                Find the one assumption your decision{" "}
+                <span style={{ color: "var(--keystone)" }}>can&apos;t survive without.</span>
+              </h1>
+
+              <p style={{ fontSize: 16, color: "var(--ink-2)", lineHeight: 1.55, margin: 0, maxWidth: 540 }}>
+                Describe a decision. Keystone builds it as a{" "}
+                <strong style={{ fontWeight: 600, color: "var(--ink)" }}>load-bearing structure</strong>,
+                stress-tests it under your real grounded context, and surfaces the{" "}
+                <strong style={{ fontWeight: 600, color: "var(--keystone)" }}>keystone</strong> — the
+                assumption that, if it&apos;s wrong, brings the whole thing down.
+              </p>
+
+              {/* CTAs. */}
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 2 }}>
+                <Link
+                  href="/studio"
+                  className="btn btn-primary"
+                  style={{ textDecoration: "none", fontSize: 13, padding: "14px 32px", letterSpacing: "0.14em" }}
+                >
+                  Open Studio
+                </Link>
+                <Link
+                  href="/login"
+                  className="btn"
+                  style={{ textDecoration: "none", fontSize: 13, padding: "14px 32px", letterSpacing: "0.14em" }}
+                >
+                  Sign in
+                </Link>
+              </div>
+
+              {/* CONTEXT → STRUCTURE → STRESS → KEYSTONE — the whole product in four beats. */}
+              <PipelineStrip />
+            </div>
+
+            {/* RIGHT — the live terminal viewport: the real solver on the pinned fixture. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, minWidth: 0 }}>
+              <div className="term-viewport">
+                <div className="term-header">
+                  <span className="live-dot" aria-hidden />
+                  <span className="label" style={{ letterSpacing: "0.14em", color: "var(--keystone)" }}>
+                    LIVE
+                  </span>
+                  <span className="label" style={{ letterSpacing: "0.12em" }}>
+                    · REAL SOLVER
+                  </span>
+                  <div style={{ flex: 1 }} />
+                  <span
+                    className="mono"
+                    style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+                  >
+                    migrate to microservices
+                  </span>
+                </div>
+                {/* Borderless: the term-viewport supplies the frame; MiniStructure scales to fit. */}
+                <MiniCollapseHero fit style={{ border: "none", background: "transparent" }} />
+              </div>
+              <p style={{ fontSize: 11.5, color: "var(--muted)", lineHeight: 1.5, margin: "0 2px" }}>
+                Grounded on tomorrow&apos;s enterprise meeting: the structure stands, grounded load
+                craters the integrity as the keystone cracks, then the De-risking plan restores it.
+                Every number is the real engine&apos;s output — no mockups.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <div
         style={{
           maxWidth: 960,
           margin: "0 auto",
-          padding: "48px 24px 72px",
+          padding: "56px 24px 72px",
           display: "flex",
           flexDirection: "column",
           gap: 56,
         }}
       >
-        {/* ── HERO ─────────────────────────────────────────────────────────── */}
-        <section style={{ display: "flex", flexDirection: "column", gap: 24 }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
-            <span
-              className="label"
-              style={{ letterSpacing: "0.18em", color: "var(--muted)" }}
-            >
-              ▣ CAD FOR DECISIONS · GROUNDED IN YOUR REAL CONTEXT
-            </span>
-
-            <h1
-              style={{
-                fontFamily: "var(--sans)",
-                fontSize: "clamp(30px, 5.2vw, 50px)",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                lineHeight: 1.08,
-                margin: 0,
-              }}
-            >
-              Find the one assumption your decision{" "}
-              <span style={{ color: "var(--keystone)" }}>can&apos;t survive without.</span>
-            </h1>
-
-            <p style={{ fontSize: 16, color: "var(--ink-2)", lineHeight: 1.6, margin: 0, maxWidth: 660 }}>
-              Keystone is a CAD tool for the hard calls. Describe a decision — agents pull your real
-              business, technical, and temporal context, then the engine builds it as a{" "}
-              <strong style={{ fontWeight: 600, color: "var(--ink)" }}>load-bearing structure</strong> and
-              stress-tests it under grounded load. It surfaces the{" "}
-              <strong style={{ fontWeight: 600, color: "var(--keystone)" }}>keystone</strong>: the single
-              assumption that, if it&apos;s wrong, brings the whole thing down. See it before you bet on it.
-            </p>
-
-            {/* CTAs. */}
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
-              <Link
-                href="/studio"
-                className="btn btn-primary"
-                style={{ textDecoration: "none", fontSize: 13, padding: "14px 32px", letterSpacing: "0.14em" }}
-              >
-                Open Studio
-              </Link>
-              <Link
-                href="/login"
-                className="btn"
-                style={{ textDecoration: "none", fontSize: 13, padding: "14px 32px", letterSpacing: "0.14em" }}
-              >
-                Sign in
-              </Link>
-            </div>
-          </div>
-
-          {/* How it works, in one line: CONTEXT → STRUCTURE → STRESS → KEYSTONE. */}
-          <PipelineStrip />
-
-          {/* LIVE mini-collapse — the hook. The real solver on the pinned hero fixture. */}
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
-              <SectionHeader>Live · the structure under load</SectionHeader>
-              <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
-                REAL SOLVER · PINNED FIXTURE
-              </span>
-            </div>
-            <MiniCollapseHero />
-            <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, margin: "0 2px" }}>
-              &ldquo;Migrate to microservices&rdquo; grounded on tomorrow&apos;s enterprise meeting: the
-              structure stands, grounded load craters the integrity as the keystone cracks, then the
-              De-risking plan restores it. Every number is the real engine&apos;s output — no mockups.
-            </p>
-          </div>
-        </section>
-
         {/* THE SYSTEM AT WORK — the auto-playing pipeline. See it move, then read the steps. */}
         <section>
           <SectionHeader>The whole system, one loop</SectionHeader>

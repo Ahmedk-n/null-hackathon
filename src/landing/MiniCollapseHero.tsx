@@ -14,7 +14,7 @@
 // tick counter advanced by setInterval. It NEVER touches the global keystoneStore, and
 // contains NO Math.random / Date.now / new Date( (GOAL T8). Cleanup-safe: the interval is
 // cleared on unmount. All displayed numbers are the real engine's output on the fixture.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import {
   applyAttacks,
   detectFailures,
@@ -79,7 +79,15 @@ const EDGES: [string, string][] = [
   ["c_roi", "a_load"],
 ];
 
-export function MiniCollapseHero() {
+export function MiniCollapseHero({
+  fit = false,
+  style,
+}: {
+  /** Scale the 700-wide stage to fit its container (landing hero terminal panel). */
+  fit?: boolean;
+  /** Passed to the underlying MiniStructure panel (e.g. drop its border when externally framed). */
+  style?: CSSProperties;
+} = {}) {
   const [tick, setTick] = useState(0);
 
   // Engine facts (pure, deterministic, computed once). Numbers are the REAL solver output.
@@ -145,6 +153,8 @@ export function MiniCollapseHero() {
       stageOpacity={stageOpacity}
       tickMs={TICK_MS}
       readout={{ gaugeInt, status, statusColor, phase }}
+      fit={fit}
+      style={style}
     />
   );
 }
