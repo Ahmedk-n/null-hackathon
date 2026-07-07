@@ -181,12 +181,20 @@ function LibrarySection({
 }) {
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   // Re-read on mount and on every version bump (save / verdict update from the parent).
+  // P2-T4: listEntries is now async (guest → local, signed-in → remote) — resolve inside the
+  // effect. `cancelled` guards a state update after an unmount / rapid version bump.
   useEffect(() => {
-    setEntries(listEntries());
+    let cancelled = false;
+    listEntries().then((all) => {
+      if (!cancelled) setEntries(all);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [version]);
 
   function refresh() {
-    setEntries(listEntries());
+    listEntries().then(setEntries);
   }
 
   return (
@@ -264,8 +272,8 @@ function LibrarySection({
                     type="button"
                     data-testid="library-duplicate"
                     style={LIB_ACTION}
-                    onClick={() => {
-                      duplicateEntry(e.id);
+                    onClick={async () => {
+                      await duplicateEntry(e.id);
                       refresh();
                       onChange?.();
                     }}
@@ -276,8 +284,8 @@ function LibrarySection({
                     type="button"
                     data-testid="library-delete"
                     style={LIB_ACTION}
-                    onClick={() => {
-                      deleteEntry(e.id);
+                    onClick={async () => {
+                      await deleteEntry(e.id);
                       refresh();
                       onChange?.();
                     }}

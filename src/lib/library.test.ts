@@ -10,6 +10,7 @@ import {
   deleteEntry,
   duplicateEntry,
   updateEntryVerdict,
+  setLibraryBackend,
   type NewLibraryEntry,
 } from "./library";
 import { createKeystoneStore, selectIntegrity, selectKeystoneId } from "@/store/useKeystone";
@@ -37,75 +38,78 @@ function make(overrides: Partial<NewLibraryEntry> = {}): NewLibraryEntry {
 
 beforeEach(() => {
   window.localStorage.clear();
+  setLibraryBackend("guest"); // the public surface defaults to guest/local — pin it per test
 });
 
-describe("decision library — round-trip", () => {
-  it("saves and lists an entry", () => {
-    const saved = saveEntry(make({ title: "Alpha" }));
+describe("decision library — round-trip (guest/local backend)", () => {
+  it("saves and lists an entry", async () => {
+    const saved = await saveEntry(make({ title: "Alpha" }));
     expect(saved).not.toBeNull();
     expect(saved!.seq).toBe(1);
     expect(saved!.id).toBe("alpha-1");
-    const all = listEntries();
+    const all = await listEntries();
     expect(all).toHaveLength(1);
     expect(all[0].title).toBe("Alpha");
   });
 
-  it("gets an entry by id and round-trips the graph + verdict", () => {
-    const saved = saveEntry(make({ title: "Beta", verdict: { integrity: 12, keystoneId: "x", failedIds: ["a", "b"], loadApplied: true } }))!;
-    const got = getEntry(saved.id)!;
+  it("gets an entry by id and round-trips the graph + verdict", async () => {
+    const saved = (await saveEntry(
+      make({ title: "Beta", verdict: { integrity: 12, keystoneId: "x", failedIds: ["a", "b"], loadApplied: true } }),
+    ))!;
+    const got = (await getEntry(saved.id))!;
     expect(got.verdict.integrity).toBe(12);
     expect(got.verdict.failedIds).toEqual(["a", "b"]);
     expect(got.verdict.loadApplied).toBe(true);
     expect(got.graph.thesisId).toBe("t");
   });
 
-  it("lists newest-first by seq (monotonic, not insertion echo)", () => {
-    saveEntry(make({ title: "One" }));
-    saveEntry(make({ title: "Two" }));
-    saveEntry(make({ title: "Three" }));
-    expect(listEntries().map((e) => e.title)).toEqual(["Three", "Two", "One"]);
-    expect(listEntries().map((e) => e.seq)).toEqual([3, 2, 1]);
+  it("lists newest-first by seq (monotonic, not insertion echo)", async () => {
+    await saveEntry(make({ title: "One" }));
+    await saveEntry(make({ title: "Two" }));
+    await saveEntry(make({ title: "Three" }));
+    expect((await listEntries()).map((e) => e.title)).toEqual(["Three", "Two", "One"]);
+    expect((await listEntries()).map((e) => e.seq)).toEqual([3, 2, 1]);
   });
 
-  it("deletes an entry", () => {
-    const a = saveEntry(make({ title: "Keep" }))!;
-    const b = saveEntry(make({ title: "Drop" }))!;
-    deleteEntry(b.id);
-    expect(listEntries().map((e) => e.id)).toEqual([a.id]);
+  it("deletes an entry", async () => {
+    const a = (await saveEntry(make({ title: "Keep" })))!;
+    const b = (await saveEntry(make({ title: "Drop" })))!;
+    await deleteEntry(b.id);
+    expect((await listEntries()).map((e) => e.id)).toEqual([a.id]);
   });
 
-  it("duplicates an entry with a fresh seq/id and (copy) title", () => {
-    const src = saveEntry(make({ title: "Source" }))!;
-    const dup = duplicateEntry(src.id)!;
+  it("duplicates an entry with a fresh seq/id and (copy) title", async () => {
+    const src = (await saveEntry(make({ title: "Source" })))!;
+    const dup = (await duplicateEntry(src.id))!;
     expect(dup.id).not.toBe(src.id);
     expect(dup.seq).toBe(2);
     expect(dup.title).toBe("Source (copy)");
     // Reuses the source timestamp (no wall-clock read).
     expect(dup.savedAtISO).toBe(src.savedAtISO);
-    expect(listEntries()).toHaveLength(2);
+    expect(await listEntries()).toHaveLength(2);
   });
 
-  it("updates only the verdict summary in place", () => {
-    const e = saveEntry(make({ title: "Verdict" }))!;
-    updateEntryVerdict(e.id, { integrity: 4, keystoneId: "k2", failedIds: ["z"], loadApplied: true });
-    const got = getEntry(e.id)!;
+  it("updates only the verdict summary in place", async () => {
+    const e = (await saveEntry(make({ title: "Verdict" })))!;
+    await updateEntryVerdict(e.id, { integrity: 4, keystoneId: "k2", failedIds: ["z"], loadApplied: true });
+    const got = (await getEntry(e.id))!;
     expect(got.verdict).toEqual({ integrity: 4, keystoneId: "k2", failedIds: ["z"], loadApplied: true });
     expect(got.title).toBe("Verdict"); // untouched
   });
 
-  it("monotonic seq survives a delete of the newest (counter never rewinds)", () => {
-    saveEntry(make({ title: "One" }));
-    const two = saveEntry(make({ title: "Two" }))!;
-    deleteEntry(two.id);
-    const three = saveEntry(make({ title: "Three" }))!;
+  it("monotonic seq survives a delete of the newest (counter never rewinds)", async () => {
+    await saveEntry(make({ title: "One" }));
+    const two = (await saveEntry(make({ title: "Two" })))!;
+    await deleteEntry(two.id);
+    const three = (await saveEntry(make({ title: "Three" })))!;
     expect(three.seq).toBe(3); // not 2 — the counter is monotonic
   });
 });
 
 describe("decision library — cap 20 FIFO", () => {
-  it("keeps the 20 newest and drops the oldest", () => {
-    for (let i = 1; i <= 25; i++) saveEntry(make({ title: `D${i}` }));
-    const all = listEntries();
+  it("keeps the 20 newest and drops the oldest", async () => {
+    for (let i = 1; i <= 25; i++) await saveEntry(make({ title: `D${i}` }));
+    const all = await listEntries();
     expect(all).toHaveLength(20);
     // Newest first: seq 25 .. 6. Oldest five (1..5) evicted.
     expect(all[0].seq).toBe(25);
@@ -115,25 +119,24 @@ describe("decision library — cap 20 FIFO", () => {
 });
 
 describe("decision library — corrupted-entry tolerance", () => {
-  it("skips a corrupted entry but keeps the valid ones", () => {
+  it("skips a corrupted entry but keeps the valid ones", async () => {
     const good = { id: "good-1", title: "Good", savedAtISO: "2026-07-04T00:00:00Z", seq: 1, mode: "A", input: {}, companyContext: null, pack: null, graph: { thesisId: "t", nodes: [] }, verdict: { integrity: 50, keystoneId: null, failedIds: [], loadApplied: false } };
     const badMissingGraph = { id: "bad-2", title: "Bad", savedAtISO: "x", seq: 2, mode: "A" };
     const notAnObject = 42;
     window.localStorage.setItem(KEY, JSON.stringify({ counter: 2, entries: [good, badMissingGraph, notAnObject] }));
-    const all = listEntries();
+    const all = await listEntries();
     expect(all).toHaveLength(1);
     expect(all[0].id).toBe("good-1");
   });
 
-  it("returns [] on wholly corrupt JSON, never throws", () => {
+  it("returns [] on wholly corrupt JSON, never throws", async () => {
     window.localStorage.setItem(KEY, "{not valid json");
-    expect(() => listEntries()).not.toThrow();
-    expect(listEntries()).toEqual([]);
+    await expect(listEntries()).resolves.toEqual([]);
   });
 
-  it("saving after corruption still works (counter recovers from live max seq)", () => {
+  it("saving after corruption still works (counter recovers from live max seq)", async () => {
     window.localStorage.setItem(KEY, JSON.stringify({ counter: 0, entries: [{ id: "good-7", title: "G", savedAtISO: "x", seq: 7, mode: "A", input: {}, companyContext: null, pack: null, graph: { thesisId: "t", nodes: [] }, verdict: { integrity: 50 } }] }));
-    const next = saveEntry(make({ title: "After" }))!;
+    const next = (await saveEntry(make({ title: "After" })))!;
     expect(next.seq).toBe(8); // max(counter=0, maxSeq=7) + 1
   });
 });
@@ -144,27 +147,30 @@ describe("decision library — SSR no-op", () => {
     vi.stubGlobal("window", realWindow);
   });
 
-  it("no-ops / returns []/null when window is undefined", () => {
+  it("no-ops / returns []/null when window is undefined", async () => {
     vi.stubGlobal("window", undefined);
-    expect(listEntries()).toEqual([]);
-    expect(getEntry("x")).toBeNull();
-    expect(saveEntry(make())).toBeNull();
-    expect(duplicateEntry("x")).toBeNull();
-    expect(() => deleteEntry("x")).not.toThrow();
-    expect(() => updateEntryVerdict("x", { integrity: 0, keystoneId: null, failedIds: [], loadApplied: false })).not.toThrow();
+    expect(await listEntries()).toEqual([]);
+    expect(await getEntry("x")).toBeNull();
+    expect(await saveEntry(make())).toBeNull();
+    expect(await duplicateEntry("x")).toBeNull();
+    await expect(deleteEntry("x")).resolves.not.toThrow();
+    await expect(
+      updateEntryVerdict("x", { integrity: 0, keystoneId: null, failedIds: [], loadApplied: false }),
+    ).resolves.not.toThrow();
   });
 });
 
 describe("decision library — store restore correctness", () => {
-  it("a restored graph re-derives the same integrity + keystone the snapshot recorded", () => {
+  it("a restored graph re-derives the same integrity + keystone the snapshot recorded", async () => {
     // Snapshot a real fixture graph with its engine-computed verdict.
     const graph = fixtureContextGraph();
     const savedVerdict = { integrity: integrity(graph), keystoneId: keystone(graph)?.id ?? null, failedIds: [] as string[], loadApplied: false };
-    const entry = saveEntry(make({ title: "Fixture", graph, verdict: savedVerdict }))!;
+    const entry = (await saveEntry(make({ title: "Fixture", graph, verdict: savedVerdict })))!;
 
     // Restore into a fresh store exactly as KeystoneApp does (setGraph, no API).
     const store = createKeystoneStore();
-    store.getState().setGraph(getEntry(entry.id)!.graph);
+    const reopened = (await getEntry(entry.id))!;
+    store.getState().setGraph(reopened.graph);
 
     expect(selectIntegrity(store.getState())).toBe(savedVerdict.integrity);
     expect(selectKeystoneId(store.getState())).toBe(savedVerdict.keystoneId);
@@ -176,6 +182,8 @@ describe("T8 — no client wall-clock / randomness in library-layer client files
   const FORBIDDEN = /Date\.now|new Date\(|Math\.random/;
   const files = [
     "lib/library.ts",
+    "lib/library/index.ts",
+    "lib/library/local.ts",
     "landing/RecentDecisions.tsx",
     "ui/tabs/ContextTab.tsx",
     "app/KeystoneApp.tsx",
