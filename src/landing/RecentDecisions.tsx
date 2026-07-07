@@ -26,7 +26,16 @@ export interface RecentDecisionEntry {
 export function RecentDecisions() {
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   useEffect(() => {
-    setEntries(listEntries().slice(0, 5));
+    // P2-T4: listEntries is now async (guest → local, signed-in → remote) — resolve inside the
+    // effect. The initial [] state is already the correct empty-state render, so there is no
+    // hydration mismatch while this resolves.
+    let cancelled = false;
+    listEntries().then((all) => {
+      if (!cancelled) setEntries(all.slice(0, 5));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (

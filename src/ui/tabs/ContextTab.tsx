@@ -18,8 +18,17 @@ import { SCENARIOS } from "@/context/fixtures";
 import type { GatherFinding, GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
-// V5-4 · decision library — the localStorage snapshot layer (SSR-safe, no wall-clock).
-import { listEntries, duplicateEntry, deleteEntry, type LibraryEntry } from "@/lib/library";
+// V5-4 · decision library — the localStorage/Supabase snapshot layer (SSR-safe, no wall-clock).
+// P2-T7 · getLibraryBackend/remoteSetPublic power the SHARE toggle (signed-in only — guest/local
+// entries have no server row to share).
+import {
+  listEntries,
+  duplicateEntry,
+  deleteEntry,
+  getLibraryBackend,
+  remoteSetPublic,
+  type LibraryEntry,
+} from "@/lib/library";
 import { statusWord, statusAccent } from "@/ui/memo/derive";
 
 // The CONTEXT tab's operating mode: a pinned demo scenario, or the live custom path.
@@ -181,12 +190,36 @@ function LibrarySection({
 }) {
   const [entries, setEntries] = useState<LibraryEntry[]>([]);
   // Re-read on mount and on every version bump (save / verdict update from the parent).
+  // P2-T4: listEntries is now async (guest → local, signed-in → remote) — resolve inside the
+  // effect. `cancelled` guards a state update after an unmount / rapid version bump.
   useEffect(() => {
-    setEntries(listEntries());
+    let cancelled = false;
+    listEntries().then((all) => {
+      if (!cancelled) setEntries(all);
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [version]);
 
   function refresh() {
-    setEntries(listEntries());
+    listEntries().then(setEntries);
+  }
+
+  // P2-T7 · SHARE toggle — signed-in only (remote entries have a real /d/<id> row to flip
+  // is_public on). Copies the share link to the clipboard the moment it goes public.
+  async function toggleShare(e: LibraryEntry) {
+    const updated = await remoteSetPublic(e.id, !e.isPublic);
+    if (!updated) return;
+    refresh();
+    onChange?.();
+    if (updated.isPublic && typeof window !== "undefined" && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(`${window.location.origin}/d/${updated.id}`);
+      } catch {
+        // clipboard permission denied / unavailable — the toggle still succeeded
+      }
+    }
   }
 
   return (
@@ -260,12 +293,23 @@ function LibrarySection({
                   >
                     Reopen
                   </button>
+                  {getLibraryBackend() === "user" && (
+                    <button
+                      type="button"
+                      data-testid="library-share"
+                      style={LIB_ACTION}
+                      title={e.isPublic ? "Turn off sharing" : "Share — copies /d/<id> once live"}
+                      onClick={() => toggleShare(e)}
+                    >
+                      {e.isPublic ? "Unshare" : "Share"}
+                    </button>
+                  )}
                   <button
                     type="button"
                     data-testid="library-duplicate"
                     style={LIB_ACTION}
-                    onClick={() => {
-                      duplicateEntry(e.id);
+                    onClick={async () => {
+                      await duplicateEntry(e.id);
                       refresh();
                       onChange?.();
                     }}
@@ -276,8 +320,8 @@ function LibrarySection({
                     type="button"
                     data-testid="library-delete"
                     style={LIB_ACTION}
-                    onClick={() => {
-                      deleteEntry(e.id);
+                    onClick={async () => {
+                      await deleteEntry(e.id);
                       refresh();
                       onChange?.();
                     }}

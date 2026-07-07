@@ -38,14 +38,22 @@ export function SkylineView() {
   const [crackedId, setCrackedId] = useState<string | null>(null);
 
   useEffect(() => {
-    const real = listEntries();
-    if (real.length > 0) {
-      setEntries(real);
-      setSeeded(false);
-    } else {
-      setEntries(sampleSkylineEntries());
-      setSeeded(true);
-    }
+    // P2-T4: listEntries is now async (guest → local, signed-in → remote) — resolve inside the
+    // effect. `entries` stays null (LOADING SKYLINE…) until it settles.
+    let cancelled = false;
+    listEntries().then((real) => {
+      if (cancelled) return;
+      if (real.length > 0) {
+        setEntries(real);
+        setSeeded(false);
+      } else {
+        setEntries(sampleSkylineEntries());
+        setSeeded(true);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const skyline = useMemo(() => (entries ? buildSkyline(entries) : null), [entries]);
