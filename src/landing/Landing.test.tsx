@@ -20,24 +20,28 @@ describe("Landing (/) — V5-1", () => {
     expect(text).toContain("STRUCTURE");
     expect(text).toContain("STRESS");
 
-    // Manifesto lines (verbatim from the track quote).
-    expect(text).toMatch(/Can we design thoughts the way engineers design machines\?/);
+    // Manifesto band — the four heart lines build to the payoff question. The weaker
+    // "Can we design thoughts…" opener is intentionally dropped.
+    expect(text).not.toMatch(/Can we design thoughts the way engineers design machines\?/);
+    expect(text).toMatch(/Ideas have constraints\./);
     expect(text).toMatch(/Beliefs have dependencies\./);
     expect(text).toMatch(/Plans have load-bearing assumptions\./);
     expect(text).toMatch(/Taste has geometry\./);
+    expect(text).toMatch(/What would a CAD tool for thinking look like\?/);
 
-    // Vocabulary terms (from the domain model).
+    // "How to read a structure" — the plain-English legend of the six essentials
+    // (the internal 12-term jargon dump is intentionally gone).
+    expect(text).toMatch(/how to read a structure/i);
+    expect(text).toContain("THESIS");
+    expect(text).toContain("CLAIM");
+    expect(text).toContain("ASSUMPTION");
     expect(text).toContain("KEYSTONE");
     expect(text).toContain("INTEGRITY");
-    expect(text).toContain("CONSTRAINT PLANE");
-    expect(text).toContain("DE-RISKING");
-
-    // v6 vocabulary — the five new mechanics all explained (never cut).
-    expect(text).toContain("RIVAL CANDIDATES");
-    expect(text).toContain("STRATEGY LENS");
-    expect(text).toContain("WIND TUNNEL");
-    expect(text).toContain("SHARED FOUNDATION");
-    expect(text).toContain("SKYLINE");
+    expect(text).toContain("LOAD");
+    // Jargon that belongs in-app, not on the landing legend.
+    expect(text).not.toContain("CONSTRAINT PLANE");
+    expect(text).not.toContain("EVIDENCE PLATE");
+    expect(text).not.toContain("SHARED FOUNDATION");
 
     // HOW IT WORKS — the DESIGN → TEST → ASSEMBLE arc (v6 spec §4).
     expect(text).toContain("DESIGN");

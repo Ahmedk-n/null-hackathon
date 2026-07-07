@@ -18,72 +18,48 @@ const PIPELINE: { k: string; d: string }[] = [
   { k: "KEYSTONE", d: "the one that can't be wrong" },
 ];
 
-// The track manifesto — verbatim from the README pitch quote.
-const MANIFESTO: string[] = [
-  "Can we design thoughts the way engineers design machines?",
+// The manifesto — the product thesis, verbatim from the track quote. Four heart lines
+// that build to the payoff question. The weaker "Can we design thoughts…" opener is
+// dropped; the inverted band lets these four carry the weight themselves.
+const MANIFESTO_LINES: string[] = [
   "Ideas have constraints.",
   "Beliefs have dependencies.",
   "Plans have load-bearing assumptions.",
   "Taste has geometry.",
-  "What would a CAD tool for thinking look like?",
 ];
+const MANIFESTO_QUESTION = "What would a CAD tool for thinking look like?";
 
-// HOW IT WORKS — the DESIGN → TEST → ASSEMBLE arc (v6 spec §4).
+// HOW IT WORKS — the DESIGN → TEST → ASSEMBLE arc (v6 spec §4). One short line each.
 const STEPS: { n: string; title: string; body: string }[] = [
   {
     n: "1",
     title: "DESIGN",
-    body: "State the goal. Three rival structures — one per strategy lens — are synthesized and stress-tested under identical load; the deterministic solver picks the survivor.",
+    body: "State the goal. Three rival structures compete under identical stress; the deterministic solver keeps the survivor.",
   },
   {
     n: "2",
     title: "TEST",
-    body: "Interrogate the survivor. Grounded load either collapses it or not, the wind tunnel cross-examines it — prosecutor vs advocate, solver as referee — and the De-risking plan prescribes the minimal set of assumptions to prove.",
+    body: "Interrogate the survivor — grounded load and an adversarial wind tunnel probe every load-bearing assumption.",
   },
   {
     n: "3",
     title: "ASSEMBLE",
-    body: "Every analysis joins the skyline. Shared foundations reveal which single assumption props up multiple decisions — and where systemic risk hides.",
+    body: "Each result joins the skyline, exposing the assumption that props up more than one decision.",
   },
 ];
 
-// VOCABULARY — one-line definitions. Basics first (v5 domain model), then the v6 mechanics
-// (definitions verbatim-faithful to the v6 spec's vocabulary section) so a first-time reader
-// builds up from the Structure to the Skyline.
-const VOCAB: { term: string; def: string }[] = [
-  { term: "KEYSTONE", def: "The load-bearing assumption: max knockout-sensitivity impact." },
-  { term: "INTEGRITY", def: "Thesis support ×100; the verdict number. HOLDING ≥35 / STRESSED 10–35 / FAILED <10." },
-  { term: "STRATA / DEPTH", def: "Reasoning depth layers L0–L3: THESIS / CLAIMS / ASSUMPTIONS / EVIDENCE. DEPTH = strata present + grounding coverage." },
-  { term: "EVIDENCE PLATE", def: "A source-fact plate hanging below a grounded assumption. Ungrounded assumptions float." },
-  { term: "CONSTRAINT PLANE", def: "A context constraint as a CAD datum frame; attacks matching its category STRIKE it → VIOLATED ×n." },
-  { term: "LOAD / ATTACK", def: "Severity-weighted stress on an assumption; context grounding reweights severities." },
-  { term: "DE-RISKING PLAN", def: "The provably-minimal set of assumptions to restore so the Structure survives (reinforcement)." },
-  { term: "RIVAL CANDIDATES", def: "Alternative Structures for the same goal, synthesized under different strategy lenses and stress-tested under identical grounded load. The survivor wins." },
-  { term: "STRATEGY LENS", def: "The stance a candidate is generated under: AGGRESSIVE (speed/upside), CONSERVATIVE (de-risk first), HYBRID (staged)." },
-  { term: "WIND TUNNEL", def: "An adversarial interrogation of one Structure: a PROSECUTOR agent proposes novel attacks, an ADVOCATE agent counters with evidence; the pure solver referees every round and cannot be overridden." },
-  { term: "SHARED FOUNDATION", def: "An assumption that appears (by deterministic label similarity) in more than one saved decision; a load-bearing column under multiple buildings. Cracking it re-verdicts every structure resting on it." },
-  { term: "SKYLINE", def: "The whole library rendered as one assembly: every decision a building, shared foundations beneath." },
+// HOW TO READ A STRUCTURE — the six essentials a first-time reader needs, in plain
+// English, each chip coloured to match the node it names on the graph (--thesis / --claim
+// / --assumption / --keystone from theme.css == @/ui/tokens); INTEGRITY + LOAD borrow the
+// verdict-good and stress accents.
+const LEGEND: { term: string; color: string; line: string }[] = [
+  { term: "THESIS", color: "var(--thesis)", line: "The decision itself — the thing you're weighing." },
+  { term: "CLAIM", color: "var(--claim)", line: "What the decision rests on: the reasons it's a good idea." },
+  { term: "ASSUMPTION", color: "var(--assumption)", line: "What those claims quietly take for granted underneath." },
+  { term: "KEYSTONE", color: "var(--keystone)", line: "The one assumption that, if it's wrong, brings the whole thing down." },
+  { term: "INTEGRITY", color: "var(--ok)", line: "The 0–100 verdict — how much of the structure still stands." },
+  { term: "LOAD", color: "var(--warn)", line: "The adversarial stress you apply to see what survives." },
 ];
-
-function VocabRow({ term, def }: { term: string; def: string }) {
-  return (
-    <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: "180px 1fr",
-        gap: 16,
-        alignItems: "baseline",
-        padding: "10px 2px",
-        borderBottom: "1px solid var(--hair)",
-      }}
-    >
-      <span className="label" style={{ letterSpacing: "0.1em", color: "var(--ink)" }}>
-        {term}
-      </span>
-      <span style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.5 }}>{def}</span>
-    </div>
-  );
-}
 
 // The CONTEXT → STRUCTURE → STRESS → KEYSTONE strip — the whole product in four beats.
 function PipelineStrip() {
@@ -319,21 +295,18 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           gap: 56,
         }}
       >
-        {/* THE SYSTEM AT WORK — the auto-playing pipeline. See it move, then read the steps. */}
+        {/* HOW IT WORKS — one merged section: watch the loop run, then read the three-beat arc. */}
         <section>
-          <SectionHeader>The whole system, one loop</SectionHeader>
-          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 12px", maxWidth: 640 }}>
-            Every agent, doing its job: gather evidence &rarr; compile context &rarr; design rivals &rarr;
-            interrogate the survivor. Auto-playing and deterministic &mdash; hover any lane or stage to
-            pause and inspect what that agent does.
+          <SectionHeader>How it works — one loop</SectionHeader>
+          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 14px", maxWidth: 640 }}>
+            Every agent, doing its job — auto-playing and deterministic. Hover any lane or stage to pause
+            and inspect it.
           </p>
           <SystemAtWork />
-        </section>
-
-        {/* HOW IT WORKS. */}
-        <section>
-          <SectionHeader>How it works</SectionHeader>
-          <div className="landing-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+          <div
+            className="landing-3col"
+            style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 16 }}
+          >
             {STEPS.map((s) => (
               <div key={s.n} className="panel" style={{ padding: 16 }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
@@ -346,64 +319,128 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           </div>
         </section>
 
-        {/* MANIFESTO ledger — the why, in the track's own words. */}
-        <section>
-          <SectionHeader>Manifesto</SectionHeader>
-          <div>
-            {MANIFESTO.map((line, i) => (
+        {/* MANIFESTO — the product thesis as an inverted editorial band: four heart lines set
+            large on hairline rows, building to the payoff question behind a keystone-red rule. */}
+        <section
+          style={{
+            background: "var(--ink)",
+            color: "var(--bg)",
+            padding: "clamp(30px, 5.5vw, 56px)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: "clamp(22px, 4vw, 40px)" }}>
+            <span className="label" style={{ letterSpacing: "0.22em", color: "var(--bg)", opacity: 0.55 }}>
+              MANIFESTO
+            </span>
+            <span aria-hidden style={{ flex: 1, height: 1, background: "rgba(245,244,239,0.22)" }} />
+            <span className="label" style={{ letterSpacing: "0.22em", color: "var(--bg)", opacity: 0.55 }}>
+              THE THESIS
+            </span>
+          </div>
+
+          <div style={{ borderTop: "1px solid rgba(245,244,239,0.18)" }}>
+            {MANIFESTO_LINES.map((line, i) => (
               <div
                 key={i}
-                className="ledger-row"
-                style={{ height: "auto", padding: "10px 2px" }}
+                style={{
+                  display: "flex",
+                  alignItems: "baseline",
+                  gap: "clamp(12px, 2.4vw, 26px)",
+                  padding: "clamp(15px, 2.7vw, 26px) 0",
+                  borderBottom: "1px solid rgba(245,244,239,0.18)",
+                }}
               >
-                <span style={{ fontSize: 14, color: "var(--ink)", fontStyle: "italic" }}>{line}</span>
-                <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+                <span
+                  className="mono"
+                  style={{ fontSize: 12, color: "var(--bg)", opacity: 0.4, flex: "0 0 auto", width: 22 }}
+                >
                   {String(i + 1).padStart(2, "0")}
+                </span>
+                <span
+                  className="mono"
+                  style={{
+                    fontSize: "clamp(20px, 3.6vw, 36px)",
+                    lineHeight: 1.14,
+                    fontWeight: 500,
+                    letterSpacing: "-0.015em",
+                    color: "var(--bg)",
+                    minWidth: 0,
+                  }}
+                >
+                  {line}
                 </span>
               </div>
             ))}
           </div>
-        </section>
 
-        {/* VOCABULARY ledger. */}
-        <section>
-          <SectionHeader>Vocabulary</SectionHeader>
-          <div>
-            {VOCAB.map((v) => (
-              <VocabRow key={v.term} term={v.term} def={v.def} />
-            ))}
+          <div
+            style={{
+              marginTop: "clamp(24px, 4.5vw, 46px)",
+              borderLeft: "3px solid var(--keystone)",
+              paddingLeft: "clamp(16px, 3vw, 28px)",
+            }}
+          >
+            <span
+              className="label"
+              style={{ letterSpacing: "0.2em", color: "var(--bg)", opacity: 0.5, display: "block", marginBottom: 10 }}
+            >
+              SO —
+            </span>
+            <p
+              style={{
+                margin: 0,
+                fontFamily: "var(--sans)",
+                fontSize: "clamp(25px, 4.6vw, 46px)",
+                fontWeight: 700,
+                lineHeight: 1.08,
+                letterSpacing: "-0.02em",
+                color: "var(--bg)",
+              }}
+            >
+              {MANIFESTO_QUESTION}
+            </p>
           </div>
         </section>
 
-        {/* HONEST ARCHITECTURE panel. */}
+        {/* HOW TO READ A STRUCTURE — the plain-English legend keyed to the graph's node colours. */}
         <section>
-          <SectionHeader>Honest architecture</SectionHeader>
-          <div className="panel" style={{ padding: 20 }}>
-            <p
-              style={{
-                fontFamily: "var(--sans)",
-                fontSize: 16,
-                fontWeight: 600,
-                letterSpacing: "0.02em",
-                lineHeight: 1.45,
-                margin: "0 0 16px",
-                textTransform: "uppercase",
-              }}
-            >
-              The LLM proposes the shape. A pure deterministic solver decides whether it stands. The LLM
-              cannot override the solver.
-            </p>
-            <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 8px" }}>
-              Every live path falls back to a pinned fixture — the offline demo works fully and keylessly,
-              deterministic and identical every run. The API routes never 500; each stage reports its true
-              live | fixture source.
-            </p>
-            <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: 0 }}>
-              Scenario R is not a toy: it was generated live against a real project —
-              github.com/excalidraw/excalidraw and excalidraw.com — then pinned as fixtures, so every
-              citation is a real file path or URL. Baseline integrity 52.6%, keystone
-              team_has_backend_capacity, evidence coverage 6/6.
-            </p>
+          <SectionHeader>How to read a structure</SectionHeader>
+          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 16px", maxWidth: 640 }}>
+            The graph reads top-down — a thesis resting on claims, resting on assumptions. The chips
+            below match the node colours you&apos;ll see in the studio.
+          </p>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(min(280px, 100%), 1fr))",
+              gap: "2px 28px",
+            }}
+          >
+            {LEGEND.map((item) => (
+              <div
+                key={item.term}
+                style={{
+                  display: "flex",
+                  gap: 12,
+                  alignItems: "flex-start",
+                  padding: "13px 0",
+                  borderTop: "1px solid var(--hair)",
+                }}
+              >
+                <span
+                  aria-hidden
+                  style={{ width: 12, height: 12, background: item.color, flex: "0 0 auto", marginTop: 3 }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <span className="label" style={{ color: "var(--ink)", letterSpacing: "0.12em" }}>
+                    {item.term}
+                  </span>
+                  <p style={{ margin: "3px 0 0", fontSize: 13, color: "var(--ink-2)", lineHeight: 1.5 }}>
+                    {item.line}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -442,6 +479,24 @@ export default function Landing({ startedAt }: { startedAt: string }) {
 
         {/* DECISIONS ledger — V5-4 reads recent snapshots from the library client-side. */}
         <RecentDecisions />
+
+        {/* Honest-architecture, collapsed to a single compact trust line. */}
+        <p
+          style={{
+            fontSize: 12,
+            color: "var(--ink-2)",
+            lineHeight: 1.6,
+            margin: 0,
+            paddingTop: 12,
+            borderTop: "1px solid var(--hair)",
+          }}
+        >
+          <span className="label" style={{ letterSpacing: "0.14em", color: "var(--ink)", marginRight: 8 }}>
+            DETERMINISTIC ENGINE
+          </span>
+          The model proposes the shape; a pure solver decides whether it stands — and cannot override
+          it. Runs fully offline on a pinned real fixture; the API routes never 500.
+        </p>
 
         {/* Footer — session stamp keeps the ledger honesty. */}
         <footer style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingTop: 8 }}>
