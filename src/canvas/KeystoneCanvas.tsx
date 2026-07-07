@@ -592,12 +592,21 @@ function StratumChrome({
 // V4-2 — CONSTRAINT FRAME. "Ideas have constraints" as visible geometry: each relevant
 // constraint is a named CAD boundary plane — a hairline vertical rule stacked in the
 // RIGHT margin (opposite the L0..L3 stratum labels, so the two never collide), zero
-// radius, --muted, with its terse uppercase .mono label running down the rule. When
-// load is applied and an attack's category maps to a plane's categories, that plane
-// STRIKES: it flashes/settles to a persistent --bad VIOLATED state with a strike tally
-// (×n), and draws a brief strike-line (animated strokeDashoffset, like the cracks) from
-// the plane edge to the attacked node. Deterministic (strikes derive from planeStrikes,
-// no randomness); pointer-events off so it never intercepts canvas interaction.
+// radius, --muted. When load is applied and an attack's category maps to a plane's
+// categories, that plane STRIKES: it flashes/settles to a persistent --bad VIOLATED
+// state with a strike tally (×n), and draws a brief strike-line (animated
+// strokeDashoffset, like the cracks) from the plane edge to the attacked node.
+// Deterministic (strikes derive from planeStrikes, no randomness); pointer-events off
+// so it never intercepts canvas interaction.
+//
+// T5 (finding S-1) — the rules used to carry their label rotated `writing-mode:
+// vertical-rl`, jammed edge-to-edge in the gutter: unreadable, overlapping noise. The
+// rules now stay as pure CAD geometry (a hairline + an upright index tick, 1..n); the
+// actual label/status reads horizontally in a numbered legend band docked under the
+// CONSTRAINTS header, same index order so rule #i and legend row #i are the same plane.
+// Strike-lines still originate from the numbered rule. All violated/tally state below
+// is the same engine-derived `planeStrikes` output as before — only the presentation
+// of the label changed.
 function ConstraintFrame({
   planes,
   strikes,
@@ -614,6 +623,11 @@ function ConstraintFrame({
   // Each plane's rule sits at this canvas-% from the right — all inside the reserved
   // right gutter (RIGHT_GUTTER_PCT), so no rule/label/tally can cross the node area.
   const ruleRightPct = (i: number) => 2 + i * 3;
+  // T5 — legend band docks along the BOTTOM edge of the gutter (not under the
+  // CONSTRAINTS header): the StressTab overlays an opaque IntegrityGauge card top-right
+  // of the canvas (outside this component, out of scope here), so a top-docked legend
+  // would render unreadable underneath it. The bottom of the gutter is clear.
+  const LEGEND_BOTTOM_PCT = 6;
   return (
     <div
       data-testid="constraint-planes"
@@ -688,18 +702,17 @@ function ConstraintFrame({
           );
         })}
       </svg>
+      {/* T5 — the rules are now pure CAD geometry: a hairline + an upright index tick
+          (1..n, never rotated). The readable label/status lives in the legend band
+          below; this keeps the "boundary plane" read without the rotated-text noise. */}
       {planes.map((p, i) => {
         const strike = strikeFor(p.id);
         const violated = active && !!strike?.struck;
         const color = violated ? BAD : MUTED;
         return (
-          <motion.div
+          <div
             key={p.id}
-            data-constraint-plane={p.id}
-            data-violated={violated ? "true" : undefined}
-            initial={false}
-            animate={violated ? { opacity: [0.3, 1, 0.85] } : { opacity: 1 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
+            aria-hidden
             style={{ position: "absolute", top: "6%", bottom: "6%", right: `${ruleRightPct(i)}%` }}
           >
             {/* the boundary rule — 1px hairline, zero radius */}
@@ -714,45 +727,94 @@ function ConstraintFrame({
                 opacity: violated ? 0.9 : 0.55,
               }}
             />
-            {/* label runs DOWN the rule (vertical), terse uppercase .mono */}
+            {/* upright index tick — correlates this rule to its legend row below */}
             <span
               className="mono"
               style={{
                 position: "absolute",
-                top: 4,
-                right: 4,
-                writingMode: "vertical-rl",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: "0.14em",
+                top: 2,
+                right: 3,
+                fontSize: 8,
+                fontWeight: 700,
+                letterSpacing: 0,
                 color,
-                whiteSpace: "nowrap",
               }}
             >
-              {p.label}
+              {i + 1}
             </span>
-            {/* persistent VIOLATED tally at the foot of a struck rule */}
-            {violated && (
+          </div>
+        );
+      })}
+      {/* T5 — horizontal CONSTRAINTS legend: one readable row per plane, docked along
+          the bottom of the gutter (clear of the StressTab's IntegrityGauge card, which
+          overlays the top-right of this same canvas outside this component), entirely
+          inside the reserved gutter so it never crosses the board. index → terse label
+          → status, reusing the exact engine-derived violated state + tally (no
+          writing-mode: vertical-rl, no overlap). */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: `${LEGEND_BOTTOM_PCT}%`,
+          right: 6,
+          width: `${RIGHT_GUTTER_PCT - 1}%`,
+          minWidth: 132,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+        }}
+      >
+        {planes.map((p, i) => {
+          const strike = strikeFor(p.id);
+          const violated = active && !!strike?.struck;
+          const color = violated ? BAD : MUTED;
+          return (
+            <motion.div
+              key={p.id}
+              data-constraint-plane={p.id}
+              data-violated={violated ? "true" : undefined}
+              initial={false}
+              animate={violated ? { opacity: [0.3, 1, 0.85] } : { opacity: 1 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              style={{ display: "flex", alignItems: "baseline", gap: 4, minWidth: 0 }}
+            >
+              <span className="mono" style={{ fontSize: 8, fontWeight: 700, color, flexShrink: 0 }}>
+                {i + 1}
+              </span>
               <span
                 className="mono"
                 style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 4,
-                  writingMode: "vertical-rl",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.14em",
-                  color: BAD,
+                  fontSize: 8,
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  color,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                {p.label}
+              </span>
+              {/* status — MET (muted) or the persistent VIOLATED ×n tally (bad), same
+                  engine-derived tally as before, just laid out horizontally now */}
+              <span
+                className="mono"
+                style={{
+                  fontSize: 8,
+                  fontWeight: violated ? 700 : 500,
+                  letterSpacing: "0.04em",
+                  color,
+                  flexShrink: 0,
                   whiteSpace: "nowrap",
                 }}
               >
-                {`VIOLATED ×${strike!.tally}`}
+                {violated ? `VIOLATED ×${strike!.tally}` : "MET"}
               </span>
-            )}
-          </motion.div>
-        );
-      })}
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }
