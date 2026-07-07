@@ -16,11 +16,13 @@ near-term time pressure relevant to a decision: upcoming meetings/events, deadli
 urgency. Keep date descriptions verbatim from the notes (e.g. "tomorrow", "next Tuesday").
 
 Call the emit_findings tool with a structured object. For EACH fact populate the rich fields:
-  - "label": short tag ("Upcoming meeting", "Deadline", "Urgency", "Follow-up").
+  - "label": short tag ("Upcoming meeting", "Deadline", "Urgency", "Follow-up", "Stakeholder commitment").
   - "value": a terse headline.
-  - "source": always "notes".
-  - "category": one of meeting | deadline | urgency (coarse bucket).
-  - "sourceExcerpt": a SHORT VERBATIM quote from the notes that this fact rests on.
+  - "source": always "notes" — the notes are the only source, but this field must still be present
+    and non-empty on every fact.
+  - "category": one of meeting | deadline | urgency | commitment (coarse bucket).
+  - "sourceExcerpt": a SHORT VERBATIM quote from the notes that this fact rests on — never
+    paraphrase; quote the actual words that ground the fact.
   - "quantities": extracted numbers as {metric,value,unit?} — especially LEAD TIME
     ({metric:"lead time", value:"1", unit:"day"} for "tomorrow", "2" days for "in 2 days"),
     and an urgency estimate 0..1 as {metric:"urgency", value:"0.85"} on the urgency fact.
@@ -30,8 +32,9 @@ Call the emit_findings tool with a structured object. For EACH fact populate the
   - "implication": one sentence on why this pressures THE DECISION (what it raises the weight on).
   - "confidence": 0..1.
 
-Produce at least 5 facts (an urgency fact, plus meetings/deadlines/follow-ups). Order by lead time
-(soonest first). Do not invent dates or events that are not in the notes.`;
+Produce at least 6 facts (an urgency fact, plus meetings/deadlines/follow-ups/commitments — pull
+every distinct one out of the notes rather than merging them). Order by lead time (soonest first).
+Do not invent dates or events that are not in the notes.`;
 
 export async function gatherTemporal(
   source: TemporalSource,

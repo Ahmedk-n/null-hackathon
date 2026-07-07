@@ -176,7 +176,10 @@ and technical-debt signals. Cross-reference across manifest ∧ lockfile ∧ CI 
 For EACH fact populate the rich fields:
   - "label": short tag (e.g. "Framework", "CI", "Tests", "Observability", "Tech debt").
   - "value": a terse headline.
-  - "source": the EXACT repo file path (or "src/") the fact came from.
+  - "source": a REAL, SPECIFIC repo path — a file (e.g. "pyproject.toml", ".github/workflows/ci.yml")
+    or a named directory (e.g. "tests/") the fact actually came from. NEVER a blank string, NEVER a
+    vague placeholder like "codebase" or "the repo" — if you cannot name the specific file/dir a fact
+    rests on, drop the fact rather than emit an unsourced one.
   - "category": one of stack | infra | ci | tests | observability | team | tech-debt | integration.
   - "sourceExcerpt": a SHORT VERBATIM line/snippet from that file (or a grep hit) — real text from the digest.
   - "quantities": counts/versions as {metric,value,unit?} — e.g. {metric:"test files",value:"38"},
@@ -185,7 +188,10 @@ For EACH fact populate the rich fields:
   - "implication": one sentence on why this matters for the founder's decision.
   - "confidence": 0..1.
 
-Produce at least 5 facts, kind "technical". Prefer facts that carry a real sourceExcerpt and quantities.`;
+Produce at least 7 facts (more if the digest supports it), kind "technical", spanning as many of the
+categories above as the digest actually evidences — do not repeat the same category five times when
+the digest has signal for CI, tests, observability, AND tech-debt. Prefer facts that carry a real
+sourceExcerpt and quantities.`;
 
 // MCP branch (plan Task 11) — when the founder has a connected GitHub (or other repo-hosting)
 // MCP server, prefer reading the REAL repo (files/issues/PRs) through it over an anonymous
@@ -204,7 +210,9 @@ open issues/PRs relevant to the decision, and technical-debt signals.
 For EACH fact populate the rich fields:
   - "label": short tag (e.g. "Framework", "CI", "Tests", "Observability", "Tech debt", "Open issue").
   - "value": a terse headline.
-  - "source": the EXACT repo file path, or an issue/PR reference (e.g. "#142"), you read it from.
+  - "source": a REAL, SPECIFIC repo file path, or an issue/PR reference (e.g. "#142"), you actually
+    read via the connected tools. NEVER a blank string or a vague placeholder — if you cannot name
+    the specific file/issue/PR a fact rests on, drop the fact rather than emit an unsourced one.
   - "category": one of stack | infra | ci | tests | observability | team | tech-debt | integration.
   - "sourceExcerpt": a SHORT VERBATIM line/snippet from what you read.
   - "quantities": counts/versions as {metric,value,unit?}.
@@ -212,7 +220,9 @@ For EACH fact populate the rich fields:
   - "implication": one sentence on why this matters for the founder's decision.
   - "confidence": 0..1.
 
-Produce at least 5 facts, kind "technical". Prefer facts that carry a real sourceExcerpt.`;
+Produce at least 7 facts (more if the tools support it), kind "technical", spanning multiple
+categories — files AND issues/PRs where available, not just one. Prefer facts that carry a real
+sourceExcerpt.`;
 
 /** MCP-connected read (no clone): a single forced emit call with the connected servers
  *  attached. Returns null (never throws) on any failure or a too-thin reply, so the caller

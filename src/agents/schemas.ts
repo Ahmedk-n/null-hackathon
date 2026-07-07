@@ -15,7 +15,11 @@ export const QuantitySchema = z.object({
 export const GatherFindingSchema = z.object({
   label: z.string(),
   value: z.string(),
-  source: z.string(),
+  // V-P4-T12 · every finding must carry a REAL source (a file path, a URL, a ticket id, or
+  // "notes") — a blank string is not provenance. Rejecting it here means a live reply that
+  // slips one through fails schema validation -> retryOnce/fixture, never a silently
+  // unsourced fact reaching the ledger.
+  source: z.string().min(1, "finding must carry a non-empty source (file path / URL / ticket id / event)"),
   // V8-C2 · RICH TYPED FINDING. label/value/source required (back-compat); the rest optional so
   // a thin live reply still parses, but every agent's forced-tool prompt asks for them so a live
   // reply populates them (verbatim excerpt + extracted numbers + named entities + implication).

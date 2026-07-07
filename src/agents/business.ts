@@ -85,7 +85,9 @@ competitor.
 For EACH fact populate the rich fields:
   - "label": short tag (e.g. "Industry", "Stage / funding", "Growth bottleneck", "Competitor").
   - "value": a terse headline.
-  - "source": the EXACT url you fetched the fact from.
+  - "source": the EXACT, FULL url you fetched the fact from (not just a domain) — never a blank
+    string or a generic label. If you cannot attribute a fact to a specific URL you actually
+    fetched, drop the fact rather than emit an unsourced one.
   - "category": one of market | funding | growth | competitor | constraint | segment.
   - "sourceExcerpt": a SHORT VERBATIM quote from that page — real text you read.
   - "quantities": numbers as {metric,value,unit?} — e.g. {metric:"Series B",value:"45",unit:"$M"},
@@ -95,8 +97,9 @@ For EACH fact populate the rich fields:
   - "implication": one sentence on why this matters for the founder's decision.
   - "confidence": 0..1.
 
-Produce at least 5 facts across the site and competitors, kind "business". Prefer facts that carry a
-real sourceExcerpt and quantities.`;
+Produce at least 7 facts (more if the transcript supports it) across the site AND every named
+competitor — not all from one page, kind "business". Prefer facts that carry a real sourceExcerpt
+and quantities.`;
 
 function renderUser(source: BusinessSource): string {
   const parts: string[] = [];
