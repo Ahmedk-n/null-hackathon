@@ -27,6 +27,11 @@ import { DesignTab, type OpenCandidate } from "@/ui/tabs/DesignTab";
 import { GraphTab } from "@/ui/tabs/GraphTab";
 import { StressTab } from "@/ui/tabs/StressTab";
 import { TopBar, Tabs, StatusStrip, Button, type TabDef } from "@/ui/primitives";
+// P2-T6 · account menu + the session hook. useSession() is what actually flips the library
+// backend (setLibraryBackend) on every auth-state change — see src/lib/useSession.ts. AccountMenu
+// also subscribes on its own (so it works if mounted elsewhere too); both calls are cheap/idempotent.
+import { AccountMenu } from "@/ui/AccountMenu";
+import { useSession } from "@/lib/useSession";
 // LIVE PIPELINE — the dismissable "system at work" overlay. Mounts while a run is in flight and
 // reflects the REAL run (stage + stageSource + the store's graph/attacks + the pure engine MATH).
 import { LivePipeline } from "@/ui/pipeline/LivePipeline";
@@ -88,6 +93,11 @@ export default function KeystoneApp({
   // LIBRARY ledger re-reads localStorage. localStorage is not reactive; this is the refresh beat.
   const [libraryVersion, setLibraryVersion] = useState(0);
 
+  // P2-T6 · mounting the session hook here (in addition to inside <AccountMenu/>) guarantees the
+  // library backend flips to "user"/"guest" on every auth-state change even if AccountMenu is ever
+  // reworked/removed from the TopBar — see src/lib/useSession.ts (setLibraryBackend call).
+  useSession();
+
   // CUSTOM sends NO scenario (live path fires when a key exists); A/B pin the fixture chain.
   const scenarioArg = mode === "custom" ? undefined : mode;
 
@@ -115,9 +125,10 @@ export default function KeystoneApp({
   }
 
   // Patch the current snapshot's verdict in place (Apply Load / Reinforce) + refresh the ledger.
-  function syncCurrentVerdict() {
+  // P2-T4: updateEntryVerdict is now async (guest → local, signed-in → remote) — await it.
+  async function syncCurrentVerdict() {
     if (!currentEntryId) return;
-    updateEntryVerdict(currentEntryId, currentVerdict());
+    await updateEntryVerdict(currentEntryId, currentVerdict());
     setLibraryVersion((n) => n + 1);
   }
 
@@ -140,14 +151,17 @@ export default function KeystoneApp({
   // scenario-R context pack (Context Used surfaces + grounds the load), set the winning graph, and
   // apply its attacks as rawAttacks (the grounded verdict the tournament just showed). Auto-save the
   // snapshot and jump to the GRAPH tab. No API round-trip — everything is client-side + pure.
-  function openInStudio(c: OpenCandidate) {
+  // P2-T4: saveEntry is now async — await it (openInStudio itself becomes async; its caller,
+  // DesignTab's onOpenInStudio, accepts a void-returning handler so the Promise is fire-and-forget
+  // from the caller's perspective, same as before).
+  async function openInStudio(c: OpenCandidate) {
     const store = keystoneStore.getState();
     const companyContext = fixtureCompanyContextR();
     const pack = fixtureDecisionContextPackR();
     store.setContext(companyContext, pack, "fixture");
     store.setGraph(c.graph); // clean base + working; clears prior attacks
     store.applyLoad(c.attacks); // seeds rawAttacks + the grounded, reweighted verdict
-    const entry = saveEntry({
+    const entry = await saveEntry({
       title: c.label,
       savedAtISO: startedAt,
       mode: "R",
@@ -173,8 +187,14 @@ export default function KeystoneApp({
     if (typeof window === "undefined") return;
     const id = new URLSearchParams(window.location.search).get("open");
     if (!id) return;
-    const entry = getEntry(id);
-    if (entry) restoreEntry(entry);
+    // P2-T4: getEntry is now async — resolve inside the effect (still runs once on mount).
+    let cancelled = false;
+    getEntry(id).then((entry) => {
+      if (!cancelled && entry) restoreEntry(entry);
+    });
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -253,7 +273,8 @@ export default function KeystoneApp({
       // V5-4 · auto-save the analysis. savedAtISO = the server-passed startedAt (NEVER a client
       // clock — T8); seq/id come from the library's persisted monotonic counter. The verdict is
       // the fresh (pre-load) engine reading off the just-set graph.
-      const entry = saveEntry({
+      // P2-T4: saveEntry is now async — `analyse` is already an async function, so just await it.
+      const entry = await saveEntry({
         title: input.decisionText.trim() || decision,
         savedAtISO: startedAt,
         mode,
@@ -297,7 +318,7 @@ export default function KeystoneApp({
       }));
       keystoneStore.getState().applyLoad(generated);
       // V5-4 · the applied-load verdict updates the current snapshot in the library.
-      syncCurrentVerdict();
+      await syncCurrentVerdict();
       setStage("done");
     } finally {
       setLoading(false);
@@ -305,9 +326,9 @@ export default function KeystoneApp({
   }
 
   // V5-4 · Reinforce runs the store solver, then patches the snapshot's verdict (de-risked).
-  function handleReinforce() {
+  async function handleReinforce() {
     keystoneStore.getState().reinforce();
-    syncCurrentVerdict();
+    await syncCurrentVerdict();
   }
 
   // Bottom status strip: live reads of engine/store outputs. LINKS = total edges
@@ -419,6 +440,8 @@ export default function KeystoneApp({
             ) : (
               <Button disabled>Print Memo</Button>
             )}
+            {/* P2-T6 · account/session widget — LOADING / GUEST ("Sign in to save") / SIGNED IN. */}
+            <AccountMenu />
           </>
         }
       />
@@ -438,8 +461,8 @@ export default function KeystoneApp({
             }}
             libraryVersion={libraryVersion}
             currentEntryId={currentEntryId}
-            onReopen={(id) => {
-              const entry = getEntry(id);
+            onReopen={async (id) => {
+              const entry = await getEntry(id);
               if (entry) restoreEntry(entry);
             }}
             onLibraryChange={() => setLibraryVersion((n) => n + 1)}
