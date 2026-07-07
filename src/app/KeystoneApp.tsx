@@ -27,6 +27,11 @@ import { DesignTab, type OpenCandidate } from "@/ui/tabs/DesignTab";
 import { GraphTab } from "@/ui/tabs/GraphTab";
 import { StressTab } from "@/ui/tabs/StressTab";
 import { TopBar, Tabs, StatusStrip, Button, type TabDef } from "@/ui/primitives";
+// P2-T6 · account menu + the session hook. useSession() is what actually flips the library
+// backend (setLibraryBackend) on every auth-state change — see src/lib/useSession.ts. AccountMenu
+// also subscribes on its own (so it works if mounted elsewhere too); both calls are cheap/idempotent.
+import { AccountMenu } from "@/ui/AccountMenu";
+import { useSession } from "@/lib/useSession";
 // LIVE PIPELINE — the dismissable "system at work" overlay. Mounts while a run is in flight and
 // reflects the REAL run (stage + stageSource + the store's graph/attacks + the pure engine MATH).
 import { LivePipeline } from "@/ui/pipeline/LivePipeline";
@@ -87,6 +92,11 @@ export default function KeystoneApp({
   // Bumped whenever the library changes (save / verdict update / restore) so the CONTEXT-tab
   // LIBRARY ledger re-reads localStorage. localStorage is not reactive; this is the refresh beat.
   const [libraryVersion, setLibraryVersion] = useState(0);
+
+  // P2-T6 · mounting the session hook here (in addition to inside <AccountMenu/>) guarantees the
+  // library backend flips to "user"/"guest" on every auth-state change even if AccountMenu is ever
+  // reworked/removed from the TopBar — see src/lib/useSession.ts (setLibraryBackend call).
+  useSession();
 
   // CUSTOM sends NO scenario (live path fires when a key exists); A/B pin the fixture chain.
   const scenarioArg = mode === "custom" ? undefined : mode;
@@ -430,6 +440,8 @@ export default function KeystoneApp({
             ) : (
               <Button disabled>Print Memo</Button>
             )}
+            {/* P2-T6 · account/session widget — LOADING / GUEST ("Sign in to save") / SIGNED IN. */}
+            <AccountMenu />
           </>
         }
       />

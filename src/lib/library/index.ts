@@ -58,12 +58,22 @@ export function updateEntryVerdict(id: string, verdict: LibraryVerdict): Promise
 
 // One-time "import guest library into account" (global constraint): every locally-saved entry,
 // pushed to the remote backend regardless of the CURRENT `mode` (so it can run once right after
-// sign-in, before/while the switch to "user" takes effect). Idempotent by content — the caller
-// (useSession) gates this on a per-browser flag so it only ever offers/runs once.
-export async function importGuestLibraryIntoAccount(): Promise<{ imported: number }> {
-  const entries = local.localAll();
+// sign-in, before/while the switch to "user" takes effect). Idempotent BY CONTENT: it first reads
+// the account's existing remote entries and skips any local entry that already has a match there
+// (by title + savedAtISO — the pair that uniquely identifies a saved snapshot's provenance), so
+// calling this twice (e.g. a retried offer, or the user signing in on a second browser that also
+// has guest data) never duplicates rows. The caller (useSession) additionally gates the *offer*
+// on a per-browser flag so the user is only ever asked once.
+export async function importGuestLibraryIntoAccount(): Promise<{ imported: number; skipped: number }> {
+  const [entries, existing] = await Promise.all([Promise.resolve(local.localAll()), remote.remoteList()]);
+  const existingKeys = new Set(existing.map((e) => `${e.title}||${e.savedAtISO}`));
   let imported = 0;
+  let skipped = 0;
   for (const e of entries) {
+    if (existingKeys.has(`${e.title}||${e.savedAtISO}`)) {
+      skipped++;
+      continue;
+    }
     const saved = await remote.remoteSave({
       title: e.title,
       savedAtISO: e.savedAtISO,
@@ -76,5 +86,5 @@ export async function importGuestLibraryIntoAccount(): Promise<{ imported: numbe
     });
     if (saved) imported++;
   }
-  return { imported };
+  return { imported, skipped };
 }

@@ -137,7 +137,10 @@ describe("library resolver — importGuestLibraryIntoAccount", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (_url: string, init?: RequestInit) => {
-        const body = JSON.parse(String(init?.body ?? "{}")) as { title: string };
+        if (!init || (init.method ?? "GET") === "GET") {
+          return new Response(JSON.stringify({ entries: [] }), { status: 200 }); // no existing remote rows
+        }
+        const body = JSON.parse(String(init.body ?? "{}")) as { title: string };
         posted.push(body.title);
         return new Response(
           JSON.stringify({ entry: { ...make(), id: `remote-${posted.length}`, seq: posted.length } }),
@@ -148,6 +151,34 @@ describe("library resolver — importGuestLibraryIntoAccount", () => {
 
     const result = await importGuestLibraryIntoAccount();
     expect(result.imported).toBe(2);
+    expect(result.skipped).toBe(0);
     expect(posted.sort()).toEqual(["One", "Two"]);
+  });
+
+  it("is idempotent by content — skips a local entry already present remotely", async () => {
+    setLibraryBackend("guest");
+    const a = await saveEntry(make({ title: "Already remote" }));
+    await saveEntry(make({ title: "New locally" }));
+
+    const posted: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        if (!init || (init.method ?? "GET") === "GET") {
+          return new Response(
+            JSON.stringify({ entries: [{ ...make(), title: a!.title, savedAtISO: a!.savedAtISO }] }),
+            { status: 200 },
+          );
+        }
+        const body = JSON.parse(String(init.body ?? "{}")) as { title: string };
+        posted.push(body.title);
+        return new Response(JSON.stringify({ entry: { ...make(), id: "remote-1", seq: 1 } }), { status: 200 });
+      }),
+    );
+
+    const result = await importGuestLibraryIntoAccount();
+    expect(result.imported).toBe(1);
+    expect(result.skipped).toBe(1);
+    expect(posted).toEqual(["New locally"]);
   });
 });
