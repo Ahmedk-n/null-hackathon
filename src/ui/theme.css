@@ -407,3 +407,33 @@ body {
   max-width: 12px;
   max-height: 12px;
 }
+
+/* ── CONTEXT tab pane layout (T2 / C-1) ─────────────────────────────── */
+/* Each CONTEXT sub-tab (business/technical/temporal) is AgentGather beside a manual
+   textarea. On desktop the MANUAL textarea is the dominant column (the thing the judge
+   actually edits) with AgentGather as a narrower evidence rail; below ~900px there isn't
+   room for two columns, so it stacks — gather ABOVE its matching textarea ("agent gathers
+   evidence → you refine it manually"). */
+.context-pane {
+  display: flex;
+  gap: var(--pad);
+  align-items: flex-start;
+}
+.context-pane-gather {
+  flex: 0 1 40%;
+  min-width: 0;
+}
+.context-pane-manual {
+  flex: 1 1 60%;
+  min-width: 0;
+}
+@media (max-width: 900px) {
+  .context-pane {
+    flex-direction: column;
+  }
+  .context-pane-gather,
+  .context-pane-manual {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}

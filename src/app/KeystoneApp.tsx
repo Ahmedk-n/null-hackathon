@@ -466,6 +466,7 @@ export default function KeystoneApp({
               if (entry) restoreEntry(entry);
             }}
             onLibraryChange={() => setLibraryVersion((n) => n + 1)}
+            onOpenGraph={() => setActiveTab("graph")}
           />
         )}
         {activeTab === "graph" && <GraphTab fitSignal={fitSignal} />}

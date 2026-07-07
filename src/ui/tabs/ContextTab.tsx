@@ -13,11 +13,13 @@
 // stays as the user's starting point, only the scenario pin drops. This is the keystroke that
 // used to reveal the demo was on rails; now it just works.
 import { useEffect, useState } from "react";
-import type { ContextInput, ScenarioId } from "@/context";
+import type { ContextInput, DecisionContextPack, ScenarioId } from "@/context";
 import { SCENARIOS } from "@/context/fixtures";
 import type { GatherFinding, GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
+// C-3 · the store singleton — read directly (no prop-drilling) for the post-compile strip below.
+import { useKeystone } from "@/store/useKeystone";
 // V5-4 · decision library — the localStorage/Supabase snapshot layer (SSR-safe, no wall-clock).
 // P2-T7 · getLibraryBackend/remoteSetPublic power the SHARE toggle (signed-in only — guest/local
 // entries have no server row to share).
@@ -61,11 +63,18 @@ function mergeSummary(prev: string, summary: string): string {
   return prev.trim() ? `${prev.trim()}\n\n${s}` : s;
 }
 
-const COL: React.CSSProperties = { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--gap)" };
-const PANE: React.CSSProperties = { display: "flex", gap: "var(--pad)", alignItems: "flex-start" };
+const COL: React.CSSProperties = { minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--gap)" };
+// C-1: PANE used to be an inline ROW (`display:"flex"`) laying AgentGather beside the manual
+// textarea. That's now the `.context-pane` class in theme.css, which stacks below ~900px
+// (gather ABOVE its matching textarea) and gives the manual textarea the dominant width on
+// desktop (`.context-pane-gather` ~40%, `.context-pane-manual` ~60%). See theme.css.
 
 // MODE selector — a terminal segmented control (NOT the Tabs primitive, so it carries no
 // `data-tab`). A/B re-seed the textareas + pin the fixture chain; CUSTOM clears + goes live.
+// C-2: segments used to show the full scenario label and ellipsis-clip on narrow widths,
+// cutting the OUTCOME parenthetical (COLLAPSES / HOLDS) first — the most informative part.
+// Now each segment is two lines: id + short name (may still ellipsis — least informative part)
+// on top, a bold OUTCOME word on the bottom that never truncates. Full label lives in `title`.
 function ModeSelect({
   mode,
   onSelect,
@@ -73,32 +82,44 @@ function ModeSelect({
   mode: ContextMode;
   onSelect: (m: ContextMode) => void;
 }) {
-  const segs: { id: ContextMode; label: string }[] = [
-    { id: "R", label: "R — REAL: EXCALIDRAW" },
-    { id: "A", label: SCENARIOS.A.label },
-    { id: "B", label: SCENARIOS.B.label },
-    { id: "custom", label: "C — Custom (Live)" },
+  const segs: { id: ContextMode; idLabel: string; name: string; outcome: string; full: string }[] = [
+    { id: "R", idLabel: "R", name: "EXCALIDRAW", outcome: "REAL", full: "R — Real: Excalidraw" },
+    { id: "A", idLabel: "A", name: "MIGRATE BEFORE PILOT", outcome: "COLLAPSES", full: SCENARIOS.A.label },
+    { id: "B", idLabel: "B", name: "REINFORCE FIRST", outcome: "HOLDS", full: SCENARIOS.B.label },
+    { id: "custom", idLabel: "C", name: "CUSTOM", outcome: "LIVE", full: "C — Custom (Live)" },
   ];
   const segStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
     minWidth: 0,
-    padding: "8px 10px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 2,
+    padding: "6px 8px",
     fontFamily: "var(--mono)",
-    fontSize: 10,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
     textAlign: "left",
     cursor: "pointer",
     border: "none",
     borderRadius: 0,
-    // 4 equal segments; keep each on one line and ellipsis-clip so a long scenario
-    // label can't wrap raggedly and blow out the control's height (full text on hover).
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
     background: active ? "var(--ink)" : "transparent",
     color: active ? "var(--bg)" : "var(--muted)",
   });
+  // Line 1 (id + short name) may still ellipsis on a very narrow segment — it's the least
+  // informative part now that the outcome has its own line.
+  const nameLine: React.CSSProperties = {
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  };
+  // Line 2 — the outcome. Short by construction (REAL/COLLAPSES/HOLDS/LIVE); no clipping rule
+  // applied on purpose, so it can never be the thing that truncates.
+  const outcomeLine: React.CSSProperties = {
+    fontSize: 9,
+    fontWeight: 700,
+    letterSpacing: "0.08em",
+  };
   return (
     <div>
       <span className="label" style={{ display: "block", marginBottom: 5 }}>
@@ -115,10 +136,13 @@ function ModeSelect({
             data-scenario={s.id}
             aria-pressed={mode === s.id}
             onClick={() => onSelect(s.id)}
-            title={s.label}
+            title={s.full}
             style={segStyle(mode === s.id)}
           >
-            {s.label}
+            <span style={nameLine}>
+              {s.idLabel} — {s.name}
+            </span>
+            <span style={outcomeLine}>{s.outcome}</span>
           </button>
         ))}
       </div>
@@ -155,6 +179,68 @@ function ModeChip({ mode }: { mode: ContextMode }) {
     >
       {text}
     </span>
+  );
+}
+
+// ── C-3 · COMPILED strip ─────────────────────────────────────────────────────────────────────
+// After ANALYSE, returning to CONTEXT showed the identical gather form — no signal a compile
+// happened. This strip is purely additive: hidden until a `decisionContextPack` lands in the
+// store, then a one-line ledger stamp (fact count + PINNED/LIVE source) with a jump to GRAPH.
+// Fact count = the three `relevant*Facts` arrays (business/technical/temporal) — the pack's
+// constraints/objectives/risks are a different shape, not "facts".
+function CompiledStrip({
+  pack,
+  source,
+  onOpenGraph,
+}: {
+  pack: DecisionContextPack;
+  source: "live" | "fixture" | null;
+  onOpenGraph?: () => void;
+}) {
+  const factCount =
+    pack.relevantBusinessFacts.length + pack.relevantTechnicalFacts.length + pack.relevantTemporalFacts.length;
+  // Reuse the MODE chip's PINNED/LIVE vocabulary (not AgentGather's LIVE/CACHED) — this strip
+  // reports the compiled PACK's provenance, which the judge already reads as PINNED vs LIVE.
+  const live = source === "live";
+  return (
+    <div
+      data-testid="compiled-strip"
+      className="mono"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 8,
+        padding: "6px 10px",
+        border: "1px solid var(--hair-strong)",
+        background: "var(--panel-2)",
+      }}
+    >
+      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+        COMPILED — {factCount} FACTS · {live ? "LIVE" : "PINNED"}
+      </span>
+      {onOpenGraph && (
+        <button
+          type="button"
+          data-testid="compiled-strip-open-graph"
+          onClick={onOpenGraph}
+          style={{
+            fontFamily: "var(--mono)",
+            fontSize: 10,
+            fontWeight: 600,
+            letterSpacing: "0.1em",
+            textTransform: "uppercase",
+            padding: "2px 8px",
+            border: "1px solid var(--hair-strong)",
+            background: "transparent",
+            color: "var(--ink)",
+            cursor: "pointer",
+          }}
+        >
+          View Graph →
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -348,6 +434,7 @@ export function ContextTab({
   currentEntryId,
   onReopen,
   onLibraryChange,
+  onOpenGraph,
 }: {
   onAnalyse: (input: ContextInput) => void;
   analysing: boolean;
@@ -365,8 +452,15 @@ export function ContextTab({
   onReopen?: (id: string) => void;
   /** V5-4: the ledger mutated locally (duplicate / delete) — let the parent resync. */
   onLibraryChange?: () => void;
+  /** C-3: jump to the GRAPH tab from the COMPILED strip's action. Omitted → the strip renders
+   *  as a plain chip with no action (still additive/low-risk per the finding). */
+  onOpenGraph?: () => void;
 }) {
   const [active, setActive] = useState("business");
+  // C-3: the compiled pack + its provenance — read straight off the store singleton so this
+  // stays additive (no new props threaded down from KeystoneApp for the pack itself).
+  const decisionContextPack = useKeystone((s) => s.decisionContextPack);
+  const contextSource = useKeystone((s) => s.contextSource);
 
   // Textareas seed from the initial mode. Re-seeding on an explicit mode click happens in
   // `selectMode` (not via remount), so an edit-driven flip to CUSTOM preserves the user's text.
@@ -411,8 +505,8 @@ export function ContextTab({
     // so an explicit scenario switch re-seeds the source fields, mirroring the manual textareas.
     const seed = mode === "custom" ? undefined : SCENARIOS[mode].sources?.[kind];
     return (
-      <div style={PANE}>
-        <div style={COL}>
+      <div className="context-pane">
+        <div className="context-pane-gather" style={COL}>
           {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
               direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
           <AgentGather
@@ -423,7 +517,7 @@ export function ContextTab({
             onFindings={(facts) => onGatherFindings?.(kind, facts)}
           />
         </div>
-        <div style={COL}>
+        <div className="context-pane-manual" style={COL}>
           <SectionHeader>Manual</SectionHeader>
           <Field
             label={`${kind} context`}
@@ -450,6 +544,11 @@ export function ContextTab({
         background: "var(--panel)",
       }}
     >
+      {/* C-3 · additive — hidden until a compile has actually happened. */}
+      {decisionContextPack && (
+        <CompiledStrip pack={decisionContextPack} source={contextSource} onOpenGraph={onOpenGraph} />
+      )}
+
       {onModeChange && <ModeSelect mode={mode} onSelect={selectMode} />}
 
       {/* V5-4 · LIBRARY ledger — compact list of saved analyses under the mode control. */}

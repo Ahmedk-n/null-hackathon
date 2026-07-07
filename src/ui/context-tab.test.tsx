@@ -87,7 +87,11 @@ describe("ContextTab (R3-UI static structure)", () => {
     // R exists and is the first segment in the mode control.
     const segs = [...container.querySelectorAll("[data-scenario]")];
     expect(segs[0].getAttribute("data-scenario")).toBe("R");
-    expect(container.querySelector('[data-scenario="R"]')!.textContent).toMatch(/REAL.*EXCALIDRAW/i);
+    // C-2: segments are now terser two-line labels (id+name / outcome) so the outcome never
+    // ellipsis-clips — assert both substrings are present rather than a fixed ordering.
+    const rSeg = container.querySelector('[data-scenario="R"]')!.textContent ?? "";
+    expect(rSeg).toMatch(/EXCALIDRAW/i);
+    expect(rSeg).toMatch(/REAL/i);
     // The decision sub-tab seeds from the real scenario input.
     fireEvent.click(container.querySelector('[data-tab="decision"]')!);
     const decision = [...container.querySelectorAll("textarea")].find(
