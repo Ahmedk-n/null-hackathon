@@ -9,10 +9,14 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { z } from "zod";
 
 // vi.hoisted so the mock factory can reference the spy (vi.mock is hoisted above imports).
-const { createMock } = vi.hoisted(() => ({ createMock: vi.fn() }));
+const { createMock, createBetaMock } = vi.hoisted(() => ({
+  createMock: vi.fn(),
+  createBetaMock: vi.fn(),
+}));
 vi.mock("@anthropic-ai/sdk", () => ({
   default: class {
     messages = { create: createMock };
+    beta = { messages: { create: createBetaMock } };
   },
 }));
 
@@ -40,6 +44,7 @@ const args = {
 
 beforeEach(() => {
   createMock.mockReset();
+  createBetaMock.mockReset();
 });
 
 describe("MODEL / MAX_TOKENS constants", () => {
@@ -97,5 +102,43 @@ describe("structuredCall (mocked SDK)", () => {
   it("network/SDK rejection propagates (caller owns retry + fixture)", async () => {
     createMock.mockRejectedValue(new Error("timeout"));
     await expect(structuredCall(args)).rejects.toThrow("timeout");
+  });
+});
+
+describe("structuredCall with mcpServers (plan Task 11)", () => {
+  const mcpServers = [{ type: "url" as const, name: "github", url: "https://api.githubcopilot.com/mcp/", authorization_token: "ghp_x" }];
+
+  it("routes through client.beta.messages.create (not the non-beta path) when mcpServers is non-empty", async () => {
+    const payload = { title: "hello", count: 3, tags: ["a", "b"] };
+    createBetaMock.mockResolvedValue(toolUse(payload));
+    const out = await structuredCall({ ...args, mcpServers });
+    expect(out).toEqual(payload);
+    expect(createBetaMock).toHaveBeenCalledTimes(1);
+    expect(createMock).not.toHaveBeenCalled();
+  });
+
+  it("passes mcp_servers, the MCP beta header, and an mcp_toolset tool per server", async () => {
+    createBetaMock.mockResolvedValue(toolUse({ title: "x", count: 1, tags: [] }));
+    await structuredCall({ ...args, mcpServers });
+    const req = createBetaMock.mock.calls[0][0];
+    expect(req.mcp_servers).toEqual(mcpServers);
+    expect(req.betas).toContain("mcp-client-2025-11-20");
+    expect(req.tool_choice).toEqual({ type: "tool", name: "emit" });
+    // The forced emit tool is still present, plus one mcp_toolset tool for the server.
+    expect(req.tools).toHaveLength(2);
+    expect(req.tools[0].name).toBe("emit");
+    expect(req.tools[1]).toEqual({ type: "mcp_toolset", mcp_server_name: "github" });
+  });
+
+  it("falls back to the non-beta path when mcpServers is undefined or empty", async () => {
+    createMock.mockResolvedValue(toolUse({ title: "x", count: 1, tags: [] }));
+    await structuredCall({ ...args, mcpServers: [] });
+    expect(createMock).toHaveBeenCalledTimes(1);
+    expect(createBetaMock).not.toHaveBeenCalled();
+  });
+
+  it("no tool_use block in an mcp-branch reply → throws", async () => {
+    createBetaMock.mockResolvedValue({ content: [{ type: "text", text: "sorry" }] });
+    await expect(structuredCall({ ...args, mcpServers })).rejects.toThrow(/no tool_use block/);
   });
 });

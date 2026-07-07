@@ -9,6 +9,7 @@ import { GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
 import { retryOnce } from "./retry";
 import { hasApiKey, structuredCall } from "@/llm/structured";
+import type { McpServerDef } from "@/lib/mcp/connector";
 
 const TEMPORAL_SYSTEM = `You are Keystone's temporal context agent. From the founder's pasted notes/agenda, extract the
 near-term time pressure relevant to a decision: upcoming meetings/events, deadlines, and overall
@@ -36,6 +37,7 @@ export async function gatherTemporal(
   source: TemporalSource,
   emit: Emit,
   now: Now,
+  mcpServers?: McpServerDef[],
 ): Promise<GatherFindings> {
   const fallback = () => replayFixture("temporal", emit, now);
   if (!hasApiKey() || !source.notes || !source.notes.trim()) return fallback();
@@ -50,6 +52,7 @@ export async function gatherTemporal(
         toolName: "emit_findings",
         toolDescription:
           "Emit the temporal findings (upcoming events, deadlines, urgency) as one structured object.",
+        mcpServers,
       }),
     );
 

@@ -21,6 +21,7 @@ import { GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
 import { retryOnce } from "./retry";
 import { structuredCall } from "@/llm/structured";
+import type { McpServerDef } from "@/lib/mcp/connector";
 
 const CLONE_TIMEOUT_MS = 60_000;
 const MAX_ENTRIES = 200;
@@ -186,13 +187,86 @@ For EACH fact populate the rich fields:
 
 Produce at least 5 facts, kind "technical". Prefer facts that carry a real sourceExcerpt and quantities.`;
 
+// MCP branch (plan Task 11) — when the founder has a connected GitHub (or other repo-hosting)
+// MCP server, prefer reading the REAL repo (files/issues/PRs) through it over an anonymous
+// shallow clone (which can't see private repos and only ever sees a file listing, never issue/PR
+// history). This is a single forced emit_findings call with the connected servers attached
+// (structuredCall's mcpServers branch) rather than the clone -> local-digest -> emit pipeline.
+const TECH_MCP_EMIT_SYSTEM = `You are Keystone's technical context agent. You have MCP tools connected (e.g. GitHub)
+for the founder's actual repository — use them to read real files, manifests, CI config, and open
+issues/PRs before answering. Call the emit_findings tool with the structured result. Use ONLY facts
+you actually observed via the connected tools — never invent files, versions, issues, or counts.
+
+Determine the real technical context a founder would paste into a decision tool: stack/framework,
+architecture (monolith vs services), infrastructure, deployment, observability maturity, testing/CI,
+open issues/PRs relevant to the decision, and technical-debt signals.
+
+For EACH fact populate the rich fields:
+  - "label": short tag (e.g. "Framework", "CI", "Tests", "Observability", "Tech debt", "Open issue").
+  - "value": a terse headline.
+  - "source": the EXACT repo file path, or an issue/PR reference (e.g. "#142"), you read it from.
+  - "category": one of stack | infra | ci | tests | observability | team | tech-debt | integration.
+  - "sourceExcerpt": a SHORT VERBATIM line/snippet from what you read.
+  - "quantities": counts/versions as {metric,value,unit?}.
+  - "entities": named frameworks/libraries/tools.
+  - "implication": one sentence on why this matters for the founder's decision.
+  - "confidence": 0..1.
+
+Produce at least 5 facts, kind "technical". Prefer facts that carry a real sourceExcerpt.`;
+
+/** MCP-connected read (no clone): a single forced emit call with the connected servers
+ *  attached. Returns null (never throws) on any failure or a too-thin reply, so the caller
+ *  falls through to the shallow-clone path (if a repoUrl was given) or the fixture. */
+async function gatherTechnicalViaMcp(
+  source: TechnicalSource,
+  emit: Emit,
+  now: Now,
+  mcpServers: McpServerDef[],
+): Promise<GatherFindings | null> {
+  try {
+    emit({ type: "status", message: "Reading the repository via connected MCP tools (e.g. GitHub)…", ts: now() });
+    const findings: GatherFindings = await retryOnce(() =>
+      structuredCall({
+        system: TECH_MCP_EMIT_SYSTEM,
+        user: source.repoUrl
+          ? `Repo: ${source.repoUrl}\n\nUse the connected MCP tools to read the real repository (files, manifests, CI, issues/PRs) before answering.`
+          : "Use the connected MCP tools to read the real, connected repository (files, manifests, CI, issues/PRs) before answering.",
+        schema: GatherFindingsSchema,
+        toolName: "emit_findings",
+        toolDescription:
+          "Emit the technical findings (rich typed, grounded in real MCP-read repo content) as one structured object.",
+        mcpServers,
+      }),
+    );
+    return findings.facts.length >= MIN_FACTS ? findings : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function gatherTechnical(
   source: TechnicalSource,
   emit: Emit,
   now: Now,
+  mcpServers?: McpServerDef[],
 ): Promise<GatherFindings> {
   const fallback = () => replayFixture("technical", emit, now);
-  if (!hasApiKey() || !source.repoUrl) return fallback();
+  if (!hasApiKey()) return fallback();
+
+  // Prefer a real MCP-connected read over the shallow clone whenever the founder has a
+  // connected repo-hosting server (GitHub/etc). Falls through (clone, then fixture) on any
+  // MCP-path failure or thin reply — never the sole path to a result.
+  if (mcpServers && mcpServers.length > 0) {
+    const mcpFindings = await gatherTechnicalViaMcp(source, emit, now, mcpServers);
+    if (mcpFindings) {
+      mcpFindings.kind = "technical";
+      for (const f of mcpFindings.facts) emit({ type: "finding", finding: f, ts: now() });
+      emit({ type: "done", findings: mcpFindings, source: "live", ts: now() });
+      return mcpFindings;
+    }
+  }
+
+  if (!source.repoUrl) return fallback();
 
   let dir: string | null = null;
   try {

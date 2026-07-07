@@ -7,8 +7,11 @@ import { collectText, GatherFindingsSchema, MIN_FACTS } from "./schemas";
 import { replayFixture } from "./fixtures";
 import { retryOnce } from "./retry";
 import { structuredCall } from "@/llm/structured";
+import { toolsetFor, type McpServerDef } from "@/lib/mcp/connector";
 
 const MODEL = "claude-opus-4-8";
+// Beta header for the MCP connector — see src/llm/structured.ts for the confirmed-SDK-fact note.
+const MCP_BETA = "mcp-client-2025-11-20";
 // PHASE-1 (web research) hard per-request deadline. The SDK rejects with APIConnectionTimeoutError
 // past this, which the catch → fixture fallback handles. This call does genuine multi-step
 // server-side tool use (web_search + web_fetch).
@@ -107,29 +110,58 @@ export async function gatherBusiness(
   source: BusinessSource,
   emit: Emit,
   now: Now,
+  mcpServers?: McpServerDef[],
 ): Promise<GatherFindings> {
   const fallback = () => replayFixture("business", emit, now);
   const hasSource = Boolean(source.website) || Boolean(source.competitors?.length);
   if (!hasApiKey() || !hasSource) return fallback();
 
   try {
-    // PHASE 1 — web research. The server tools loop multi-step server-side within this one call.
-    // maxRetries: 0 — retryOnce below owns the single guardrail retry; the SDK's default
-    // auto-retry would otherwise stack multiple 30s timeouts and blow the client deadline.
+    // PHASE 1 — web research (+ the founder's connected MCP tools, e.g. Notion/Linear, when
+    // present). The server tools AND MCP toolset both loop multi-step server-side within this
+    // one call. maxRetries: 0 — retryOnce below owns the single guardrail retry; the SDK's
+    // default auto-retry would otherwise stack multiple 30s timeouts and blow the client deadline.
     emit({ type: "status", message: "Searching the web for the company…", ts: now() });
     const client = new Anthropic({ maxRetries: 0 });
-    const res = await retryOnce(() =>
-      client.messages.create(
-        {
-          model: MODEL,
-          max_tokens: 16_000,
-          system: BUSINESS_SYSTEM,
-          messages: [{ role: "user", content: renderUser(source) }],
-          tools: SERVER_TOOLS as unknown as Anthropic.Messages.ToolUnion[],
-        },
-        { timeout: REQUEST_TIMEOUT_MS },
-      ),
-    );
+    const hasMcp = Boolean(mcpServers && mcpServers.length > 0);
+    // Both branches return the same shape we actually use (`.content`); typed as `unknown`
+    // here (fed straight to collectText, which already accepts `unknown`) so the two Anthropic
+    // response types (Message vs. beta BetaMessage) don't need reconciling into one signature.
+    let content: unknown;
+    if (hasMcp) {
+      const res = await retryOnce(() =>
+        client.beta.messages.create(
+          {
+            model: MODEL,
+            max_tokens: 16_000,
+            system: BUSINESS_SYSTEM,
+            messages: [{ role: "user", content: renderUser(source) }],
+            betas: [MCP_BETA],
+            mcp_servers: mcpServers,
+            tools: [
+              ...SERVER_TOOLS,
+              ...toolsetFor(mcpServers as McpServerDef[]),
+            ] as unknown as Anthropic.Beta.BetaToolUnion[],
+          },
+          { timeout: REQUEST_TIMEOUT_MS },
+        ),
+      );
+      content = res.content;
+    } else {
+      const res = await retryOnce(() =>
+        client.messages.create(
+          {
+            model: MODEL,
+            max_tokens: 16_000,
+            system: BUSINESS_SYSTEM,
+            messages: [{ role: "user", content: renderUser(source) }],
+            tools: SERVER_TOOLS as unknown as Anthropic.Messages.ToolUnion[],
+          },
+          { timeout: REQUEST_TIMEOUT_MS },
+        ),
+      );
+      content = res.content;
+    }
 
     // PHASE 2 — forced-tool finalizer. The research synthesis (with URLs + verbatim quotes + numbers)
     // is fed to a single FORCED emit_findings call that lands the rich typed schema reliably. Separate
@@ -139,7 +171,7 @@ export async function gatherBusiness(
     // transcript measured ~55-58s live, overrunning 45s and falling back. Both phases are guarded by
     // retryOnce + the try/catch → fixture fallback, so any overrun falls back and never hangs.
     emit({ type: "status", message: "Analyzing website and competitors (forced emit)…", ts: now() });
-    const synthesis = collectText(res.content);
+    const synthesis = collectText(content);
     const findings: GatherFindings = await retryOnce(() =>
       structuredCall({
         system: BUSINESS_EMIT_SYSTEM,
@@ -149,6 +181,7 @@ export async function gatherBusiness(
         toolDescription:
           "Emit the business findings (rich typed, with verbatim quotes, quantities, entities, implication) as one structured object.",
         timeoutMs: 90_000,
+        mcpServers,
       }),
     );
 

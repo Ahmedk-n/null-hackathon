@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { zodToJsonSchema } from "zod-to-json-schema";
 import type { ZodType, ZodTypeDef } from "zod";
+import { toolsetFor, type McpServerDef } from "@/lib/mcp/connector";
 
 /**
  * SERVER-ONLY structured-output transport (absorbed from founder-a, Wave A).
@@ -19,6 +20,11 @@ import type { ZodType, ZodTypeDef } from "zod";
  */
 export const MODEL = "claude-opus-4-8";
 export const MAX_TOKENS = 16_000;
+// Beta header for the MCP connector (mcp_servers + mcp_toolset tools). Confirmed against
+// @anthropic-ai/sdk@0.68.0 in P3 (src/app/api/connections/[id]/test/route.ts): `mcp_servers`
+// and this beta string ARE typed on `client.beta.messages.create`; only the `mcp_toolset`
+// tool variant is missing from `BetaToolUnion`, hence the one localized cast below.
+const MCP_BETA = "mcp-client-2025-11-20";
 // Hard per-request deadline, consistent with src/llm/client.ts. The SDK rejects with
 // APIConnectionTimeoutError past this; callers own the retry + fixture fallback.
 const REQUEST_TIMEOUT_MS = 45_000;
@@ -40,6 +46,12 @@ export interface StructuredCallArgs<T> {
   // must synthesize MANY rich facts from a large research transcript (e.g. the business agent) can
   // raise this; the default keeps the fast callers (temporal) tight.
   timeoutMs?: number;
+  // Optional MCP connector servers (plan Task 11) — the signed-in caller's connected tools
+  // (GitHub/Linear/Notion/...). When present (non-empty) AND a key exists, the call goes
+  // through `client.beta.messages.create` with `mcp_servers` + one `mcp_toolset` tool per
+  // server + the MCP beta header. Absent (undefined/empty) -> the existing non-beta path,
+  // byte-for-byte unchanged.
+  mcpServers?: McpServerDef[];
 }
 
 /**
@@ -61,6 +73,37 @@ export async function structuredCall<T>(args: StructuredCallArgs<T>): Promise<T>
     // zod-to-json-schema emits; the object is a valid JSON Schema at runtime.
     input_schema: jsonSchema as unknown as Anthropic.Tool.InputSchema,
   };
+
+  if (args.mcpServers && args.mcpServers.length > 0) {
+    // MCP branch (plan Task 11) — same forced single-tool call, but over the beta endpoint
+    // with the caller's connected MCP servers attached. `mcp_servers` is typed natively
+    // (BetaRequestMCPServerURLDefinition matches McpServerDef field-for-field); the
+    // `mcp_toolset` tool variant is the one cast this SDK version needs.
+    const res = await client.beta.messages.create(
+      {
+        model: MODEL,
+        max_tokens: MAX_TOKENS,
+        system: args.system,
+        betas: [MCP_BETA],
+        mcp_servers: args.mcpServers,
+        tools: [
+          tool as unknown as Anthropic.Beta.BetaToolUnion,
+          ...(toolsetFor(args.mcpServers).map(
+            (t) => t as unknown as Anthropic.Beta.BetaToolUnion,
+          )),
+        ],
+        tool_choice: { type: "tool", name: args.toolName },
+        messages: [{ role: "user", content: args.user }],
+      },
+      { timeout: args.timeoutMs ?? REQUEST_TIMEOUT_MS },
+    );
+
+    const block = res.content.find(
+      (b): b is Anthropic.Beta.BetaToolUseBlock => b.type === "tool_use",
+    );
+    if (!block) throw new Error("no tool_use block in Claude response");
+    return args.schema.parse(block.input);
+  }
 
   const res = await client.messages.create(
     {
