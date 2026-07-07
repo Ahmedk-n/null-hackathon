@@ -4,11 +4,19 @@ import { MiniCollapseHero } from "./MiniCollapseHero";
 import { SystemAtWork } from "./SystemAtWork";
 import { RecentDecisions } from "./RecentDecisions";
 
-// V5-1 · LANDING (/) — the concept explainer. Terminal/CAD aesthetic throughout
-// (hairlines, zero radius, mono numerals, warm paper). Server component: the working
-// app lives at /studio; this page renders a LIVE mini-collapse hero, the manifesto,
-// how-it-works, the vocabulary ledger, and the honest-architecture panel. `startedAt`
-// is stamped server-side (T8) and threaded to the (V5-4) decisions ledger seam.
+// V5-1 · LANDING (/) — the product landing. Terminal/CAD ledger aesthetic throughout
+// (hairlines, zero radius, mono numerals, warm paper). Server component: the working app lives at
+// /studio; this page opens with a HERO (headline + the live mini-collapse), then shows the whole
+// pipeline running, how it works, the manifesto, the vocabulary ledger, and the honest-architecture
+// panel. `startedAt` is stamped server-side (T8) and threaded to the (V5-4) decisions ledger seam.
+
+// The four-beat arc of the product, shown as the hero's "how it works" strip.
+const PIPELINE: { k: string; d: string }[] = [
+  { k: "CONTEXT", d: "your repo, site, rivals, calendar" },
+  { k: "STRUCTURE", d: "claims resting on assumptions" },
+  { k: "STRESS", d: "grounded load + adversarial attacks" },
+  { k: "KEYSTONE", d: "the one that can't be wrong" },
+];
 
 // The track manifesto — verbatim from the README pitch quote.
 const MANIFESTO: string[] = [
@@ -77,10 +85,60 @@ function VocabRow({ term, def }: { term: string; def: string }) {
   );
 }
 
+// The CONTEXT → STRUCTURE → STRESS → KEYSTONE strip — the whole product in four beats.
+function PipelineStrip() {
+  return (
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "stretch",
+        gap: 8,
+        border: "1px solid var(--hair-strong)",
+        background: "var(--panel)",
+      }}
+    >
+      {PIPELINE.map((p, i) => (
+        <div
+          key={p.k}
+          style={{
+            flex: "1 1 150px",
+            minWidth: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            padding: "10px 12px",
+            borderLeft: i === 0 ? "none" : "1px solid var(--hair)",
+          }}
+        >
+          <span
+            className="mono"
+            style={{ fontSize: 11, color: i === PIPELINE.length - 1 ? "var(--keystone)" : "var(--muted)" }}
+          >
+            {String(i + 1).padStart(2, "0")}
+          </span>
+          <div style={{ minWidth: 0 }}>
+            <div
+              className="label"
+              style={{
+                letterSpacing: "0.12em",
+                color: i === PIPELINE.length - 1 ? "var(--keystone)" : "var(--ink)",
+              }}
+            >
+              {p.k}
+            </div>
+            <div style={{ fontSize: 11, color: "var(--muted)", lineHeight: 1.35, marginTop: 2 }}>{p.d}</div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function Landing({ startedAt }: { startedAt: string }) {
   return (
     <main style={{ background: "var(--bg)", color: "var(--ink)", minHeight: "100vh" }}>
-      {/* Nameplate — echoes the studio TopBar. */}
+      {/* Nameplate — echoes the studio TopBar, now with the primary nav CTAs. */}
       <header
         style={{
           display: "flex",
@@ -104,11 +162,22 @@ export default function Landing({ startedAt }: { startedAt: string }) {
         >
           ▣ Keystone
         </span>
-        <span className="label">Structural Analysis for Decisions</span>
+        <span className="label landing-hide-narrow">Structural Analysis for Decisions</span>
         <div style={{ flex: 1 }} />
-        <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>
-          {startedAt}
-        </span>
+        <Link
+          href="/login"
+          className="btn"
+          style={{ textDecoration: "none", padding: "8px 16px" }}
+        >
+          Sign in
+        </Link>
+        <Link
+          href="/studio"
+          className="btn btn-primary"
+          style={{ textDecoration: "none", padding: "8px 16px" }}
+        >
+          Open Studio
+        </Link>
       </header>
 
       <div
@@ -121,25 +190,107 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           gap: 56,
         }}
       >
-        {/* Manifesto ledger. */}
+        {/* ── HERO ─────────────────────────────────────────────────────────── */}
+        <section style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 16, maxWidth: 720 }}>
+            <span
+              className="label"
+              style={{ letterSpacing: "0.18em", color: "var(--muted)" }}
+            >
+              ▣ CAD FOR DECISIONS · GROUNDED IN YOUR REAL CONTEXT
+            </span>
+
+            <h1
+              style={{
+                fontFamily: "var(--sans)",
+                fontSize: "clamp(30px, 5.2vw, 50px)",
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                lineHeight: 1.08,
+                margin: 0,
+              }}
+            >
+              Find the one assumption your decision{" "}
+              <span style={{ color: "var(--keystone)" }}>can&apos;t survive without.</span>
+            </h1>
+
+            <p style={{ fontSize: 16, color: "var(--ink-2)", lineHeight: 1.6, margin: 0, maxWidth: 660 }}>
+              Keystone is a CAD tool for the hard calls. Describe a decision — agents pull your real
+              business, technical, and temporal context, then the engine builds it as a{" "}
+              <strong style={{ fontWeight: 600, color: "var(--ink)" }}>load-bearing structure</strong> and
+              stress-tests it under grounded load. It surfaces the{" "}
+              <strong style={{ fontWeight: 600, color: "var(--keystone)" }}>keystone</strong>: the single
+              assumption that, if it&apos;s wrong, brings the whole thing down. See it before you bet on it.
+            </p>
+
+            {/* CTAs. */}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginTop: 4 }}>
+              <Link
+                href="/studio"
+                className="btn btn-primary"
+                style={{ textDecoration: "none", fontSize: 13, padding: "14px 32px", letterSpacing: "0.14em" }}
+              >
+                Open Studio
+              </Link>
+              <Link
+                href="/login"
+                className="btn"
+                style={{ textDecoration: "none", fontSize: 13, padding: "14px 32px", letterSpacing: "0.14em" }}
+              >
+                Sign in
+              </Link>
+            </div>
+          </div>
+
+          {/* How it works, in one line: CONTEXT → STRUCTURE → STRESS → KEYSTONE. */}
+          <PipelineStrip />
+
+          {/* LIVE mini-collapse — the hook. The real solver on the pinned hero fixture. */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12 }}>
+              <SectionHeader>Live · the structure under load</SectionHeader>
+              <span className="mono" style={{ fontSize: 11, color: "var(--muted)", whiteSpace: "nowrap" }}>
+                REAL SOLVER · PINNED FIXTURE
+              </span>
+            </div>
+            <MiniCollapseHero />
+            <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, margin: "0 2px" }}>
+              &ldquo;Migrate to microservices&rdquo; grounded on tomorrow&apos;s enterprise meeting: the
+              structure stands, grounded load craters the integrity as the keystone cracks, then the
+              De-risking plan restores it. Every number is the real engine&apos;s output — no mockups.
+            </p>
+          </div>
+        </section>
+
+        {/* THE SYSTEM AT WORK — the auto-playing pipeline. See it move, then read the steps. */}
         <section>
-          <h1
-            style={{
-              fontFamily: "var(--sans)",
-              fontSize: 30,
-              fontWeight: 700,
-              letterSpacing: "-0.01em",
-              lineHeight: 1.2,
-              margin: "0 0 6px",
-            }}
-          >
-            A CAD tool for thinking.
-          </h1>
-          <p style={{ fontSize: 15, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 24px", maxWidth: 640 }}>
-            Keystone treats a decision as a load-bearing structure: the LLM proposes the shape, and a
-            deterministic solver decides whether it stands — which assumption is the keystone, which
-            constraints it violates, and how it fails under load.
+          <SectionHeader>The whole system, one loop</SectionHeader>
+          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 12px", maxWidth: 640 }}>
+            Every agent, doing its job: gather evidence &rarr; compile context &rarr; design rivals &rarr;
+            interrogate the survivor. Auto-playing and deterministic &mdash; hover any lane or stage to
+            pause and inspect what that agent does.
           </p>
+          <SystemAtWork />
+        </section>
+
+        {/* HOW IT WORKS. */}
+        <section>
+          <SectionHeader>How it works</SectionHeader>
+          <div className="landing-3col" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
+            {STEPS.map((s) => (
+              <div key={s.n} className="panel" style={{ padding: 16 }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
+                  <span className="mono" style={{ fontSize: 20, color: "var(--ink)" }}>{s.n}</span>
+                  <span className="label" style={{ letterSpacing: "0.12em", color: "var(--ink)" }}>{s.title}</span>
+                </div>
+                <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55, margin: 0 }}>{s.body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* MANIFESTO ledger — the why, in the track's own words. */}
+        <section>
           <SectionHeader>Manifesto</SectionHeader>
           <div>
             {MANIFESTO.map((line, i) => (
@@ -152,43 +303,6 @@ export default function Landing({ startedAt }: { startedAt: string }) {
                 <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        {/* LIVE mini-collapse hero. */}
-        <section>
-          <SectionHeader>Live · Hero A — migrate under load</SectionHeader>
-          <MiniCollapseHero />
-          <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.5, margin: "10px 2px 0" }}>
-            The real solver on the pinned hero fixture: tomorrow&apos;s enterprise meeting grounds the
-            attacks, the keystone crosses its failure threshold, and the De-risking plan restores it.
-          </p>
-        </section>
-
-        {/* THE SYSTEM AT WORK — the auto-playing pipeline. See it move, then read the steps. */}
-        <section>
-          <SectionHeader>The system at work</SectionHeader>
-          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.6, margin: "0 0 12px", maxWidth: 640 }}>
-            Every agent, doing its job: gather evidence &rarr; compile context &rarr; design rivals &rarr;
-            interrogate the survivor. Auto-playing and deterministic &mdash; hover any lane or stage to
-            pause and inspect what that agent does.
-          </p>
-          <SystemAtWork />
-        </section>
-
-        {/* HOW IT WORKS. */}
-        <section>
-          <SectionHeader>How it works</SectionHeader>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16 }}>
-            {STEPS.map((s) => (
-              <div key={s.n} className="panel" style={{ padding: 16 }}>
-                <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-                  <span className="mono" style={{ fontSize: 20, color: "var(--ink)" }}>{s.n}</span>
-                  <span className="label" style={{ letterSpacing: "0.12em", color: "var(--ink)" }}>{s.title}</span>
-                </div>
-                <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55, margin: 0 }}>{s.body}</p>
               </div>
             ))}
           </div>
@@ -236,8 +350,14 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           </div>
         </section>
 
-        {/* CTAs — ENTER STUDIO primary, VIEW SKYLINE secondary, plus the real-sample shortcut. */}
-        <section style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+        {/* CLOSING CTA band — OPEN STUDIO primary, VIEW SKYLINE secondary, plus the real-sample shortcut. */}
+        <section
+          className="panel"
+          style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "36px 24px" }}
+        >
+          <span className="label" style={{ letterSpacing: "0.18em", color: "var(--muted)" }}>
+            STRESS-TEST A DECISION BEFORE YOU BET ON IT
+          </span>
           <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", gap: 14 }}>
             <Link
               href="/studio"
@@ -256,15 +376,25 @@ export default function Landing({ startedAt }: { startedAt: string }) {
           </div>
           <Link
             href="/studio"
-            className="btn"
-            style={{ textDecoration: "none", letterSpacing: "0.1em" }}
+            className="label"
+            style={{ textDecoration: "underline", textUnderlineOffset: 4, letterSpacing: "0.1em", color: "var(--ink-2)" }}
           >
-            Open the real sample — Excalidraw
+            Or open the real sample — Excalidraw →
           </Link>
         </section>
 
         {/* DECISIONS ledger — V5-4 reads recent snapshots from the library client-side. */}
         <RecentDecisions />
+
+        {/* Footer — session stamp keeps the ledger honesty. */}
+        <footer style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8, paddingTop: 8 }}>
+          <span className="label" style={{ letterSpacing: "0.14em", color: "var(--muted)" }}>
+            ▣ Keystone · Structural Analysis for Decisions
+          </span>
+          <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+            SESSION {startedAt}
+          </span>
+        </footer>
       </div>
     </main>
   );

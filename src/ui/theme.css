@@ -263,6 +263,18 @@ body {
   white-space: nowrap;
 }
 
+/* ── Landing responsiveness (V5-1) ──────────────────────────────────── */
+/* The landing is the only expressive/marketing surface; a couple of media
+   queries keep it single-column and honest on phones (no horizontal scroll). */
+@media (max-width: 620px) {
+  .landing-3col {
+    grid-template-columns: 1fr !important;
+  }
+  .landing-hide-narrow {
+    display: none;
+  }
+}
+
 /* ── React Flow zoom controls (FIX 2) ───────────────────────────────── */
 /* Override React Flow's default rounded/shadowed control chrome to match the
    terminal/CAD ledger aesthetic: zero radius, hairline frame, paper ground,
