@@ -1,7 +1,8 @@
 // P2-T6/T14 · POST /api/account/delete — delete the signed-in user's auth.users row, which cascades
 // to profiles/decisions/connections/runs (all FK `on delete cascade`, supabase/migrations/0001_init.sql).
-// The ONLY file allowed to import @/lib/supabase/admin (global constraint) — server-only, never
-// client-imported. Identifies the caller via the RLS-bound server client first (never trusts a
+// @/lib/supabase/admin is server-only (used here + gather/connections-test routes + runs.ts) and
+// must never be client-imported (enforced by the boundary guard). Identifies the caller via the
+// RLS-bound server client first (never trusts a
 // client-supplied user id), then uses the admin/service client to perform the privileged delete.
 // Unauthed → 401; never a 500 (catch → clean error json).
 import { NextResponse } from "next/server";

@@ -44,6 +44,7 @@ export async function PATCH(
       .from("connections")
       .update(patch)
       .eq("id", id)
+      .eq("user_id", user.id) // defense-in-depth alongside RLS (match decisions routes)
       .select(PUBLIC_COLUMNS)
       .single();
 
@@ -72,9 +73,16 @@ export async function DELETE(
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const { error } = await supabase.from("connections").delete().eq("id", id);
+    const { error, count } = await supabase
+      .from("connections")
+      .delete({ count: "exact" })
+      .eq("id", id)
+      .eq("user_id", user.id); // defense-in-depth alongside RLS
     if (error) {
       return NextResponse.json({ ok: false, error: error.message });
+    }
+    if (count === 0) {
+      return NextResponse.json({ ok: false, error: "not found" }, { status: 404 });
     }
     return NextResponse.json({ ok: true });
   } catch (err) {
