@@ -85,6 +85,29 @@ describe("GET /api/connections", () => {
     expect(data.connections).toEqual([]);
     expect(data.error).toBe("db down");
   });
+
+  // Regression (security review): the list MUST be scoped to the authed user_id, so a
+  // view/RLS misconfiguration can never leak another tenant's connection rows.
+  it("filters the query by the authed user_id (defense-in-depth)", async () => {
+    getUserMock.mockResolvedValue({ data: { user: { id: "u1" } } });
+    const eqCalls: [unknown, unknown][] = [];
+    const recording = (result: unknown) => {
+      const target = () => {};
+      return new Proxy(target, {
+        get(_t, prop) {
+          if (prop === "then") return (resolve: (v: unknown) => void) => resolve(result);
+          return (...args: unknown[]) => {
+            if (prop === "eq") eqCalls.push([args[0], args[1]]);
+            return recording(result);
+          };
+        },
+      }) as unknown as Record<string, (...a: unknown[]) => unknown>;
+    };
+    fromMock.mockReturnValue(recording({ data: [], error: null }));
+
+    await GET();
+    expect(eqCalls).toContainEqual(["user_id", "u1"]);
+  });
 });
 
 describe("POST /api/connections", () => {

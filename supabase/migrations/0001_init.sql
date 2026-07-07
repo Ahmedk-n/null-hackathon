@@ -56,8 +56,11 @@ revoke select on public.connections from anon, authenticated;
 grant select (id, user_id, kind, name, url, status, last_used_at, created_at) on public.connections to authenticated;
 grant insert, update, delete on public.connections to authenticated;
 
--- secret-omitting view the client lists from
-create or replace view public.connections_public as
+-- secret-omitting view the client lists from.
+-- security_invoker = on makes the view run as the QUERYING role (authenticated), so the
+-- `own connections` RLS policy on the base table applies. Without it the view runs as its
+-- owner (postgres/BYPASSRLS) and would leak every user's connection metadata cross-tenant.
+create or replace view public.connections_public with (security_invoker = on) as
   select id, user_id, kind, name, url, status, last_used_at, created_at from public.connections;
 grant select on public.connections_public to authenticated;
 

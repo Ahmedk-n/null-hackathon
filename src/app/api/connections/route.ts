@@ -19,9 +19,13 @@ export async function GET(): Promise<Response> {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
+    // Defense-in-depth: the `connections_public` view is security_invoker (RLS-scoped),
+    // but we also filter by user_id explicitly so a view/RLS misconfig can never leak
+    // another tenant's rows through this route.
     const { data, error } = await supabase
       .from("connections_public")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (error) {
