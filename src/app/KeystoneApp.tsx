@@ -379,11 +379,20 @@ export default function KeystoneApp({
     await syncCurrentVerdict();
   }
 
+  // L-1 · clear the failure banner AND retire the "error" Stage indicator together, so dismissing
+  // the banner doesn't leave the StatusStrip "Stage" cell stuck reading RUN FAILED in --bad. Safe:
+  // on error the run has already finished (finally cleared building/loading), so "idle" (→ READY)
+  // is the correct resting stage.
+  function clearRunError() {
+    setRunError(null);
+    setStage((s) => (s === "error" ? "idle" : s));
+  }
+
   // L-1 · store reset() only clears engine/store state — it has no idea runError exists (this
   // state lives here, not in the store). Wrap it so a stale failure banner never survives a Reset.
   function handleReset() {
     keystoneStore.getState().reset();
-    setRunError(null);
+    clearRunError();
   }
 
   // Bottom status strip: live reads of engine/store outputs. LINKS = total edges
@@ -531,7 +540,7 @@ export default function KeystoneApp({
           {(lastRunKind === "applyLoad" || (lastRunKind === "analyse" && lastAnalyseInputRef.current)) && (
             <Button onClick={retryLastRun}>Retry</Button>
           )}
-          <Button onClick={() => setRunError(null)} title="Dismiss">
+          <Button onClick={clearRunError} title="Dismiss">
             ×
           </Button>
         </div>
