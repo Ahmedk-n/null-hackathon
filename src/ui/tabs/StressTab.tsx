@@ -824,7 +824,8 @@ function WindTunnelSection({ baseGraph }: { baseGraph: Graph }) {
 // mono affordance right, hairline-strong divider, default disclosure triangle hidden via
 // `.ledger-details` (theme.css). A native <details> only toggles CSS visibility — the wrapped
 // content stays mounted (hooks keep running, state persists) even while collapsed.
-function CollapsibleSection({
+// Exported so GraphTab reuses the exact same disclosure (its FILTER + ASSUMPTIONS collapses).
+export function CollapsibleSection({
   label,
   testId,
   children,
@@ -948,7 +949,6 @@ export function StressTab({
   const keystoneId = useKeystone(selectKeystoneId);
   const failures = useKeystone(selectFailures);
   const integrityValue = useKeystone(selectIntegrity);
-  const tilt = useKeystone((s) => s.tilt);
   const pack = useKeystone((s) => s.decisionContextPack);
   const source = useKeystone((s) => s.contextSource);
   const applyContextWeights = useKeystone((s) => s.applyContextWeights);
@@ -1100,7 +1100,11 @@ export function StressTab({
             graph={graph}
             keystoneId={keystoneId}
             failures={failures}
-            tilt={tilt}
+            // T9 — STRESS's collapse view is INTENTIONALLY the perspective strata view, so it
+            // pins tilt=true. Previously it read the shared store `tilt`, the same flag GRAPH's
+            // old SECTION toggle set — with SECTION gone that coupling is severed here so STRESS
+            // renders identically regardless of anything GRAPH does.
+            tilt={true}
             loadApplied={loadApplied}
             attacks={attacks}
             rawAttacks={rawAttacks}
