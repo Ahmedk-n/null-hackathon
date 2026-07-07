@@ -356,6 +356,25 @@ body {
   .live-dot { animation: none; }
 }
 
+/* ── TopBar / StatusStrip narrow-width behavior (T1) ────────────────── */
+/* The session stamp is a nice-to-have on a header that's already tight below
+   ~640px (wordmark + subtitle + actions) — drop it rather than let it wrap
+   or overlap. */
+@media (max-width: 640px) {
+  .topbar-stamp {
+    display: none;
+  }
+}
+/* StatusStrip scrolls horizontally instead of wrapping/clipping inside its
+   fixed 30px height (inline flexWrap:"nowrap" + overflow-x:"auto" above does
+   the layout work; this just hides the scrollbar cosmetically). */
+.status-strip {
+  scrollbar-width: none; /* Firefox */
+}
+.status-strip::-webkit-scrollbar {
+  display: none; /* Chromium/WebKit */
+}
+
 /* ── React Flow zoom controls (FIX 2) ───────────────────────────────── */
 /* Override React Flow's default rounded/shadowed control chrome to match the
    terminal/CAD ledger aesthetic: zero radius, hairline frame, paper ground,

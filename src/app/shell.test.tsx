@@ -17,8 +17,9 @@ describe("Keystone shell (T9 design conformance)", () => {
       />,
     );
 
-    // TopBar renders the ISO-8601 session timestamp.
-    expect(container.textContent).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    // TopBar renders a compact "YYYY-MM-DD · HH:MM" session stamp derived from the
+    // server-passed ISO-8601 startedAt (T1 — no raw ISO string, no wrapping).
+    expect(container.textContent).toMatch(/\d{4}-\d{2}-\d{2} · \d{2}:\d{2}/);
 
     // V6-1 · exactly 4 PRIMARY tabs (0·DESIGN → 1·CONTEXT → 2·GRAPH → 3·STRESS). The "exactly 3
     // tabs" contract is DELIBERATELY retargeted to 4 (same precedent as the T10 tilt retarget).
