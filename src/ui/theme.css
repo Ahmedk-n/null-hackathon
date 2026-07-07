@@ -248,6 +248,21 @@ body {
   border-bottom-color: var(--ink);
 }
 
+/* ── Collapsible detail sections (T4 — Wind Tunnel / Timeline / Re-run) ─ */
+/* Strip the browser's default disclosure triangle so the ledger's own
+   "+ SHOW" / "− HIDE" mono affordance (rendered in the summary) is the only
+   toggle glyph — matches SupportBreakdownPanel's button-driven collapse. */
+.ledger-details > summary {
+  list-style: none;
+  cursor: pointer;
+}
+.ledger-details > summary::-webkit-details-marker {
+  display: none;
+}
+.ledger-details > summary::marker {
+  content: "";
+}
+
 /* ── Chip ───────────────────────────────────────────────────────────── */
 .chip {
   display: inline-flex;

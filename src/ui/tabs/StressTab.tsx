@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { Attack, Graph } from "@/engine";
+import type { Attack, CascadeStep, Graph, LoadResultSummary } from "@/engine";
 import {
   rankLoadBearing,
   integrity,
@@ -158,21 +158,96 @@ function AttackRow({ attack, targetLabel }: { attack: Attack; targetLabel: strin
   );
 }
 
-// V7-3 · LOAD RESULT — the collapse, summarised as data. `summariseLoadResult` re-runs the
-// engine on the clean base graph under the effective attacks and reports baseline → post-load
-// integrity (with the drop), whether the keystone SHIFTED under load, and which nodes failed.
-// `failureCascade` then orders those failures lowest-support-first so the readout tells "what
-// breaks first and why" instead of an unordered set. Gated on loadApplied. All labels are
-// looked up from the graph (never raw ids); ledger classes keep long labels from overflowing.
+// T4 · SHARED LOAD-SUMMARY SOURCE OF TRUTH — the VERDICT header and the Load Result panel
+// must never disagree, so both read from this ONE `useMemo` pair instead of each re-running
+// the engine. `summariseLoadResult` re-runs the engine on the clean base graph under the
+// effective attacks (baseline → post-load integrity, the drop, whether the keystone SHIFTED,
+// which nodes failed); `failureCascade` orders those failures lowest-support-first ("what
+// breaks first and why"). Called once in `StressTab` and threaded down as props — nothing
+// downstream is allowed to recompute it.
+function useLoadSummary(
+  baseGraph: Graph | null,
+  attacks: Attack[],
+): { summary: LoadResultSummary | null; cascade: CascadeStep[] } {
+  const summary = useMemo(
+    () => (baseGraph ? summariseLoadResult(baseGraph, attacks) : null),
+    [baseGraph, attacks],
+  );
+  const cascade = useMemo(
+    () => (baseGraph ? failureCascade(baseGraph, attacks) : []),
+    [baseGraph, attacks],
+  );
+  return { summary, cascade };
+}
+
+// T4 · VERDICT HEADER — the "read this first" line at the TOP of the rail: does the
+// structure survive the load, and by how much. Every value comes straight off the SAME
+// `summary`/`cascade` the Load Result panel renders (see `useLoadSummary` above) — this
+// component never touches the engine itself, so the header and the panel can't drift apart.
+// Quiet "Awaiting Load" state before a load exists; --bad "Collapses" / --ok "Stands" after.
+function VerdictHeader({
+  loadApplied,
+  baseGraph,
+  summary,
+  cascade,
+}: {
+  loadApplied: boolean;
+  baseGraph: Graph | null;
+  summary: LoadResultSummary | null;
+  cascade: CascadeStep[];
+}) {
+  const labelFor = (id: string | null) =>
+    (id && baseGraph?.nodes.find((n) => n.id === id)?.label) || id || "—";
+
+  if (!loadApplied || !summary) {
+    return (
+      <div data-testid="verdict-header" style={{ padding: "2px 0 10px", borderBottom: "1px solid var(--hair-strong)" }}>
+        <span className="label" style={{ color: "var(--muted)" }}>
+          Awaiting Load
+        </span>
+      </div>
+    );
+  }
+
+  const baseline = summary.baselineIntegrity;
+  const post = summary.postLoadIntegrity;
+  const survived = post >= summary.threshold * 100;
+  const accent = survived ? "var(--ok)" : "var(--bad)";
+  const keystoneLabel = labelFor(summary.keystoneBeforeLoad);
+
+  return (
+    <div data-testid="verdict-header" style={{ padding: "2px 0 10px", borderBottom: "1px solid var(--hair-strong)" }}>
+      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+        <span
+          className="mono"
+          style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: accent }}
+        >
+          {survived ? "Stands" : "Collapses"}
+        </span>
+        <span className="mono" style={{ fontSize: 13, color: accent }}>
+          {`${baseline.toFixed(0)}% → ${post.toFixed(0)}%`}
+        </span>
+      </div>
+      <div className="label" style={{ marginTop: 4, color: "var(--ink-2)" }}>
+        {`Keystone · ${keystoneLabel} · ${cascade.length} Fell`}
+      </div>
+    </div>
+  );
+}
+
+// V7-3 · LOAD RESULT — the collapse, summarised as data. `summary`/`cascade` are passed down
+// from `useLoadSummary` in `StressTab` (see above) — NOT recomputed here — so this panel and
+// the VERDICT header always agree. Gated on loadApplied by the caller. All labels are looked
+// up from the graph (never raw ids); ledger classes keep long labels from overflowing.
 function LoadResultPanel({
   baseGraph,
-  attacks,
+  summary,
+  cascade,
 }: {
   baseGraph: Graph;
-  attacks: Attack[];
+  summary: LoadResultSummary;
+  cascade: CascadeStep[];
 }) {
-  const summary = useMemo(() => summariseLoadResult(baseGraph, attacks), [baseGraph, attacks]);
-  const cascade = useMemo(() => failureCascade(baseGraph, attacks), [baseGraph, attacks]);
   const labelFor = (id: string | null) =>
     (id && baseGraph.nodes.find((n) => n.id === id)?.label) || id || "—";
 
@@ -738,6 +813,50 @@ function WindTunnelSection({ baseGraph }: { baseGraph: Graph }) {
   );
 }
 
+// T4 · COLLAPSIBLE — folds a deep interrogation tool (Wind Tunnel / Timeline Stress / Re-run)
+// behind a native <details>/<summary> so the rail's primary story (verdict → toggle → attacks
+// → collapse → keystone → de-risk) reads without scrolling. Same collapsed-by-default, ledger
+// toggle treatment as `SupportBreakdownPanel` below: uppercase label left, "+ SHOW"/"− HIDE"
+// mono affordance right, hairline-strong divider, default disclosure triangle hidden via
+// `.ledger-details` (theme.css). A native <details> only toggles CSS visibility — the wrapped
+// content stays mounted (hooks keep running, state persists) even while collapsed.
+function CollapsibleSection({
+  label,
+  testId,
+  children,
+}: {
+  label: string;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="ledger-details"
+      data-testid={testId}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+    >
+      <summary
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "0 0 6px",
+          margin: "0 0 6px",
+          borderBottom: "1px solid var(--hair-strong)",
+        }}
+      >
+        <span className="label">{label}</span>
+        <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
+          {open ? "− HIDE" : "+ SHOW"}
+        </span>
+      </summary>
+      {children}
+    </details>
+  );
+}
+
 // V7-3 · SUPPORT BREAKDOWN — "why integrity is that number". `supportBreakdown` decomposes
 // every node into ownConfidence × dependencyFactor = support with the EXACT aggregation rule
 // the solver uses (one source of truth), failed nodes flagged. Laid out bottom-up by strata
@@ -851,10 +970,42 @@ export function StressTab({
     return g ? analysisDepth(g) : null;
   }, [baseGraph, graph]);
 
+  // T4 — ONE engine read for the whole collapse story. Both the VERDICT header and the Load
+  // Result panel render off this single `useLoadSummary` call — see the comment on that hook.
+  const { summary: loadSummary, cascade: loadCascade } = useLoadSummary(baseGraph, attacks);
+
   return (
     <div style={{ display: "flex", height: "100%" }}>
-      {/* LEFT — ATTACK LEDGER + actions */}
+      {/* LEFT — VERDICT + ATTACK BASIS first (the "read this first" cluster), then the
+          attack/collapse/keystone/de-risk story, deep interrogation tools folded below. */}
       <div style={RAIL}>
+        {/* T4 — VERDICT: one line, top of rail, same numbers as Load Result (never a second
+            engine read — see `useLoadSummary`). */}
+        <VerdictHeader loadApplied={loadApplied} baseGraph={baseGraph} summary={loadSummary} cascade={loadCascade} />
+
+        {/* T4/S-3 — the demo's fulcrum, elevated: "what's the verdict + what flips it" reads
+            as one cluster with the VERDICT header above. */}
+        <div>
+          <ContextToggle
+            grounded={applyContextWeights}
+            disabled={loading}
+            onChange={(g) => keystoneStore.getState().setApplyContextWeights(g)}
+          />
+          <div className="label" style={{ marginTop: 6, color: "var(--muted)", fontSize: 10, lineHeight: 1.4 }}>
+            Grounding the same attacks in this decision&rsquo;s context cracks the keystone.
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          <Button primary onClick={onApplyLoad} disabled={loading}>
+            Apply Load
+          </Button>
+          <Button onClick={onReset}>Reset</Button>
+          {onReinforce && loadApplied && (
+            <Button onClick={onReinforce}>Reinforce</Button>
+          )}
+        </div>
+
         {/* V4-1 — DEPTH: dimensionality of the analysis (strata + evidence coverage). */}
         {depth && (
           <div data-testid="stress-depth">
@@ -885,41 +1036,38 @@ export function StressTab({
           )}
         </div>
 
-        {/* V7-3 — load-result summary + ordered failure cascade (what breaks first, and why) */}
-        {loadApplied && baseGraph && <LoadResultPanel baseGraph={baseGraph} attacks={attacks} />}
+        {/* V7-3 — load-result summary + ordered failure cascade (what breaks first, and why).
+            summary/cascade are the SAME values the VERDICT header used above. */}
+        {loadApplied && baseGraph && loadSummary && (
+          <LoadResultPanel baseGraph={baseGraph} summary={loadSummary} cascade={loadCascade} />
+        )}
 
         {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone) */}
         <SensitivityBars graph={baseGraph ?? graph} keystoneId={keystoneId} />
-
-        <ContextToggle
-          grounded={applyContextWeights}
-          disabled={loading}
-          onChange={(g) => keystoneStore.getState().setApplyContextWeights(g)}
-        />
-
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          <Button primary onClick={onApplyLoad} disabled={loading}>
-            Apply Load
-          </Button>
-          <Button onClick={onReset}>Reset</Button>
-          {onReinforce && loadApplied && (
-            <Button onClick={onReinforce}>Reinforce</Button>
-          )}
-        </div>
 
         {/* V3-2 — minimum-reinforcement prescription (the inverse of sensitivity) */}
         {reinforcementPlan && (
           <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} attacks={attacks} pack={pack} />
         )}
 
-        {/* V3-7 — time-axis stress (grounded only; RAW has no temporal dimension) */}
-        {loadApplied && applyContextWeights && pack && <TimelineSection />}
+        {/* T4/S-2 — deep interrogation tools, folded below the primary story so the rail
+            reads without scrolling. Collapsed by default; content stays mounted (state,
+            SSE sessions, timers survive a collapse/expand). */}
+        {loadApplied && applyContextWeights && baseGraph && (
+          <CollapsibleSection label="Wind Tunnel" testId="wind-tunnel-details">
+            <WindTunnelSection baseGraph={baseGraph} />
+          </CollapsibleSection>
+        )}
 
-        {/* V6-2 — adversarial wind tunnel (grounded + loaded; runs on a session clone) */}
-        {loadApplied && applyContextWeights && baseGraph && <WindTunnelSection baseGraph={baseGraph} />}
+        {loadApplied && applyContextWeights && pack && (
+          <CollapsibleSection label="Timeline Stress" testId="timeline-details">
+            <TimelineSection />
+          </CollapsibleSection>
+        )}
 
-        {/* W2-2 — deterministic re-run beat */}
-        <RerunControl />
+        <CollapsibleSection label="Re-run" testId="rerun-details">
+          <RerunControl />
+        </CollapsibleSection>
       </div>
 
       {/* CENTER — 3D adaptive canvas + integrity gauge overlay */}
