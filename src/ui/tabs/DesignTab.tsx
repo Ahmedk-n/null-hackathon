@@ -27,6 +27,7 @@ import {
 import type { ContextMode } from "@/ui/tabs/ContextTab";
 import { Button, SectionHeader } from "@/ui/primitives";
 import { MiniStructure, layoutStructure } from "@/ui/MiniStructure";
+import { usePrefersReducedMotion } from "@/ui/useReducedMotion";
 import { BAD, MUTED, OK, WARN } from "@/ui/tokens";
 
 // ── Deterministic tournament clock (one tick = 45ms). ────────────────────────
@@ -98,6 +99,10 @@ export function DesignTab({
   const [tick, setTick] = useState(0);
   const [runId, setRunId] = useState(0);
   const modeRef = useRef(mode);
+  // A-3: under prefers-reduced-motion the tournament clock is purely cosmetic replay (the
+  // fetch has already resolved by the time it starts) — skip straight to the end tick instead
+  // of animating through it, so assemble/collapse/stamp all render their final state at once.
+  const reducedMotion = usePrefersReducedMotion();
 
   // Re-seed the fields when the studio mode changes (mirrors the CONTEXT tab).
   useEffect(() => {
@@ -138,6 +143,10 @@ export function DesignTab({
   // Deterministic tournament clock — a modular counter, cleared on unmount / next run (T8).
   useEffect(() => {
     if (runId === 0) return;
+    if (reducedMotion) {
+      setTick(TOURN_TOTAL);
+      return;
+    }
     setTick(0);
     let t = 0;
     const h = setInterval(() => {
@@ -146,7 +155,7 @@ export function DesignTab({
       if (t >= TOURN_TOTAL) clearInterval(h);
     }, TICK_MS);
     return () => clearInterval(h);
-  }, [runId]);
+  }, [runId, reducedMotion]);
 
   // Per-candidate engine verdicts (raw + grounded) + layout. The LLM never ranks — this is the solver.
   const verdicts = useMemo(() => {

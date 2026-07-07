@@ -587,6 +587,7 @@ function TimelineSection() {
           className="ledger-range"
           data-testid="timeline-slider"
           aria-label="Timeline day"
+          aria-valuetext={`T plus ${timelineDay} day${timelineDay === 1 ? "" : "s"}`}
           min={0}
           max={TIMELINE_HORIZON}
           step={1}

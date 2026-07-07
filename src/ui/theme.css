@@ -8,7 +8,9 @@
   --panel-2:       #efeee8;   /* inset / header row */
   --ink:           #1a1a15;   /* primary text */
   --ink-2:         #45443d;   /* secondary text */
-  --muted:         #7a786f;   /* labels / captions */
+  --muted:         #6a685f;   /* labels / captions — A-1: darkened from #7a786f (was ~4.2:1
+                                  vs --panel / ~4.0:1 vs --bg, under WCAG AA 4.5:1 for the 11px
+                                  uppercase .label text); measured 5.35:1 / 5.07:1, both ≥4.5:1 */
   --hair:          #d8d5cc;   /* 1px borders (the grid) */
   --hair-strong:   #b7b3a7;   /* section dividers */
 
@@ -189,6 +191,12 @@ body {
   outline: none;
   border-color: var(--ink);
 }
+/* A-2: restore a keyboard-only ring — same specificity as `:focus` above, so this rule
+   (declared after it) wins for keyboard focus while a mouse click stays quiet. */
+.field-input:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
 
 /* ── Hairline range control (thin track, square thumb) ──────────────── */
 .ledger-range {
@@ -217,6 +225,11 @@ body {
 .ledger-range:focus {
   outline: none;
 }
+/* A-2: same keyboard-only-ring pattern as .field-input above. */
+.ledger-range:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
 
 /* ── Checkbox (square hairline) ─────────────────────────────────────── */
 .ledger-check {
@@ -224,6 +237,27 @@ body {
   height: 13px;
   accent-color: var(--ink);
   cursor: pointer;
+}
+.ledger-check:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* ── Focus-visible rings (A-2) ───────────────────────────────────────── */
+/* Keyboard focus must stay visible; a mouse click stays quiet. A single
+   `button:focus-visible` rule reaches every plain `<button>` segmented
+   control in the app (.btn, .tab, GraphTab's view/detail/stratum toggles,
+   ContextTab's MODE segments, StressTab's grounded/raw toggle, …) without
+   hunting down each call site — none of them set an inline `outline`, so
+   there's nothing here to fight. React Flow's own zoom/fit controls get the
+   same ring explicitly since they're rendered inside a foreign component. */
+button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.keystone-controls .react-flow__controls-button:focus-visible {
+  outline: 2px solid var(--ink);
+  outline-offset: -2px; /* inset — the buttons are flush inside a 1px hairline frame */
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────────── */
@@ -450,5 +484,26 @@ body {
   .context-pane-manual {
     flex: 1 1 auto;
     width: 100%;
+  }
+}
+
+/* ── Reduced motion — DESIGN tournament + LIVE PIPELINE (A-3) ─────────── */
+/* These two surfaces run tick-driven cinematic reveals (structure assembly,
+   collapse, stage-beat pulse/particles) — see `usePrefersReducedMotion` in
+   DesignTab.tsx / LivePipeline.tsx, which already snaps their tick counters
+   straight to the end value under this preference. This block finishes the
+   job by killing every CSS *transition* left inside them (MiniStructure's
+   node/edge fade-in, the stage cards' border/opacity, the sensitivity bar
+   width, the overlay fade), so the — still correct, nothing hidden — end
+   state paints with no animation at all, the same treatment as `.live-dot`
+   above. `!important` is required: these are React inline `style` props,
+   which always beat an external stylesheet rule without it. */
+@media (prefers-reduced-motion: reduce) {
+  [data-testid="tournament"],
+  [data-testid="tournament"] *,
+  [data-testid="live-pipeline"],
+  [data-testid="live-pipeline"] * {
+    transition: none !important;
+    animation: none !important;
   }
 }
