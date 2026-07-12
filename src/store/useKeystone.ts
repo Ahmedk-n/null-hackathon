@@ -5,6 +5,11 @@ import type { Attack, Graph, ProbabilisticResult, ReinforcementPlan } from "@/en
 // store never fetches it (that stays in KeystoneApp via fetchCalibration); it only holds the
 // value pushed in by setCalibration. @/engine/calibrate is pure/key-free, so this is boundary-safe.
 import type { Calibration } from "@/engine/calibrate";
+// P3-T7 (additive): the contextual analysis council's result. Type-only — the store never runs
+// the council itself (that stays server-side / KeystoneApp's fetchCouncil, mirroring the
+// calibration idiom above); it only holds the plain-data value pushed in by setCouncil. A VALUE
+// reference to any @/agents/* module is banned by the boundary test, so this stays type-only.
+import type { CouncilResult } from "@/agents/council/types";
 import {
   applyAttacks,
   cloneGraph,
@@ -126,6 +131,13 @@ export interface KeystoneState {
   // CalibrationResult.isSample). Init false so a signed-in user is never mislabelled before the
   // fetch effect resolves. Consumed by IntegrityGauge to word the caption honestly.
   calibrationIsSample: boolean;
+  // P3-T7 (additive): the contextual analysis council's result for the CURRENT graph — null
+  // until KeystoneApp's post-extract fetchCouncil effect resolves (or when it resolves to null:
+  // failure/guest-with-no-key, meaning "no contextual overlay, deterministic view only"). Reset
+  // to null by setGraph/reset (a new graph invalidates any prior council read) exactly like
+  // reinforcementPlan/probabilistic above. Consumed by the four non-timeline solve actions below
+  // to swap in `council.contextualAttacks` for the keyword reweight when LIVE + grounded.
+  council: CouncilResult | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
@@ -165,6 +177,10 @@ export interface KeystoneState {
   // false (a real/empty record) so callers that only pass the calibration value never
   // accidentally mislabel it as a sample.
   setCalibration: (c: Calibration | null, isSample?: boolean) => void;
+  // P3-T7 · store only HOLDS the value — no fetch here (boundary/purity, mirrors setCalibration).
+  // KeystoneApp calls fetchCouncil(...) after the extract step and hands the plain result (or
+  // null) to this setter.
+  setCouncil: (c: CouncilResult | null) => void;
 }
 
 export function createKeystoneStore() {
@@ -190,6 +206,7 @@ export function createKeystoneStore() {
     probabilistic: null,
     calibration: null,
     calibrationIsSample: false,
+    council: null,
     setGraph: (g) => {
       // Preserve the engine-inert drivers onto the store's base/working graphs — cloneGraph
       // strips them (see solveProbabilistic above), and they are the correlation structure the
@@ -198,7 +215,7 @@ export function createKeystoneStore() {
       const working = cloneGraph(g);
       base.drivers = g.drivers;
       working.drivers = g.drivers;
-      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
+      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null });
     },
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
@@ -392,12 +409,21 @@ export function createKeystoneStore() {
     applyLoad: (attacks) => {
       const base = get().baseGraph ?? get().workingGraph;
       if (!base) return;
-      const { applyContextWeights, decisionContextPack } = get();
+      const { applyContextWeights, decisionContextPack, council } = get();
+      // P3-T7: when a LIVE, grounded council is present, its situation-specific attacks REPLACE
+      // the keyword reweight (the council did strictly more work — it read the actual context
+      // pack + findings, not just category keyword matches). A fixture-sourced council (no key /
+      // offline) or an empty contextualAttacks array falls back to the original keyword reweight.
+      const useCouncil =
+        !!council && council.source === "live" && council.grounded && council.contextualAttacks.length > 0;
       // The ONLY place context math meets the engine: reweight severities BEFORE applyAttacks.
-      const effective =
-        applyContextWeights && decisionContextPack
-          ? reweightAttacksByContext(attacks, decisionContextPack.contextWeightAdjustments)
-          : attacks;
+      const effective = applyContextWeights
+        ? useCouncil
+          ? council.contextualAttacks
+          : decisionContextPack
+            ? reweightAttacksByContext(attacks, decisionContextPack.contextWeightAdjustments)
+            : attacks
+        : attacks;
       // Always apply against a clean baseline clone so re-applying (e.g. the A/B
       // toggle) never double-attacks an already-stressed graph.
       const workingGraph = applyAttacks(cloneGraph(base), effective);
@@ -410,15 +436,21 @@ export function createKeystoneStore() {
     // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
     // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
     setApplyContextWeights: (value) => {
-      const { loadApplied, rawAttacks, baseGraph, decisionContextPack } = get();
+      const { loadApplied, rawAttacks, baseGraph, decisionContextPack, council } = get();
       if (!loadApplied || !baseGraph || rawAttacks.length === 0) {
         set({ applyContextWeights: value });
         return;
       }
-      const effective =
-        value && decisionContextPack
-          ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
-          : rawAttacks;
+      // P3-T7: same council-over-reweight preference as applyLoad (see its comment).
+      const useCouncil =
+        !!council && council.source === "live" && council.grounded && council.contextualAttacks.length > 0;
+      const effective = value
+        ? useCouncil
+          ? council.contextualAttacks
+          : decisionContextPack
+            ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
+            : rawAttacks
+        : rawAttacks;
       const workingGraph = applyAttacks(cloneGraph(baseGraph), effective);
       set({
         applyContextWeights: value,
@@ -438,7 +470,7 @@ export function createKeystoneStore() {
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),
@@ -447,7 +479,8 @@ export function createKeystoneStore() {
     // is pure, so this recomputation is deterministic; we compare integrity/keystone/failures
     // and expose a boolean (dev-level assertion — never throws in the prod path).
     rerun: () => {
-      const { baseGraph, workingGraph, rawAttacks, applyContextWeights, decisionContextPack, failures } = get();
+      const { baseGraph, workingGraph, rawAttacks, applyContextWeights, decisionContextPack, failures, council } =
+        get();
       if (!baseGraph || !workingGraph) {
         set({ rerunConfirmed: true, rerunIdentical: null });
         return;
@@ -456,11 +489,18 @@ export function createKeystoneStore() {
       const prevIntegrity = integrity(workingGraph);
       const prevKeystone = keystone(workingGraph)?.id ?? null;
       const prevFailures = failures;
-      // Re-run the exact pipeline applyLoad uses, from the raw attacks.
-      const effective =
-        applyContextWeights && decisionContextPack
-          ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
-          : rawAttacks;
+      // Re-run the exact pipeline applyLoad uses, from the raw attacks — including the P3-T7
+      // council-over-reweight preference (see applyLoad's comment), so a re-run stays byte-identical
+      // to the run it is verifying.
+      const useCouncil =
+        !!council && council.source === "live" && council.grounded && council.contextualAttacks.length > 0;
+      const effective = applyContextWeights
+        ? useCouncil
+          ? council.contextualAttacks
+          : decisionContextPack
+            ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
+            : rawAttacks
+        : rawAttacks;
       const nextGraph = applyAttacks(cloneGraph(baseGraph), effective);
       const nextFailures = detectFailures(nextGraph);
       const nextIntegrity = integrity(nextGraph);
@@ -489,12 +529,19 @@ export function createKeystoneStore() {
     // then apply the prescribed confidence restores to a fresh clone of the ATTACKED
     // graph. The engine — not the solver — recomputes integrity/failures from the result.
     reinforce: () => {
-      const { baseGraph, rawAttacks, applyContextWeights, decisionContextPack } = get();
+      const { baseGraph, rawAttacks, applyContextWeights, decisionContextPack, council } = get();
       if (!baseGraph || rawAttacks.length === 0) return;
-      const effective =
-        applyContextWeights && decisionContextPack
-          ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
-          : rawAttacks;
+      // P3-T7: same council-over-reweight preference as applyLoad (see its comment) — the
+      // reinforcement solver must target the SAME effective attacks the current verdict is under.
+      const useCouncil =
+        !!council && council.source === "live" && council.grounded && council.contextualAttacks.length > 0;
+      const effective = applyContextWeights
+        ? useCouncil
+          ? council.contextualAttacks
+          : decisionContextPack
+            ? reweightAttacksByContext(rawAttacks, decisionContextPack.contextWeightAdjustments)
+            : rawAttacks
+        : rawAttacks;
       const plan = minimalReinforcement(baseGraph, effective, FAILURE_THRESHOLD * 100);
       // Rebuild the attacked graph, then heal the plan's assumptions back to base confidence.
       const workingGraph = applyAttacks(cloneGraph(baseGraph), effective);
@@ -526,6 +573,10 @@ export function createKeystoneStore() {
     // applyLoad uses) and re-run the engine live on a clean baseline clone. Mirrors
     // setApplyContextWeights' pattern. Only shifts the outcome when loadApplied &&
     // applyContextWeights && a pack is present; RAW mode is day-invariant.
+    // P3-T7: deliberately NOT wired to `council` — the council's contextualAttacks are a single
+    // static snapshot (no day axis), while this scrub is specifically about how the reweight
+    // shifts DAY BY DAY via adjustmentsAt. Swapping in the council here would collapse the
+    // timeline back to a day-invariant view, defeating the feature. Keyword reweight only.
     setTimelineDay: (day) => {
       const { loadApplied, rawAttacks, baseGraph, decisionContextPack, applyContextWeights } = get();
       if (!loadApplied || !baseGraph || rawAttacks.length === 0) {
@@ -553,6 +604,10 @@ export function createKeystoneStore() {
     // P2-T5 · store only HOLDS the value — no fetch here (boundary/purity). KeystoneApp calls
     // fetchCalibration(isGuest) in an effect and pushes the result in.
     setCalibration: (c, isSample = false) => set({ calibration: c, calibrationIsSample: isSample }),
+    // P3-T7 · store only HOLDS the council result — no fetch here (boundary/purity). KeystoneApp
+    // calls fetchCouncil({graph, pack, company, findings}) in the post-extract effect and pushes
+    // the result (or null on failure/no-key) in.
+    setCouncil: (c) => set({ council: c }),
   }));
 }
 
@@ -571,6 +626,9 @@ export const selectCalibration = (s: KeystoneState): Calibration | null => s.cal
 // illustrative fixture — never for a signed-in caller's real record (empty or not). Consumed by
 // IntegrityGauge to word the RAW→CALIBRATED caption honestly.
 export const selectCalibrationIsSample = (s: KeystoneState): boolean => s.calibrationIsSample;
+// P3-T7 (additive): the contextual analysis council's result for the current graph (null until
+// KeystoneApp's post-extract fetch resolves, or permanently null if it resolved to no overlay).
+export const selectCouncil = (s: KeystoneState): CouncilResult | null => s.council;
 
 // Shared singleton for the React app.
 export const keystoneStore = createKeystoneStore();
