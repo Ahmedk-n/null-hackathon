@@ -23,8 +23,12 @@ import {
   selectProbabilistic,
   selectCalibration,
   selectCalibrationIsSample,
+  selectCouncil,
 } from "@/store/useKeystone";
 import type { ProbabilisticResult } from "@/engine";
+// P3-T8 · type-only — the contextual analysis council result is server-produced and pushed into
+// the store by KeystoneApp; this client only READS it (boundary-clean; no `@/agents` value import).
+import type { CouncilResult } from "@/agents/council/types";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { analysisDepth } from "@/canvas/depth";
 // V4-2 — constraint planes: pure derivation from the pack (deep import; barrel guard).
@@ -991,6 +995,90 @@ function VarianceKeystone({
   );
 }
 
+// P3-T8 · WHAT THE COUNCIL FOUND — surfaces the contextual analysis council's situation-aware
+// read in the STRESS rail, and ONLY when a grounded council result is present (else the rail is
+// byte-identical to before this task). The `fractureNarrative` names where the plan actually
+// cracks given the situation; when the council's context-keystone differs from the topological
+// keystone, the "real spine" line calls it out with that node's rationale (resolved to a label
+// through the graph); the 1–2 `hiddenAssumptions` expose beliefs the thesis depends on but never
+// states. A fixture-sourced council is tagged ILLUSTRATIVE (honesty — it is not a live read of
+// the user's own data, mirroring the calibration sample labeling). Ledger aesthetic throughout.
+function CouncilFindings({
+  council,
+  topoKeystoneId,
+  labelFor,
+}: {
+  council: CouncilResult;
+  topoKeystoneId: string | null;
+  labelFor: (id: string) => string;
+}) {
+  const ctxId = council.contextKeystoneId;
+  // Only claim a DIFFERENT spine when the context-keystone is a real, distinct node.
+  const showSpine = ctxId !== null && ctxId !== topoKeystoneId;
+  const spineWeight = showSpine ? council.nodeWeights.find((w) => w.nodeId === ctxId) : null;
+  const hidden = council.hiddenAssumptions.slice(0, 2);
+  const prose: React.CSSProperties = {
+    fontFamily: "var(--sans)",
+    fontSize: 11,
+    color: "var(--ink-2)",
+    lineHeight: 1.5,
+  };
+  return (
+    <div data-testid="council-findings">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+        <SectionHeader>What The Council Found</SectionHeader>
+        {council.source === "fixture" && (
+          <span
+            className="chip mono"
+            data-testid="council-illustrative"
+            style={{ flex: "0 0 auto", fontSize: 9, color: "var(--muted)", borderColor: "var(--hair-strong)" }}
+          >
+            ILLUSTRATIVE
+          </span>
+        )}
+      </div>
+
+      {/* The situation-specific fracture point — the single "where it really cracks" sentence. */}
+      <div data-testid="council-fracture" style={prose}>
+        {council.fractureNarrative}
+      </div>
+
+      {/* Context-keystone: the load-bearing node GIVEN the situation, when it differs from the
+          graph's topological keystone. Resolved to a human label; the council's rationale beneath. */}
+      {showSpine && (
+        <div data-testid="council-context-keystone" style={{ marginTop: 8 }}>
+          <div style={prose}>
+            Given your situation, the real spine is{" "}
+            <span style={{ color: "var(--bad)", fontWeight: 600 }}>{labelFor(ctxId as string)}</span>.
+          </div>
+          {spineWeight?.rationale && (
+            <div style={{ ...prose, marginTop: 4, color: "var(--muted)" }}>{spineWeight.rationale}</div>
+          )}
+        </div>
+      )}
+
+      {/* The 1–2 unstated beliefs the situation hides — label (what) + why (the load it carries). */}
+      {hidden.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <span className="label" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
+            Hidden Assumptions
+          </span>
+          {hidden.map((h, i) => (
+            <div
+              key={i}
+              data-testid="council-hidden-assumption"
+              style={{ padding: "5px 0", borderBottom: "1px solid var(--hair)" }}
+            >
+              <div style={{ ...prose, fontWeight: 600 }}>{h.label}</div>
+              <div style={{ ...prose, marginTop: 2, color: "var(--muted)" }}>{h.why}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -1023,6 +1111,9 @@ export function StressTab({
   // fixture — threaded to the gauge so it never words a fabricated bias as the signed-in
   // caller's own track record.
   const calibrationIsSample = useKeystone(selectCalibrationIsSample);
+  // P3-T8 · the contextual analysis council's result (null offline-with-no-key or before analyse).
+  // Surfaced ONLY when grounded; the store holds it, this client only reads it.
+  const council = useKeystone(selectCouncil);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -1095,6 +1186,14 @@ export function StressTab({
             <Button onClick={onReinforce}>Reinforce</Button>
           )}
         </div>
+
+        {/* P3-T8 — WHAT THE COUNCIL FOUND: the contextual council's situation-aware read (fracture
+            point, context-keystone, hidden assumptions). Rendered only when a grounded council is
+            present; otherwise this view is unchanged. Sits right under the verdict/toggle cluster
+            so the "given your situation, here's the real story" lands before the raw ledgers. */}
+        {council && council.grounded && (
+          <CouncilFindings council={council} topoKeystoneId={keystoneId} labelFor={labelFor} />
+        )}
 
         {/* V4-1 — DEPTH: dimensionality of the analysis (strata + evidence coverage). */}
         {depth && (

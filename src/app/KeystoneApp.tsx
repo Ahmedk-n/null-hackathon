@@ -36,6 +36,10 @@ import { useSession } from "@/lib/useSession";
 // Guest → the offline over-holder fixture; signed-in → the RLS-scoped route (fixture fallback on
 // any failure). Never called from the store itself — only from this client component's effect.
 import { fetchCalibration } from "@/lib/library/calibration";
+// P3-T7 · client-reachable council fetch (boundary-clean — see src/lib/library/council-client.ts).
+// POST /api/council after extraction; the server runs the council live (or its own fixture
+// fallback) — this never throws, resolving to null on any failure (no contextual overlay).
+import { fetchCouncil } from "@/lib/library/council-client";
 // LIVE PIPELINE — the dismissable "system at work" overlay. Mounts while a run is in flight and
 // reflects the REAL run (stage + stageSource + the store's graph/attacks + the pure engine MATH).
 import { LivePipeline } from "@/ui/pipeline/LivePipeline";
@@ -103,6 +107,11 @@ export default function KeystoneApp({
   // without the user re-typing the form. null until the first analyse() call. Not state — retrying
   // doesn't need a render, and it must survive past a failed run.
   const lastAnalyseInputRef = useRef<ContextInput | null>(null);
+  // P3-T7 fix · staleness guard for the fire-and-forget council fetch. Bumped at the top of every
+  // analyse() call; the council fetch only applies its result if this run is still the latest one
+  // when it resolves, so a slow first fetch can never overwrite a newer graph's council (mirrors
+  // the `cancelled`-flag idiom used for fetchCalibration above).
+  const analyseRunTokenRef = useRef(0);
 
   // V5-4 · the library entry THIS session is editing. analyse() creates one; Apply Load / Reinforce
   // patch its verdict; reopening a snapshot adopts its id. null = nothing saved yet this session.
@@ -235,6 +244,7 @@ export default function KeystoneApp({
 
   // Orchestration reaches the model ONLY over HTTP — never imports server modules.
   async function analyse(input: ContextInput) {
+    const runToken = ++analyseRunTokenRef.current;
     lastAnalyseInputRef.current = input;
     setLastRunKind("analyse");
     setBuilding(true);
@@ -311,6 +321,14 @@ export default function KeystoneApp({
       }));
       await new Promise((resolve) => setTimeout(resolve, 800));
       keystoneStore.getState().setGraph(graph);
+      // P3-T7 · CONTEXTUAL ANALYSIS COUNCIL. Fire-and-forget — genuinely non-blocking: the rest
+      // of this run (save/stage/tab) proceeds immediately without waiting on it, and a `null`
+      // result (guest/offline with no key, or any failure — fetchCouncil never throws) just means
+      // "no contextual overlay this run", the deterministic keyword-reweight view stays exactly as
+      // before. Reuses the same gathered `findings` snapshot fed to extraction above.
+      fetchCouncil({ graph, pack, company: companyContext, findings }).then((council) => {
+        if (analyseRunTokenRef.current === runToken) keystoneStore.getState().setCouncil(council);
+      });
       // V5-4 · auto-save the analysis. savedAtISO = the server-passed startedAt (NEVER a client
       // clock — T8); seq/id come from the library's persisted monotonic counter. The verdict is
       // the fresh (pre-load) engine reading off the just-set graph.

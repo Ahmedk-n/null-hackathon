@@ -4,6 +4,7 @@ import { render, cleanup, fireEvent } from "@testing-library/react";
 import { SelectionPanel } from "./SelectionPanel";
 import { fixtureContextGraph } from "@/context";
 import type { Graph } from "@/engine";
+import type { NodeWeighting } from "@/agents/council/types";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -84,6 +85,103 @@ describe("SelectionPanel — MODIFIED provenance (V5-3)", () => {
     // The grounded evidence no longer shows — modified takes priority.
     expect(container.querySelector('[data-evidence="grounded"]')).toBeNull();
     expect(getByText(/MODIFIED — UNVERIFIED/)).toBeTruthy();
+  });
+});
+
+describe("SelectionPanel — context weight (P3-T8)", () => {
+  it("renders the context weight + rationale for a node with a matching nodeWeights entry", () => {
+    const nodeWeights: NodeWeighting[] = [
+      {
+        nodeId: "k_credible",
+        contextWeight: 0.73,
+        rationale: "Board meeting deadline makes this the binding constraint.",
+        evidenceRefs: [],
+      },
+    ];
+    const { getByTestId, getByText } = render(
+      <SelectionPanel
+        graph={graph}
+        selectedNodeId="k_credible"
+        keystoneId="k_credible"
+        nodeWeights={nodeWeights}
+      />,
+    );
+    expect(getByTestId("council-node-weight")).toBeTruthy();
+    expect(getByText(/0\.73/)).toBeTruthy();
+    expect(getByTestId("council-node-rationale").textContent).toMatch(
+      /Board meeting deadline makes this the binding constraint\./,
+    );
+  });
+
+  it("omits the context weight block when nodeWeights is undefined", () => {
+    const { queryByTestId } = render(
+      <SelectionPanel graph={graph} selectedNodeId="k_credible" keystoneId="k_credible" />,
+    );
+    expect(queryByTestId("council-node-weight")).toBeNull();
+    expect(queryByTestId("council-node-rationale")).toBeNull();
+  });
+
+  it("tags the context weight block ILLUSTRATIVE when nodeWeightsSource is fixture", () => {
+    const nodeWeights: NodeWeighting[] = [
+      {
+        nodeId: "k_credible",
+        contextWeight: 0.73,
+        rationale: "Board meeting deadline makes this the binding constraint.",
+        evidenceRefs: [],
+      },
+    ];
+    const { getByTestId } = render(
+      <SelectionPanel
+        graph={graph}
+        selectedNodeId="k_credible"
+        keystoneId="k_credible"
+        nodeWeights={nodeWeights}
+        nodeWeightsSource="fixture"
+      />,
+    );
+    expect(getByTestId("council-node-illustrative")).toBeTruthy();
+  });
+
+  it("omits the ILLUSTRATIVE tag when nodeWeightsSource is live", () => {
+    const nodeWeights: NodeWeighting[] = [
+      {
+        nodeId: "k_credible",
+        contextWeight: 0.73,
+        rationale: "Board meeting deadline makes this the binding constraint.",
+        evidenceRefs: [],
+      },
+    ];
+    const { queryByTestId } = render(
+      <SelectionPanel
+        graph={graph}
+        selectedNodeId="k_credible"
+        keystoneId="k_credible"
+        nodeWeights={nodeWeights}
+        nodeWeightsSource="live"
+      />,
+    );
+    expect(queryByTestId("council-node-illustrative")).toBeNull();
+  });
+
+  it("omits the context weight block when nodeWeights has no entry for the selected node", () => {
+    const nodeWeights: NodeWeighting[] = [
+      {
+        nodeId: "some_other_node",
+        contextWeight: 0.4,
+        rationale: "Not the selected node.",
+        evidenceRefs: [],
+      },
+    ];
+    const { queryByTestId } = render(
+      <SelectionPanel
+        graph={graph}
+        selectedNodeId="k_credible"
+        keystoneId="k_credible"
+        nodeWeights={nodeWeights}
+      />,
+    );
+    expect(queryByTestId("council-node-weight")).toBeNull();
+    expect(queryByTestId("council-node-rationale")).toBeNull();
   });
 });
 
