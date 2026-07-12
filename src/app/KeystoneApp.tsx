@@ -184,6 +184,7 @@ export default function KeystoneApp({
       pack,
       graph: c.graph,
       verdict: currentVerdict(),
+      predictedPHold: keystoneStore.getState().probabilistic?.pHold ?? null,
     });
     if (entry) {
       setCurrentEntryId(entry.id);
@@ -303,6 +304,7 @@ export default function KeystoneApp({
         pack,
         graph,
         verdict: currentVerdict(),
+        predictedPHold: keystoneStore.getState().probabilistic?.pHold ?? null,
       });
       if (entry) {
         setCurrentEntryId(entry.id);

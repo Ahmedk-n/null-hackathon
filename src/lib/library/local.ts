@@ -67,6 +67,7 @@ function validateEntry(raw: unknown): LibraryEntry | null {
         : [],
       loadApplied: v.loadApplied === true,
     },
+    predictedPHold: typeof o.predictedPHold === "number" ? o.predictedPHold : null,
   };
 }
 
@@ -120,6 +121,7 @@ export function localSave(input: NewLibraryEntry): LibraryEntry | null {
     pack: input.pack,
     graph: input.graph,
     verdict: input.verdict,
+    predictedPHold: input.predictedPHold ?? null,
   };
   const entries = [entry, ...store.entries].sort((a, b) => b.seq - a.seq).slice(0, CAP);
   writeStore({ counter: seq, entries });
@@ -156,6 +158,7 @@ export function localDuplicate(id: string): LibraryEntry | null {
     pack: source.pack,
     graph: source.graph,
     verdict: source.verdict,
+    predictedPHold: source.predictedPHold ?? null,
   });
 }
 
