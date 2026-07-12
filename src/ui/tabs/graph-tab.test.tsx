@@ -15,7 +15,7 @@ vi.mock("@/canvas/Keystone3D", () => ({
 
 import { GraphTab } from "./GraphTab";
 import { keystoneStore } from "@/store/useKeystone";
-import { fixtureContextGraph } from "@/context";
+import { fixtureContextGraph, fixtureContextAttacks } from "@/context";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -90,5 +90,39 @@ describe("GraphTab VIEW control — V9-2 3D leg", () => {
     fireEvent.click(flatBtn);
     await waitFor(() => expect(container.querySelector(".react-flow")).not.toBeNull());
     expect(screen.queryByTestId("keystone-3d-stub")).toBeNull();
+  });
+});
+
+describe("GraphTab — Task 7 DETAIL default + probabilistic gauge", () => {
+  it("renders the board with DETAIL ON by default (toggle pressed)", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    render(<GraphTab />);
+    // The DETAIL disclosure now defaults ON so the graph opens with its full chrome.
+    expect(screen.getByTestId("detail-toggle").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows only the deterministic integrity (no P(hold)) before a solve", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph()); // clears probabilistic → null
+    render(<GraphTab />);
+    expect(screen.queryByTestId("phold-headline")).toBeNull();
+    expect(screen.queryByTestId("driver-legend")).toBeNull();
+  });
+
+  it("surfaces HOLDS <pct> + an integrity band + the driver legend once a solve has run", () => {
+    // Seed a solve so selectProbabilistic is populated (applyLoad runs the Monte-Carlo brain).
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    expect(keystoneStore.getState().probabilistic).not.toBeNull();
+
+    render(<GraphTab />);
+
+    // The gauge LEADS with the P(hold) headline.
+    const headline = screen.getByTestId("phold-headline");
+    expect(headline.textContent).toMatch(/HOLDS \d+%/);
+    // …and carries the [p05–p95] integrity band beneath the demoted "sketch" value.
+    expect(screen.getByTestId("integrity-band").textContent).toMatch(/\d+–\d+/);
+    // The driver-cluster legend appears with at least one driver row.
+    expect(screen.getByTestId("driver-legend")).toBeTruthy();
+    expect(screen.getAllByTestId("driver-legend-row").length).toBeGreaterThanOrEqual(1);
   });
 });

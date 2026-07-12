@@ -103,6 +103,13 @@ export interface StructuralNodeData {
    * selection ring even while the board is in minimal (detail-off) mode.
    */
   selected?: boolean;
+  /**
+   * Task 7 · dominant-driver cluster colour (assumptions only). When present the node tints its
+   * load-bearing LEFT edge to this colour, grouping assumptions that share a latent failure
+   * driver; the GRAPH rail carries the matching driver→colour legend. Undefined → type accent.
+   */
+  clusterColor?: string;
+  clusterLabel?: string;
   [key: string]: unknown;
 }
 
@@ -128,6 +135,10 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const expand = showDetail || selected;
 
   const accent = data.isKeystone ? KEYSTONE : ACCENT[data.type];
+  // Task 7 · the load-bearing left edge takes the dominant-driver cluster colour when tagged
+  // (assumptions), so the board reads its shared-failure grouping; the thin frame keeps the
+  // type accent. A failed node's red frame always wins (failure signal is never overridden).
+  const edgeAccent = !data.isFailed && data.clusterColor ? data.clusterColor : accent;
   const dotColor = statusColor(data.confidence, data.isFailed);
   const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? KEYSTONE_Z_BUMP : 0);
   // V4-1 — stratum focus dims the strata you're not inspecting.
@@ -199,7 +210,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         width: NODE_W,
         height: NODE_H,
         border: `1px solid ${accent}`,
-        borderLeft: `3px solid ${accent}`,
+        borderLeft: `3px solid ${edgeAccent}`,
         background: data.isFailed ? BAD_BG : PANEL,
         boxShadow: data.isFailed ? failedShadow : restingShadow,
         // V9-1 · a selected node draws a calm ring so the board still reads which node the

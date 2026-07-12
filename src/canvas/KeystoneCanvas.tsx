@@ -198,6 +198,7 @@ export function KeystoneCanvas({
   fitSignal,
   detail = true,
   selectedId = null,
+  driverTags,
 }: {
   graph: Graph;
   keystoneId: string | null;
@@ -241,6 +242,14 @@ export function KeystoneCanvas({
   detail?: boolean;
   /** V9-1 · the selected node id — expanded inline + ringed even while the board is minimal. */
   selectedId?: string | null;
+  /**
+   * Task 7 · driver-cluster tags. Maps an assumption id → its dominant latent driver's
+   * { label, colour } (the correlation clusters from the probabilistic brain). When provided,
+   * each tagged assumption node tints its load-bearing left edge to the cluster colour so the
+   * board groups by shared-failure driver at a glance; a matching legend lives in the GRAPH rail.
+   * Undefined (STRESS, or before a solve) → no cluster tinting, node styling unchanged.
+   */
+  driverTags?: ReadonlyMap<string, { label: string; color: string }>;
 }) {
   const effectiveLoadApplied = loadApplied ?? failures.size > 0;
 
@@ -309,6 +318,9 @@ export function KeystoneCanvas({
           plateDimmed,
           detail,
           selected: n.id === selectedId,
+          // Task 7 · dominant-driver cluster tag (assumptions only; keystone keeps its red edge).
+          clusterColor: !isKeystone ? driverTags?.get(n.id)?.color : undefined,
+          clusterLabel: !isKeystone ? driverTags?.get(n.id)?.label : undefined,
         },
       };
     });
@@ -321,11 +333,15 @@ export function KeystoneCanvas({
             id: `${childId}->${parent.id}`,
             source: childId,
             target: parent.id,
+            // Task 7 · straight hairlines read as CAD load-path members, not soft bezier
+            // curves — crisper and truer to the drafting aesthetic the founder wanted.
+            type: "straight",
             style: {
-              // V9-1 · thinner, calmer support edges; the keystone load-path stays a touch
-              // heavier so it still reads as the spine without shouting.
-              stroke: fromKeystone ? KEYSTONE : HAIR,
-              strokeWidth: fromKeystone ? 1.8 : 1,
+              // Support edges use the STRONG hairline (the faint --hair was near-invisible on
+              // paper); the keystone load-path stays keystone-red and a touch heavier so it
+              // reads as the spine without shouting.
+              stroke: fromKeystone ? KEYSTONE : HAIR_STRONG,
+              strokeWidth: fromKeystone ? 1.5 : 1,
             },
             animated: fromKeystone,
           });
@@ -345,6 +361,7 @@ export function KeystoneCanvas({
     focusLayer,
     detail,
     selectedId,
+    driverTags,
   ]);
 
   // V4-1 — the strata present in this graph (drives the stratum chrome). Evidence
@@ -425,6 +442,12 @@ export function KeystoneCanvas({
         height: "100%",
         perspective: section ? "1400px" : "none",
         background: BG,
+        // Task 7 · CLIP to the canvas bounds. Without this the React Flow edge SVG (and the
+        // SECTION tilt's projected nodes) could bleed past the pane into the flanking rails —
+        // the "connection lines overflow to the side panes" bug. Clipping here contains every
+        // layer (edges, node callouts, chrome) to the board at desktop AND mobile widths.
+        overflow: "hidden",
+        position: "relative",
       }}
     >
       {/* Shake wrapper (W1-4): jitters the whole board on failure WITHOUT touching

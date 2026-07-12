@@ -56,6 +56,18 @@ function uniqueId(base: string, taken: ReadonlySet<string>): string {
   return `${base}-${n}`;
 }
 
+// Task 7 · DRIVER-PRESERVING PROBABILISTIC SOLVE. The engine's `cloneGraph` (sensitivity.ts,
+// off-limits) intentionally drops the engine-inert `graph.drivers`, so any working graph rebuilt
+// through `applyAttacks(cloneGraph(base), …)` carries NO drivers — and the Monte-Carlo brain would
+// then infer zero correlation structure (empty clusters / keystoneDrivers / coFailure), collapsing
+// the whole "correlated failure" story back to independent noise. We keep the drivers on the store's
+// baseGraph (see setGraph) and re-attach them onto the working graph here before every solve. This
+// is provably engine-inert: the pure solver (propagation/sensitivity/load) never reads graph.drivers.
+function solveProbabilistic(working: Graph, base: Graph | null): ProbabilisticResult {
+  const drivers = base?.drivers;
+  return runProbabilistic(drivers && drivers.length > 0 ? { ...working, drivers } : working);
+}
+
 // Stable empty reference reused for the "no failures" case. Returning a fresh `new Set()` from a
 // selector on every render breaks React 19's useSyncExternalStore (snapshot must be referentially
 // stable) and causes "Maximum update depth exceeded" + hydration mismatch. `failures` therefore
@@ -156,8 +168,16 @@ export function createKeystoneStore() {
     failsInDay: null,
     editError: null,
     probabilistic: null,
-    setGraph: (g) =>
-      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null }),
+    setGraph: (g) => {
+      // Preserve the engine-inert drivers onto the store's base/working graphs — cloneGraph
+      // strips them (see solveProbabilistic above), and they are the correlation structure the
+      // probabilistic brain needs. Undefined when the graph carries no drivers (harmless).
+      const base = cloneGraph(g);
+      const working = cloneGraph(g);
+      base.drivers = g.drivers;
+      working.drivers = g.drivers;
+      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
+    },
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
       if (!wg) return;
@@ -165,8 +185,13 @@ export function createKeystoneStore() {
       const node = next.nodes.find((n) => n.id === id);
       if (node) node.confidence = Math.min(1, Math.max(0, value));
       // Re-derive failures only if we are in the post-load state; before load nothing is "failed".
-      const failures = get().loadApplied ? detectFailures(next) : EMPTY_FAILURES;
-      set({ workingGraph: next, failures, reinforcementPlan: null });
+      const loadApplied = get().loadApplied;
+      const failures = loadApplied ? detectFailures(next) : EMPTY_FAILURES;
+      // Task 7 fold-in — the confidence edit rebuilt `next`, so the probabilistic distribution
+      // over the OLD working graph is now stale. Recompute it from the rebuilt graph while load
+      // is applied (matches the "workingGraph changed under load" contract of the other actions);
+      // at baseline there is no distribution to show, so it stays null.
+      set({ workingGraph: next, failures, reinforcementPlan: null, probabilistic: loadApplied ? solveProbabilistic(next, get().baseGraph) : null });
     },
     // ── V5-3 · GRAPH EDITING ────────────────────────────────────────────────
     // Structural edits (delete / add / flip) reset the stress verdict back to baseline:
@@ -339,7 +364,7 @@ export function createKeystoneStore() {
       // the RAW attacks + context timeline — reset the scrub to now and (grounded-only)
       // derive the day it craters.
       const failsInDay = deriveFailsInDay(base, attacks, decisionContextPack, applyContextWeights);
-      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay, probabilistic: runProbabilistic(workingGraph) });
+      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay, probabilistic: solveProbabilistic(workingGraph, base) });
     },
     // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
     // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
@@ -366,7 +391,7 @@ export function createKeystoneStore() {
         // Reset the scrub to now so the two views stay coherent.
         timelineDay: 0,
         failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, value),
-        probabilistic: runProbabilistic(workingGraph),
+        probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
     reset: () => {
@@ -413,7 +438,7 @@ export function createKeystoneStore() {
         // Re-run rebuilds the working graph from the raw attacks (the attacked verdict),
         // discarding any applied reinforcement — drop the stale plan.
         reinforcementPlan: null,
-        probabilistic: runProbabilistic(nextGraph),
+        probabilistic: solveProbabilistic(nextGraph, baseGraph),
       });
     },
     clearRerunConfirmed: () => set({ rerunConfirmed: false }),
@@ -452,7 +477,7 @@ export function createKeystoneStore() {
         failures: detectFailures(workingGraph),
         reinforcementPlan: plan,
         failsInDay,
-        probabilistic: runProbabilistic(workingGraph),
+        probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
     // V3-7 · TIME-AXIS SCRUB. Re-derive effective attacks for `day` (temporal
@@ -481,7 +506,7 @@ export function createKeystoneStore() {
         // re-derive the (un-reinforced) failure horizon so the chip stays coherent.
         reinforcementPlan: null,
         failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, applyContextWeights),
-        probabilistic: runProbabilistic(workingGraph),
+        probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
   }));

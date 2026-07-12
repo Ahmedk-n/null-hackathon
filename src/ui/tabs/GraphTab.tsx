@@ -1,7 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { keystoneStore, useKeystone } from "@/store/useKeystone";
+import { keystoneStore, useKeystone, selectProbabilistic } from "@/store/useKeystone";
+import { CLUSTER_PALETTE } from "@/ui/tokens";
 // GRAPH shows the CLEAN STANDING structure — baseline numbers come straight from the
 // pure engine on the base graph, never the store's post-stress (workingGraph) selectors.
 import { integrity, keystone } from "@/engine";
@@ -197,6 +198,9 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const failures = EMPTY_SET;
   const selectedNodeId = useKeystone((s) => s.selectedNodeId);
   const editError = useKeystone((s) => s.editError);
+  // Task 7 · the Monte-Carlo distribution (null before a solve). Drives the gauge's P(hold)+band
+  // and the driver-cluster tags/legend below. Shared singleton, so a STRESS solve lights GRAPH up.
+  const probabilistic = useKeystone(selectProbabilistic);
   const pack = useKeystone((s) => s.decisionContextPack);
   const contextAdjustments = pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS;
   // V4-2 — the pack's constraints as boundary planes (mirrors contextAdjustments' flow).
@@ -205,10 +209,11 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const [search, setSearch] = useState("");
   const [failedOnly, setFailedOnly] = useState(false);
   const [minConf, setMinConf] = useState(0);
-  // V9-1 — DETAIL disclosure. The board is MINIMAL by default (label + status dot + keystone/
-  // failed marker); DETAIL reveals the chrome (stratum labels, constraint rail, force arrows)
-  // and the per-node evidence/confidence. Clicking a node always fills the SelectionPanel.
-  const [detail, setDetail] = useState(false);
+  // DETAIL disclosure. Task 7 flips the default ON: the founder wanted the graph to open with
+  // its chrome (stratum labels, constraint rail, per-node evidence/confidence) rather than the
+  // bare minimal board, so the structure reads in full on arrival. The toggle still collapses it
+  // back to the minimal board (label + status dot + keystone/failed marker) on demand.
+  const [detail, setDetail] = useState(true);
   // V9-2 — TRUE 3D leg. When true the center board swaps the flat 2D KeystoneCanvas for the
   // lazy-loaded <Keystone3D> react-three-fiber scene (native orbit/zoom/pan). The 2D-only
   // DETAIL chrome is inert in 3D, so it disables while it's active. Local to the GRAPH
@@ -223,6 +228,26 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
 
   // V4-1 — DEPTH metric for the compact Depth/Grounded readout under VIEW.
   const depth = useMemo(() => (displayGraph ? analysisDepth(displayGraph) : null), [displayGraph]);
+
+  // Task 7 · DRIVER CLUSTERS. Each probabilistic cluster is a latent common-mode driver; an
+  // assumption's dominant driver is the cluster whose assumptionIds contain it. Build (a) the
+  // legend rows (driver label + a stable palette colour, indexed by cluster order) and (b) the
+  // assumptionId → { label, colour } tag map threaded to the canvas so the board tints each
+  // assumption's left edge by its driver. Null before a solve → no tags, no legend (board as-is).
+  const { driverTags, driverLegend } = useMemo(() => {
+    const tags = new Map<string, { label: string; color: string }>();
+    const legend: { id: string; label: string; color: string }[] = [];
+    if (!probabilistic) return { driverTags: undefined, driverLegend: legend };
+    probabilistic.clusters.forEach((c, i) => {
+      const color = CLUSTER_PALETTE[i % CLUSTER_PALETTE.length];
+      legend.push({ id: c.driverId, label: c.label, color });
+      for (const aid of c.assumptionIds) {
+        // First (highest-variance) cluster claiming an assumption wins its dominant tag.
+        if (!tags.has(aid)) tags.set(aid, { label: c.label, color });
+      }
+    });
+    return { driverTags: tags, driverLegend: legend };
+  }, [probabilistic]);
 
   const stats = useMemo(() => {
     if (!displayGraph) return null;
@@ -283,7 +308,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
             assumption), the first thing you see. */}
         <div>
           <SectionHeader>Verdict</SectionHeader>
-          <IntegrityGauge value={integrityValue} />
+          <IntegrityGauge value={integrityValue} probabilistic={probabilistic} />
           <LedgerRow label="Keystone" value={keystoneId ?? "—"} accent="var(--keystone)" />
           <LedgerRow
             label="Weakest Assumption"
@@ -295,6 +320,48 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
             {`${stats.assumptions.length} assumptions · ${stats.claimCount} claims`}
           </div>
         </div>
+
+        {/* Task 7 · DRIVER CLUSTERS legend. One row per latent common-mode driver (the
+            correlation clusters the probabilistic brain inferred), colour-matched to the tint
+            on each assumption node's left edge. Only appears once a solve has produced a
+            distribution; it is the cluster SEED for the later semantic-zoom pass (grouping +
+            legend only — no new navigation). */}
+        {driverLegend.length > 0 && (
+          <div data-testid="driver-legend">
+            <SectionHeader>Driver Clusters</SectionHeader>
+            {driverLegend.map((d) => (
+              <div
+                key={d.id}
+                data-testid="driver-legend-row"
+                style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}
+              >
+                <span
+                  aria-hidden
+                  style={{
+                    width: 10,
+                    height: 10,
+                    background: d.color,
+                    border: "1px solid var(--ink)",
+                    flex: "0 0 auto",
+                  }}
+                />
+                <span
+                  className="label"
+                  title={d.label}
+                  style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                >
+                  {d.label}
+                </span>
+              </div>
+            ))}
+            <div
+              className="label"
+              style={{ marginTop: 4, fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em" }}
+            >
+              Assumptions Tinted By Shared-Failure Driver
+            </div>
+          </div>
+        )}
 
         {/* FILTER — power-user search/threshold, not needed for a first read of a 13-node
             graph, so it folds behind a collapsed-by-default disclosure. */}
@@ -415,6 +482,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
             fitSignal={fitSignal}
             detail={detail}
             selectedId={selectedNodeId}
+            driverTags={driverTags}
           />
         )}
       </div>

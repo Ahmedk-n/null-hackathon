@@ -20,7 +20,9 @@ import {
   selectIntegrity,
   selectKeystoneId,
   selectFailures,
+  selectProbabilistic,
 } from "@/store/useKeystone";
+import type { ProbabilisticResult } from "@/engine";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { analysisDepth } from "@/canvas/depth";
 // V4-2 — constraint planes: pure derivation from the pack (deep import; barrel guard).
@@ -931,6 +933,62 @@ function SupportBreakdownPanel({ graph, keystoneId }: { graph: Graph; keystoneId
   );
 }
 
+// Task 7 · VARIANCE KEYSTONE — the probabilistic brain's answer to "what actually moves the
+// outcome", distinct from (and above) the deterministic knock-out below. `keystoneDrivers[0]`
+// is the single latent factor that explains the most integrity variance (Sobol first-order);
+// the co-failure sentence names the assumptions that drop below the failure line TOGETHER when
+// that factor takes a bad draw — the correlated collapse the naive independent product misses.
+// Assumption ids resolve to labels through the graph nodes (never raw ids). Renders only once a
+// solve has produced a distribution; the knock-out SensitivityBars stays visible as secondary.
+function VarianceKeystone({
+  probabilistic,
+  labelFor,
+}: {
+  probabilistic: ProbabilisticResult;
+  labelFor: (id: string) => string;
+}) {
+  const top = probabilistic.keystoneDrivers[0];
+  if (!top) return null;
+  // The co-failure cluster for the top driver (fall back to the first) → member labels.
+  const co =
+    probabilistic.coFailure.find((c) => c.driverId === top.id) ?? probabilistic.coFailure[0];
+  const members = co ? co.assumptionIds.map(labelFor) : [];
+  const sensitivityPct = Math.round(Math.max(0, Math.min(1, top.sensitivity)) * 100);
+  return (
+    <div data-testid="variance-keystone">
+      <SectionHeader>Variance Keystone</SectionHeader>
+      <div
+        style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--ink-2)", lineHeight: 1.5 }}
+      >
+        Most load-bearing factor:{" "}
+        <span style={{ color: "var(--bad)", fontWeight: 600 }}>{top.label}</span>
+      </div>
+      <span
+        className="chip mono"
+        data-testid="variance-sensitivity"
+        style={{ marginTop: 6, display: "inline-block", color: "var(--bad)", borderColor: "var(--bad)" }}
+      >
+        {`${sensitivityPct}% OF OUTCOME VARIANCE`}
+      </span>
+      {members.length > 0 && (
+        <div
+          data-testid="co-failure"
+          style={{ marginTop: 8, fontFamily: "var(--sans)", fontSize: 11, color: "var(--muted)", lineHeight: 1.5 }}
+        >
+          If it slips, these fall together:{" "}
+          <span style={{ color: "var(--ink-2)" }}>{members.join(", ")}</span>.
+        </div>
+      )}
+      <div
+        className="label"
+        style={{ marginTop: 8, fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em" }}
+      >
+        Sobol First-Order · Correlated Monte-Carlo · Seeded
+      </div>
+    </div>
+  );
+}
+
 export function StressTab({
   onApplyLoad,
   onReset,
@@ -954,6 +1012,8 @@ export function StressTab({
   const applyContextWeights = useKeystone((s) => s.applyContextWeights);
   const rawAttacks = useKeystone((s) => s.rawAttacks);
   const reinforcementPlan = useKeystone((s) => s.reinforcementPlan);
+  // Task 7 · the Monte-Carlo distribution over the current working graph (null before a solve).
+  const probabilistic = useKeystone(selectProbabilistic);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -1063,7 +1123,13 @@ export function StressTab({
           <LoadResultPanel baseGraph={baseGraph} summary={loadSummary} cascade={loadCascade} />
         )}
 
-        {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone) */}
+        {/* Task 7 — VARIANCE KEYSTONE: the probabilistic "what actually moves the outcome"
+            (top variance driver + correlated co-failure sentence). Leads the deterministic
+            knock-out below once a solve has produced a distribution. */}
+        {probabilistic && <VarianceKeystone probabilistic={probabilistic} labelFor={labelFor} />}
+
+        {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone) — kept as the
+            secondary, deterministic view beneath the variance keystone. */}
         <SensitivityBars graph={baseGraph ?? graph} keystoneId={keystoneId} />
 
         {/* V3-2 — minimum-reinforcement prescription (the inverse of sensitivity) */}
@@ -1126,7 +1192,7 @@ export function StressTab({
             padding: 8,
           }}
         >
-          <IntegrityGauge value={integrityValue} />
+          <IntegrityGauge value={integrityValue} probabilistic={probabilistic} />
         </div>
       </div>
   );
