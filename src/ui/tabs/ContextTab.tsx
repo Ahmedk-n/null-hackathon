@@ -17,6 +17,7 @@ import type { ContextInput, DecisionContextPack, ScenarioId } from "@/context";
 import { SCENARIOS } from "@/context/fixtures";
 import type { GatherFinding, GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
+import { useAgentStream, type UseAgentStream } from "@/lib/useAgentStream";
 import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
 // C-3 · the store singleton — read directly (no prop-drilling) for the post-compile strip below.
 import { useKeystone } from "@/store/useKeystone";
@@ -74,6 +75,7 @@ const COL: React.CSSProperties = { minWidth: 0, display: "flex", flexDirection: 
 function ContextPane({
   kind,
   mode,
+  stream,
   manualValue,
   manualSet,
   onManualEdit,
@@ -81,6 +83,8 @@ function ContextPane({
 }: {
   kind: GatherKind;
   mode: ContextMode;
+  /** This kind's agent stream state — owned by ContextTab so it survives a sub-tab switch. */
+  stream: UseAgentStream;
   /** Current manual text — agent summaries merge onto it (no edit-flip). */
   manualValue: string;
   /** Raw setter — used by onSummary so an agent summary does NOT trip the scenario-pin flip. */
@@ -99,6 +103,7 @@ function ContextPane({
             direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
         <AgentGather
           kind={kind}
+          stream={stream}
           seed={seed}
           seedKey={mode}
           onSummary={(s) => manualSet(mergeSummary(manualValue, s))}
@@ -554,6 +559,16 @@ export function ContextTab({
     temporal: { value: temporalContextText, set: setTemporal },
   };
 
+  // One agent stream PER KIND, owned here (ContextTab stays mounted across sub-tab switches) so a
+  // kind's log/findings — and any in-flight run — survive switching to another sub-tab and back.
+  // Only the ACTIVE pane's AgentGather is mounted; it renders from the persisted stream for its
+  // kind. Hooks are called unconditionally in a fixed order (React rules).
+  const STREAMS: Record<GatherKind, UseAgentStream> = {
+    business: useAgentStream(),
+    technical: useAgentStream(),
+    temporal: useAgentStream(),
+  };
+
   // Renders the active kind's pane through the STABLE module-level ContextPane (see its comment
   // for why identity stability matters). Threads the raw setter (agent summaries, no edit-flip)
   // and the edit-wrapped setter (textarea keystrokes, flips the pin) separately.
@@ -563,6 +578,7 @@ export function ContextTab({
       <ContextPane
         kind={kind}
         mode={mode}
+        stream={STREAMS[kind]}
         manualValue={manual.value}
         manualSet={manual.set}
         onManualEdit={editing(manual.set)}

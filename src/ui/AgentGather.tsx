@@ -5,7 +5,7 @@
 // file never imports @/agents/* server code, so the key never enters the bundle.
 import { useEffect, useRef, useState } from "react";
 import type { GatherFinding, GatherKind, GatherSource } from "@/agents/types";
-import { useAgentStream } from "@/lib/useAgentStream";
+import type { UseAgentStream } from "@/lib/useAgentStream";
 import { Button, Field, LedgerRow, SectionHeader } from "@/ui/primitives";
 
 // muted provenance tag rendered on the right of a finding/log value.
@@ -83,12 +83,17 @@ export interface AgentSeed {
 
 export function AgentGather({
   kind,
+  stream,
   onSummary,
   onFindings,
   seed,
   seedKey,
 }: {
   kind: GatherKind;
+  /** The agent stream state + run(), OWNED BY ContextTab (one per kind) so it survives this
+   *  component unmounting on a sub-tab switch — otherwise the log/findings vanished when you
+   *  left and came back to a kind. AgentGather is now purely presentational over it. */
+  stream: UseAgentStream;
   onSummary: (summary: string) => void;
   /** V3-8: lifts the gathered facts so live extraction can ground confidences (V3-6). */
   onFindings?: (facts: GatherFinding[]) => void;
@@ -99,7 +104,7 @@ export function AgentGather({
    *  local, so it never trips the ContextTab edit-flip that drops the scenario pin. */
   seedKey?: string;
 }) {
-  const { events, findings, running, elapsedSec, run } = useAgentStream();
+  const { events, findings, running, elapsedSec, run } = stream;
 
   // Per-kind source inputs (local state) — initialised from the scenario seed so a pinned
   // demo shows the REAL source values (blank for CUSTOM / an unseeded kind).

@@ -314,6 +314,25 @@ describe("ContextTab (R3-UI static structure)", () => {
     }
   });
 
+  it("preserves a kind's running agent log across a sub-tab switch (stream lifted to ContextTab)", () => {
+    const { container, getByRole, queryByTestId } = render(
+      <ContextTab onAnalyse={() => {}} analysing={false} mode="A" onModeChange={() => {}} />,
+    );
+    // business is the default sub-tab; start a run (fetch stub never resolves → stays running).
+    fireEvent.click(getByRole("button", { name: /RUN AGENT/i }));
+    expect(queryByTestId("agent-heartbeat")).not.toBeNull();
+
+    // Leave to the technical sub-tab (business pane unmounts) then return to business.
+    fireEvent.click(container.querySelector('[data-tab="technical"]')!);
+    expect(queryByTestId("agent-heartbeat")).toBeNull(); // technical is idle — nothing running
+    fireEvent.click(container.querySelector('[data-tab="business"]')!);
+
+    // The business run's state lives in ContextTab, not the unmounted pane, so coming back still
+    // shows the in-flight heartbeat — before the lift this was a fresh (idle) mount and the log
+    // was gone.
+    expect(queryByTestId("agent-heartbeat")).not.toBeNull();
+  });
+
   it("gives a live agent run a deadline long enough for the slow business web agent", () => {
     // The business agent measured ~116s end-to-end and can reach ~275s in the wild; the old 75s
     // ceiling aborted every live business run mid-search. Guard against a regression to a value
