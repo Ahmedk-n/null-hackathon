@@ -97,33 +97,84 @@ function ContextPane({
   // (via AgentGather's seedKey) so an explicit scenario switch re-seeds the source fields.
   const seed = mode === "custom" ? undefined : SCENARIOS[mode].sources?.[kind];
   return (
-    <div className="context-pane">
-      <div className="context-pane-gather">
-        {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
-            direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
-        <Card pad style={COL}>
-          <AgentGather
-            kind={kind}
-            stream={stream}
-            seed={seed}
-            seedKey={mode}
-            onSummary={(s) => manualSet(mergeSummary(manualValue, s))}
-            onFindings={(facts) => onGatherFindings?.(kind, facts)}
-          />
-        </Card>
+    <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
+      {/* FLOW — makes the two columns legible: the LEFT column is what the AGENT found, the
+          RIGHT is YOUR editable context, and the agent's findings are MERGED into it (the real
+          onSummary→textarea link). The second line names the downstream compaction so it isn't a
+          surprise: ANALYSE compacts all four textareas into the decision pack the engine reasons
+          over, resurfaced verbatim as the "Context Used" panel on the Graph & Stress tabs. */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 6,
+          padding: "10px 14px",
+          border: "1px solid var(--hair)",
+          borderRadius: "var(--radius)",
+          background: "var(--panel-2)",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 8 }}>
+          <span className="label">Agent-gathered</span>
+          <span
+            aria-hidden
+            className="mono"
+            style={{ fontSize: 11, color: "var(--accent)", letterSpacing: "0.02em" }}
+          >
+            → merges into
+          </span>
+          <span className="label">Your context</span>
+        </div>
+        <span style={{ fontFamily: "var(--sans)", fontSize: 12, color: "var(--muted)", lineHeight: 1.45 }}>
+          The agent&rsquo;s findings layer into your editable context — edit freely. On ANALYSE
+          your context is compacted into a decision pack the engine reasons over, shown as
+          &ldquo;Context Used&rdquo; on the Graph &amp; Stress tabs.
+        </span>
       </div>
-      <div className="context-pane-manual">
-        <Card pad style={COL}>
-          <Eyebrow>Your context</Eyebrow>
-          <Field
-            label={`${kind} context`}
-            value={manualValue}
-            onChange={onManualEdit}
-            rows={12}
-            placeholder="layer your own context on top of the agent summary…"
-            mono={false}
-          />
-        </Card>
+
+      {/* align-items:stretch (vs the theme default flex-start) so the shorter manual column grows
+          to the height of the taller gather column instead of leaving a big empty gutter beside it
+          once the log + findings fill in. */}
+      <div className="context-pane" style={{ alignItems: "stretch" }}>
+        <div className="context-pane-gather" style={{ display: "flex" }}>
+          {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
+              direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
+          <Card pad style={{ ...COL, flex: 1, minWidth: 0 }}>
+            <AgentGather
+              kind={kind}
+              stream={stream}
+              seed={seed}
+              seedKey={mode}
+              onSummary={(s) => manualSet(mergeSummary(manualValue, s))}
+              onFindings={(facts) => onGatherFindings?.(kind, facts)}
+            />
+          </Card>
+        </div>
+        <div className="context-pane-manual" style={{ display: "flex" }}>
+          <Card pad style={{ ...COL, flex: 1, minWidth: 0 }}>
+            <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+              <Eyebrow>Your context</Eyebrow>
+              <span style={{ fontFamily: "var(--sans)", fontSize: 11, color: "var(--muted)" }}>
+                agent findings merged here · editable
+              </span>
+            </div>
+            {/* Custom (vs the fixed-rows Field primitive) so the textarea can FLEX to fill the
+                stretched column — the balance fix. Same controlled value/onChange wiring, same
+                "layer your own context…" placeholder the tests assert. */}
+            <label style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
+              <span className="label" style={{ display: "block", marginBottom: 5 }}>
+                {kind} context
+              </span>
+              <textarea
+                className="field-input"
+                value={manualValue}
+                onChange={(e) => onManualEdit(e.target.value)}
+                placeholder="layer your own context on top of the agent summary…"
+                style={{ fontFamily: "var(--sans)", flex: 1, minHeight: 260 }}
+              />
+            </label>
+          </Card>
+        </div>
       </div>
     </div>
   );
@@ -304,10 +355,13 @@ function CompiledStrip({
         background: "var(--accent-weak)",
       }}
     >
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)" }}>
-        <span style={{ fontWeight: 600 }}>Compiled</span>
+      <span style={{ display: "inline-flex", alignItems: "baseline", flexWrap: "wrap", gap: 8, fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)" }}>
+        <span style={{ fontWeight: 600 }}>Compacted context</span>
         <span style={{ color: "var(--ink-2)" }}>
           <span className="mono" style={{ color: "var(--ink)" }}>{factCount}</span> facts · {live ? "Live" : "Pinned"}
+        </span>
+        <span style={{ fontSize: 11.5, color: "var(--muted)" }}>
+          — what the engine reasons over, shown as &ldquo;Context Used&rdquo; on Graph &amp; Stress
         </span>
       </span>
       {onOpenGraph && (
