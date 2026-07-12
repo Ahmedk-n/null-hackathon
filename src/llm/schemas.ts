@@ -35,6 +35,15 @@ const EvidenceField = z
     );
   });
 
+// PROBABILISTIC · assumption-only evidence-strength signal (Task 4). Optional + nullish so
+// pre-probabilistic live replies / the frozen fixtures (which never emit this field) still parse.
+// A `null` reply is coerced to `undefined` (omit) — the solver already defaults missing to
+// "moderate" (see engine/types.ts GraphNode.evidenceStrength), so there is nothing to repair here.
+const EvidenceStrengthField = z
+  .enum(["weak", "moderate", "strong"])
+  .nullish()
+  .transform((v) => v ?? undefined);
+
 const NodeSchema = z.object({
   id: z.string(),
   type: z.enum(["thesis", "claim", "assumption"]),
@@ -42,6 +51,7 @@ const NodeSchema = z.object({
   confidence: z.number(),
   groups: z.array(DepGroupSchema),
   evidence: EvidenceField,
+  evidenceStrength: EvidenceStrengthField,
 });
 
 export const GraphSchema = z.object({
@@ -61,5 +71,25 @@ export const AttacksSchema = z.object({
   attacks: z.array(AttackSchema),
 });
 
+// PROBABILISTIC · `emit_drivers` (Task 4). A driver is a latent common-mode factor with a
+// per-assumption `loading` in [0,1]; loadings are clamped and drivers are capped/filtered by the
+// caller (client.ts::repairDrivers) AFTER this schema-shape check, mirroring the
+// validate.ts repair-vs-reject split for graphs/attacks.
+const DriverLoadingSchema = z.object({
+  assumptionId: z.string(),
+  loading: z.number(),
+});
+
+const DriverSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  loadings: z.array(DriverLoadingSchema),
+});
+
+export const DriversSchema = z.object({
+  drivers: z.array(DriverSchema),
+});
+
 export type GraphOutput = z.infer<typeof GraphSchema>;
 export type AttacksOutput = z.infer<typeof AttacksSchema>;
+export type DriversOutput = z.infer<typeof DriversSchema>;
