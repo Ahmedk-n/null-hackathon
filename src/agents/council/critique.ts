@@ -4,7 +4,7 @@
 // council claims that aren't backed by a real gathered finding, downgrades unsupported
 // contextual attacks, and reports whether the surviving result can be trusted at all.
 import type { Attack } from "@/engine";
-import type { NodeWeighting, HiddenAssumption, CouncilResult } from "./types";
+import type { NodeWeighting, HiddenAssumption, CouncilResult, Remediation } from "./types";
 
 export interface CouncilDraft {
   nodeWeights: NodeWeighting[];
@@ -12,6 +12,7 @@ export interface CouncilDraft {
   contextualAttacks: Attack[];
   hiddenAssumptions: HiddenAssumption[];
   fractureNarrative: string;
+  remediations: Remediation[];
 }
 
 const MIN_SEVERITY = 0.15;
@@ -42,7 +43,10 @@ function clampSeverity(severity: number): number {
  * contextual attacks whose rationale cites no known finding, and nulling a context-keystone
  * that no longer resolves to a surviving node. Never throws.
  */
-export function critique(draft: CouncilDraft, findingKeys: Set<string>): Omit<CouncilResult, "source"> {
+export function critique(
+  draft: CouncilDraft,
+  findingKeys: Set<string>,
+): Omit<CouncilResult, "source" | "remediationSource"> {
   const nodeWeights = draft.nodeWeights.filter((w) => isGrounded(w.evidenceRefs, findingKeys));
   const hiddenAssumptions = draft.hiddenAssumptions.filter((a) => isGrounded(a.evidenceRefs, findingKeys));
 
@@ -57,6 +61,16 @@ export function critique(draft: CouncilDraft, findingKeys: Set<string>): Omit<Co
       ? draft.contextKeystoneId
       : null;
 
+  // A remediation survives iff it is grounded AND its target finding survived: a "spine"
+  // remediation only if the (possibly-nulled) context-keystone still equals its findingId; a
+  // "hidden" remediation only if some surviving hidden assumption's label equals its findingId.
+  const survivingHiddenLabels = new Set(hiddenAssumptions.map((a) => a.label));
+  const remediations = draft.remediations.filter((r) => {
+    if (!isGrounded(r.evidenceRefs, findingKeys)) return false;
+    if (r.kind === "spine") return contextKeystoneId !== null && r.findingId === contextKeystoneId;
+    return survivingHiddenLabels.has(r.findingId);
+  });
+
   const hasSurvivingClaim = nodeWeights.length > 0 || hiddenAssumptions.length > 0;
   const keystoneStillValid = draft.contextKeystoneId === null || contextKeystoneId !== null;
   const grounded = hasSurvivingClaim && keystoneStillValid;
@@ -68,5 +82,6 @@ export function critique(draft: CouncilDraft, findingKeys: Set<string>): Omit<Co
     hiddenAssumptions,
     fractureNarrative: draft.fractureNarrative,
     grounded,
+    remediations,
   };
 }
