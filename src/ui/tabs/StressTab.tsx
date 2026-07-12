@@ -928,9 +928,25 @@ function SupportBreakdownPanel({ graph, keystoneId }: { graph: Graph; keystoneId
       >
         <span className="label">Support Breakdown</span>
         <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
-          {open ? "− OWN × DEP = SUPPORT" : "+ SHOW"}
+          {open ? "− CONF × DEP = SUPPORT" : "+ SHOW"}
         </span>
       </button>
+      {open && (
+        <div
+          style={{
+            fontFamily: "var(--sans)",
+            fontSize: 10.5,
+            color: "var(--muted)",
+            lineHeight: 1.45,
+            padding: "0 0 8px",
+          }}
+        >
+          Deterministic, but not naïve: dependency is a depth-robust aggregate — corroborating
+          premises are averaged (geometric mean), sub-goals multiplied. The contextual council
+          re-weights which assumptions the load actually hits; that reshaping is what separates the
+          grounded verdict from the raw one.
+        </div>
+      )}
       {open &&
         rows.map((node) => {
           const isKey = node.id === keystoneId;

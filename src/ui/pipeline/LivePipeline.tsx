@@ -451,12 +451,13 @@ export function LivePipeline({
                 alignItems: "start",
               }}
             >
-              {/* LEFT — the structure assembling bottom-up (reuses the shared renderer). */}
+              {/* LEFT — the structure assembling bottom-up (reuses the shared renderer). A subtle
+                  inset tone so the preview reads as a contained area, not a plain white gap. */}
               <div
                 style={{
                   border: "1px solid var(--hair)",
                   borderRadius: "var(--radius)",
-                  background: "var(--panel)",
+                  background: "var(--panel-2)",
                   padding: 10,
                 }}
               >
@@ -513,14 +514,20 @@ export function LivePipeline({
                     overflow: "hidden",
                   }}
                 >
-                  <div
-                    className="label"
-                    style={{
-                      padding: "8px 12px",
-                      borderBottom: "1px solid var(--hair)",
-                    }}
-                  >
-                    Support = own × dependency
+                  <div style={{ padding: "8px 12px", borderBottom: "1px solid var(--hair)" }}>
+                    <div className="label">Support = confidence × dependency</div>
+                    <div
+                      style={{
+                        fontFamily: "var(--sans)",
+                        fontSize: 10,
+                        color: "var(--muted)",
+                        marginTop: 3,
+                        lineHeight: 1.4,
+                      }}
+                    >
+                      Dependency is a depth-robust aggregate — corroborating premises averaged, sub-goals
+                      multiplied (not a naïve product). Context re-weights the load under stress.
+                    </div>
                   </div>
                   {math.supportRows.map((node, idx) => {
                     const on = idx < Math.ceil(solveProgress * math.supportRows.length);
