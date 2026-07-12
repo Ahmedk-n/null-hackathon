@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
-import type { Attack, Graph, ReinforcementPlan } from "@/engine";
+import type { Attack, Graph, ProbabilisticResult, ReinforcementPlan } from "@/engine";
 import {
   applyAttacks,
   cloneGraph,
@@ -10,6 +10,10 @@ import {
   keystone,
   minimalReinforcement,
 } from "@/engine";
+// PROBABILISTIC (Task 6): pure, seeded Monte-Carlo over the frozen engine. Deep path (never
+// through a barrel that also drags in llm/context) — safe under the client/key-safety boundary
+// guard. Called ONLY inside store actions (never in render); no Date/Math.random anywhere in it.
+import { runProbabilistic } from "@/engine/probabilistic";
 // Pure, key-free transform (data-in/data-out). Safe to bundle client-side. This is the ONLY
 // context import allowed in the store — never the compiler, the llm client, or the Anthropic SDK.
 import { reweightAttacksByContext } from "@/context/weights";
@@ -91,6 +95,11 @@ export interface KeystoneState {
   // V5-3 (additive): the last graph-edit rejection reason, surfaced as a --warn chip in the
   // SelectionPanel EDIT section. null = no pending error. Every SUCCESSFUL edit clears it.
   editError: string | null;
+  // PROBABILISTIC (Task 6): the Monte-Carlo distribution over the CURRENT workingGraph. null
+  // until a solve has run (baseline / no-load state has no meaningful distribution to show).
+  // Recomputed alongside every action that rebuilds workingGraph from a solve; reset to null
+  // wherever `failures` resets to EMPTY_FAILURES (same "back to baseline" moments).
+  probabilistic: ProbabilisticResult | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
@@ -146,8 +155,9 @@ export function createKeystoneStore() {
     timelineDay: 0,
     failsInDay: null,
     editError: null,
+    probabilistic: null,
     setGraph: (g) =>
-      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null }),
+      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null }),
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
       if (!wg) return;
@@ -232,6 +242,7 @@ export function createKeystoneStore() {
         reinforcementPlan: null,
         timelineDay: 0,
         failsInDay: null,
+        probabilistic: null,
         editError: null,
       });
     },
@@ -274,6 +285,7 @@ export function createKeystoneStore() {
         reinforcementPlan: null,
         timelineDay: 0,
         failsInDay: null,
+        probabilistic: null,
         editError: null,
       });
     },
@@ -304,6 +316,7 @@ export function createKeystoneStore() {
         reinforcementPlan: null,
         timelineDay: 0,
         failsInDay: null,
+        probabilistic: null,
         editError: null,
       });
     },
@@ -326,7 +339,7 @@ export function createKeystoneStore() {
       // the RAW attacks + context timeline — reset the scrub to now and (grounded-only)
       // derive the day it craters.
       const failsInDay = deriveFailsInDay(base, attacks, decisionContextPack, applyContextWeights);
-      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay });
+      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay, probabilistic: runProbabilistic(workingGraph) });
     },
     // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
     // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
@@ -353,12 +366,13 @@ export function createKeystoneStore() {
         // Reset the scrub to now so the two views stay coherent.
         timelineDay: 0,
         failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, value),
+        probabilistic: runProbabilistic(workingGraph),
       });
     },
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null });
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),
@@ -399,6 +413,7 @@ export function createKeystoneStore() {
         // Re-run rebuilds the working graph from the raw attacks (the attacked verdict),
         // discarding any applied reinforcement — drop the stale plan.
         reinforcementPlan: null,
+        probabilistic: runProbabilistic(nextGraph),
       });
     },
     clearRerunConfirmed: () => set({ rerunConfirmed: false }),
@@ -437,6 +452,7 @@ export function createKeystoneStore() {
         failures: detectFailures(workingGraph),
         reinforcementPlan: plan,
         failsInDay,
+        probabilistic: runProbabilistic(workingGraph),
       });
     },
     // V3-7 · TIME-AXIS SCRUB. Re-derive effective attacks for `day` (temporal
@@ -465,6 +481,7 @@ export function createKeystoneStore() {
         // re-derive the (un-reinforced) failure horizon so the chip stays coherent.
         reinforcementPlan: null,
         failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, applyContextWeights),
+        probabilistic: runProbabilistic(workingGraph),
       });
     },
   }));
@@ -474,6 +491,10 @@ export const selectIntegrity = (s: KeystoneState): number => (s.workingGraph ? i
 export const selectKeystoneId = (s: KeystoneState): string | null => (s.workingGraph ? keystone(s.workingGraph)?.id ?? null : null);
 // Reads stable state — never allocates. Rebuilt only inside actions above.
 export const selectFailures = (s: KeystoneState): ReadonlySet<string> => s.failures;
+// PROBABILISTIC (Task 6): the Monte-Carlo distribution over the current workingGraph.
+// null before any solve / at baseline; populated by applyLoad, setApplyContextWeights,
+// setTimelineDay, reinforce, and rerun.
+export const selectProbabilistic = (s: KeystoneState): ProbabilisticResult | null => s.probabilistic;
 
 // Shared singleton for the React app.
 export const keystoneStore = createKeystoneStore();
