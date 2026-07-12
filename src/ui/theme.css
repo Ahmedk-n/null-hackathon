@@ -5,32 +5,34 @@
    Light values here; dark in the media + data-theme blocks below. */
 
 :root {
-  /* surfaces + ink */
-  --bg:            #f5f7fa;   /* page canvas */
-  --panel:         #ffffff;   /* card */
-  --panel-2:       #fbfcfd;   /* inset / subtle fill */
-  --ink:           #14161c;   /* primary text */
-  --ink-2:         #545c6b;   /* secondary text */
-  --muted:         #8a93a2;   /* labels / captions (measured ≥4.5:1 on card/canvas) */
-  --hair:          #e7eaf0;   /* soft 1px borders */
-  --hair-strong:   #dde1ea;   /* stronger dividers / control borders */
+  color-scheme: light;   /* LIGHT ONLY — the studio never goes dark, regardless of OS preference */
 
-  /* the single brand accent */
-  --accent:        #3e63dd;   /* indigo — active tab, primary CTA, thesis, focus ring */
-  --accent-weak:   #edf2fe;   /* accent wash (weak bg) */
+  /* surfaces + ink — warm editorial (ivory paper, ink text) */
+  --bg:            #f4efe6;   /* warm ivory canvas */
+  --panel:         #fffdf8;   /* warm white card */
+  --panel-2:       #f2ece1;   /* warm inset / subtle fill */
+  --ink:           #211e19;   /* warm near-black */
+  --ink-2:         #57514a;   /* warm stone (secondary) */
+  --muted:         #786f63;   /* warm taupe (labels/captions — measured ≥4.5:1 on card) */
+  --hair:          #e8e0d4;   /* warm hairline */
+  --hair-strong:   #d9cfbf;   /* stronger dividers / control borders */
 
-  /* semantic node + verdict colors */
-  --thesis:        #3e63dd;   /* accent */
-  --claim:         #1f9d57;   /* green */
-  --assumption:    #8a93a2;   /* grey */
-  --keystone:      #e0484d;   /* red */
-  --increase:      #c98a0e;   /* amber (weight ▲ / temporal) */
-  --decrease:      #8a93a2;   /* grey (weight ▼) */
-  --ok:            #1f9d57;   /* integrity high / HOLDING */
-  --ok-weak:       #e6f5ec;
-  --warn:          #c98a0e;   /* integrity mid */
-  --bad:           #e0484d;   /* integrity low / FAILED */
-  --bad-bg:        #fcecec;   /* failed-node fill (soft red wash) */
+  /* the single brand accent — terracotta (warm, editorial); kept distinct from the collapse-red */
+  --accent:        #b24e2a;   /* terracotta — active tab, primary CTA, thesis, focus ring */
+  --accent-weak:   #f6e8df;   /* accent wash (weak bg) */
+
+  /* semantic node + verdict colors (spread across the warm spectrum so none reads as the accent) */
+  --thesis:        #b24e2a;   /* accent terracotta */
+  --claim:         #3f7a34;   /* forest green */
+  --assumption:    #8b8377;   /* warm grey */
+  --keystone:      #a62a28;   /* deep crimson (blue-red — distinct from terracotta) */
+  --increase:      #b5850f;   /* gold (weight ▲ / temporal) */
+  --decrease:      #8b8377;   /* warm grey (weight ▼) */
+  --ok:            #3f7a34;   /* integrity high / HOLDING */
+  --ok-weak:       #e7f0e2;
+  --warn:          #b5850f;   /* integrity mid (gold) */
+  --bad:           #a62a28;   /* integrity low / FAILED (crimson) */
+  --bad-bg:        #f7e4e1;   /* failed-node fill (soft crimson wash) */
 
   /* type — fonts loaded via next/font in src/app/layout.tsx (exposed as
      --font-inter / --font-jbmono on <html>), with system fallback stacks.
@@ -41,39 +43,14 @@
   /* rhythm + elevation */
   --row-h: 34px;  --gap: 14px;  --pad: 16px;
   --radius: 10px;  --radius-sm: 8px;  --radius-lg: 14px;
-  --shadow-sm: 0 1px 2px rgba(20, 22, 28, 0.05);
-  --shadow: 0 1px 2px rgba(20, 22, 28, 0.04), 0 4px 16px rgba(20, 22, 28, 0.05);
+  /* warm-tinted elevation for the ivory/editorial ground */
+  --shadow-sm: 0 1px 2px rgba(74, 58, 40, 0.05);
+  --shadow: 0 1px 2px rgba(74, 58, 40, 0.05), 0 4px 16px rgba(74, 58, 40, 0.07);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #0d0e12; --panel: #16181e; --panel-2: #1a1d24;
-    --ink: #eceef3; --ink-2: #a7aebc; --muted: #6e7684;
-    --hair: #262a33; --hair-strong: #313641;
-    --accent: #849dff; --accent-weak: #1d2a5e;
-    --thesis: #849dff; --claim: #3dcb79; --assumption: #6e7684; --keystone: #f0656a;
-    --increase: #e0a93c; --decrease: #6e7684;
-    --ok: #3dcb79; --ok-weak: #14261b; --warn: #e0a93c; --bad: #f0656a; --bad-bg: #2a1618;
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
-  }
-}
-:root[data-theme="light"] {
-  --bg: #f5f7fa; --panel: #ffffff; --panel-2: #fbfcfd; --ink: #14161c; --ink-2: #545c6b;
-  --muted: #8a93a2; --hair: #e7eaf0; --hair-strong: #dde1ea; --accent: #3e63dd;
-  --accent-weak: #edf2fe; --thesis: #3e63dd; --claim: #1f9d57; --assumption: #8a93a2;
-  --keystone: #e0484d; --increase: #c98a0e; --decrease: #8a93a2; --ok: #1f9d57; --ok-weak: #e6f5ec;
-  --warn: #c98a0e; --bad: #e0484d; --bad-bg: #fcecec;
-  --shadow-sm: 0 1px 2px rgba(20,22,28,.05); --shadow: 0 1px 2px rgba(20,22,28,.04), 0 4px 16px rgba(20,22,28,.05);
-}
-:root[data-theme="dark"] {
-  --bg: #0d0e12; --panel: #16181e; --panel-2: #1a1d24; --ink: #eceef3; --ink-2: #a7aebc;
-  --muted: #6e7684; --hair: #262a33; --hair-strong: #313641; --accent: #849dff;
-  --accent-weak: #1d2a5e; --thesis: #849dff; --claim: #3dcb79; --assumption: #6e7684;
-  --keystone: #f0656a; --increase: #e0a93c; --decrease: #6e7684; --ok: #3dcb79; --ok-weak: #14261b;
-  --warn: #e0a93c; --bad: #f0656a; --bad-bg: #2a1618;
-  --shadow-sm: 0 1px 2px rgba(0,0,0,.3); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
-}
+/* LIGHT ONLY — the dark theme was removed by request. There is no
+   @media(prefers-color-scheme: dark) override, so a dark-OS viewer still gets the warm light
+   studio; `color-scheme: light` on :root keeps native form controls light too. */
 
 html,
 body {
