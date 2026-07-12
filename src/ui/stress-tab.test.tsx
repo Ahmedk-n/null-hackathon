@@ -9,6 +9,10 @@ import {
   fixtureContextAttacks,
   fixtureCompanyContext,
   fixtureDecisionContextPack,
+  fixtureContextGraphB,
+  fixtureContextAttacksB,
+  fixtureCompanyContextB,
+  fixtureDecisionContextPackB,
 } from "@/context";
 import { fixtureCouncil } from "@/agents/council/fixtures";
 
@@ -443,5 +447,52 @@ describe("StressTab (R4)", () => {
     s.applyLoad(fixtureContextAttacks());
     render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
     expect(screen.queryByTestId("council-findings")).toBeNull();
+  });
+
+  // ── P4-T5 · DE-RISK THESE action tail ─────────────────────────────────
+  it("renders a DE-RISK THESE action per surviving remediation, spine suppressed only when no shift", async () => {
+    // Scenario A has a spine-shift (a_audit != topological keystone) -> spine row SHOWN.
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph());
+    s.setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    s.setApplyContextWeights(true);
+    s.setCouncil(fixtureCouncil("A"));
+    s.applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    const actions = await screen.findAllByTestId("council-remediation");
+    // A: 1 spine + 2 hidden = 3 rows.
+    expect(actions).toHaveLength(3);
+    expect(screen.getByTestId("council-remediation-spine")).toBeDefined();
+  });
+
+  it("suppresses the spine remediation when context-keystone == topological keystone", async () => {
+    // Scenario B: contextKeystoneId (k_sre) == topological keystone -> spine row SUPPRESSED,
+    // only the 2 hidden remediations remain.
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraphB());
+    s.setContext(fixtureCompanyContextB(), fixtureDecisionContextPackB(), "fixture");
+    s.setApplyContextWeights(true);
+    s.setCouncil(fixtureCouncil("B"));
+    s.applyLoad(fixtureContextAttacksB());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    const actions = await screen.findAllByTestId("council-remediation");
+    expect(actions).toHaveLength(2);
+    expect(screen.queryByTestId("council-remediation-spine")).toBeNull();
+  });
+
+  it("tags the de-risk actions ILLUSTRATIVE when remediationSource is fixture", async () => {
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph());
+    s.setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    s.setApplyContextWeights(true);
+    s.setCouncil(fixtureCouncil("A")); // remediationSource: "fixture"
+    s.applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(await screen.findByTestId("council-remediation-illustrative")).toBeDefined();
   });
 });

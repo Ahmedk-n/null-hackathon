@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import type { Attack } from "@/engine";
+import type { Remediation } from "./types";
 import { critique, type CouncilDraft } from "./critique";
 
 function makeDraft(overrides: Partial<CouncilDraft> = {}): CouncilDraft {
@@ -9,6 +10,7 @@ function makeDraft(overrides: Partial<CouncilDraft> = {}): CouncilDraft {
     contextualAttacks: [],
     hiddenAssumptions: [],
     fractureNarrative: "",
+    remediations: [],
     ...overrides,
   };
 }
@@ -190,5 +192,60 @@ describe("critique (deterministic grounding gate)", () => {
     const draft = makeDraft({ fractureNarrative: "the thesis cracks here" });
     const result = critique(draft, new Set());
     expect(result.fractureNarrative).toBe("the thesis cracks here");
+  });
+});
+
+describe("critique (remediation grounding)", () => {
+  const spine: Remediation = { findingId: "n1", kind: "spine", action: "prove n1", evidenceRefs: ["risk_exec"] };
+  const hidden: Remediation = { findingId: "assume X", kind: "hidden", action: "test X", evidenceRefs: ["risk_exec"] };
+
+  it("keeps a spine remediation whose keystone survives and is grounded", () => {
+    const draft = makeDraft({
+      nodeWeights: [{ nodeId: "n1", contextWeight: 0.8, rationale: "g", evidenceRefs: ["risk_exec"] }],
+      contextKeystoneId: "n1",
+      remediations: [spine],
+    });
+    const result = critique(draft, new Set(["risk_exec"]));
+    expect(result.remediations).toHaveLength(1);
+    expect(result.remediations[0].findingId).toBe("n1");
+  });
+
+  it("drops a spine remediation when its keystone was nulled (finding didn't survive)", () => {
+    // contextKeystoneId n1, but n1's nodeWeight is ungrounded -> keystone nulled -> spine dropped.
+    const draft = makeDraft({
+      nodeWeights: [{ nodeId: "n1", contextWeight: 0.8, rationale: "g", evidenceRefs: [] }],
+      contextKeystoneId: "n1",
+      remediations: [spine],
+    });
+    const result = critique(draft, new Set(["risk_exec"]));
+    expect(result.remediations).toHaveLength(0);
+  });
+
+  it("drops a hidden remediation whose target assumption was dropped", () => {
+    const draft = makeDraft({
+      hiddenAssumptions: [{ label: "assume X", why: "w", evidenceRefs: [] }], // ungrounded -> dropped
+      remediations: [hidden],
+    });
+    const result = critique(draft, new Set(["risk_exec"]));
+    expect(result.remediations).toHaveLength(0);
+  });
+
+  it("keeps a hidden remediation whose assumption survives and is grounded", () => {
+    const draft = makeDraft({
+      hiddenAssumptions: [{ label: "assume X", why: "w", evidenceRefs: ["risk_exec"] }],
+      remediations: [hidden],
+    });
+    const result = critique(draft, new Set(["risk_exec"]));
+    expect(result.remediations).toHaveLength(1);
+    expect(result.remediations[0].findingId).toBe("assume X");
+  });
+
+  it("drops a remediation with no resolving evidenceRef even if its finding survives", () => {
+    const draft = makeDraft({
+      hiddenAssumptions: [{ label: "assume X", why: "w", evidenceRefs: ["risk_exec"] }],
+      remediations: [{ ...hidden, evidenceRefs: ["nope"] }],
+    });
+    const result = critique(draft, new Set(["risk_exec"]));
+    expect(result.remediations).toHaveLength(0);
   });
 });

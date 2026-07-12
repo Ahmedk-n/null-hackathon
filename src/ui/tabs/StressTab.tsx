@@ -1017,6 +1017,10 @@ function CouncilFindings({
   const showSpine = ctxId !== null && ctxId !== topoKeystoneId;
   const spineWeight = showSpine ? council.nodeWeights.find((w) => w.nodeId === ctxId) : null;
   const hidden = council.hiddenAssumptions.slice(0, 2);
+  // DE-RISK THESE — one concrete action per surviving finding. The "spine" action is suppressed
+  // when the context-keystone matches the topological keystone (no shift): the structural
+  // DE-RISKING PLAN's "VALIDATE BY" already covers that node, so showing it here would duplicate.
+  const visibleRemediations = council.remediations.filter((r) => (r.kind === "spine" ? showSpine : true));
   const prose: React.CSSProperties = {
     fontFamily: "var(--sans)",
     fontSize: 11,
@@ -1071,6 +1075,41 @@ function CouncilFindings({
             >
               <div style={{ ...prose, fontWeight: 600 }}>{h.label}</div>
               <div style={{ ...prose, marginTop: 2, color: "var(--muted)" }}>{h.why}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {visibleRemediations.length > 0 && (
+        <div style={{ marginTop: 10 }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span className="label" style={{ display: "block", marginBottom: 4, color: "var(--muted)" }}>
+              De-Risk These
+            </span>
+            {council.remediationSource === "fixture" && (
+              <span
+                className="chip mono"
+                data-testid="council-remediation-illustrative"
+                style={{ flex: "0 0 auto", fontSize: 9, color: "var(--muted)", borderColor: "var(--hair-strong)" }}
+              >
+                ILLUSTRATIVE
+              </span>
+            )}
+          </div>
+          {visibleRemediations.map((r, i) => (
+            <div
+              key={i}
+              data-testid="council-remediation"
+              style={{ display: "flex", gap: 8, padding: "5px 0", borderBottom: "1px solid var(--hair)" }}
+            >
+              <span
+                className="chip mono"
+                data-testid={r.kind === "spine" ? "council-remediation-spine" : undefined}
+                style={{ flex: "0 0 auto", fontSize: 9, color: "var(--muted)", borderColor: "var(--hair-strong)" }}
+              >
+                {r.kind === "spine" ? "SPINE" : "HIDDEN"}
+              </span>
+              <span style={prose}>{r.action}</span>
             </div>
           ))}
         </div>

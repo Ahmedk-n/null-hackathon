@@ -11,6 +11,7 @@ import type { CompanyContext, DecisionContextPack } from "@/context";
 import { weighContext } from "./weigh";
 import { stressContext } from "./stress";
 import { debateSkeptic } from "./debate";
+import { remediateFindings } from "./remediate";
 import { critique, type CouncilDraft } from "./critique";
 import { fixtureCouncil, scenarioForGraph } from "./fixtures";
 import type { CouncilResult } from "./types";
@@ -85,7 +86,10 @@ function collectFindingKeys(
  * `source` is "live" ONLY when ALL THREE seats report "live"; otherwise "fixture" — conservative
  * and honest: if any surfaced part of the council is canned, the whole result is illustrative,
  * which also keeps the store's `source==="live"` gate from letting fixture attacks reach the
- * engine when an API key is present but a live call actually failed.
+ * engine when an API key is present but a live call actually failed. A fourth seat
+ * (`remediateFindings`) runs after weigh+debate and de-risks their findings; its truthfulness is
+ * reported separately as `remediationSource` so a canned action tail never demotes `source` or
+ * the attack gate.
  *
  * Never throws: any failure building `findingKeys` or running the three seats/critic falls
  * back to the whole hand-authored `fixtureCouncil(scenarioForGraph(graph))` result.
@@ -99,6 +103,18 @@ export async function runCouncil(input: RunCouncilInput): Promise<CouncilResult>
       debateSkeptic(graph, pack, findings, apiKey),
     ]);
 
+    // Stage 2: remediation de-risks the diagnosis (real spine + hidden assumptions), so it runs
+    // AFTER weigh + debate — a genuine data dependency, not a barrier for convenience.
+    const rem = await remediateFindings(
+      graph,
+      pack,
+      company,
+      w.contextKeystoneId,
+      deb.hiddenAssumptions,
+      findings,
+      apiKey,
+    );
+
     const findingKeys = collectFindingKeys(findings, company, pack);
 
     const draft: CouncilDraft = {
@@ -107,13 +123,17 @@ export async function runCouncil(input: RunCouncilInput): Promise<CouncilResult>
       contextualAttacks: atks.attacks,
       hiddenAssumptions: deb.hiddenAssumptions,
       fractureNarrative: deb.fractureNarrative,
+      remediations: rem.remediations,
     };
 
     const graded = critique(draft, findingKeys);
 
+    // `source` (the attack-gate driver) stays over the THREE CORE seats only — a remediation
+    // fixture must never demote it or block live contextual attacks from the engine. The action
+    // tail's honesty rides on the separate `remediationSource`.
     const allLive = w.source === "live" && atks.source === "live" && deb.source === "live";
 
-    return { ...graded, source: allLive ? "live" : "fixture" };
+    return { ...graded, source: allLive ? "live" : "fixture", remediationSource: rem.source };
   } catch {
     return fixtureCouncil(scenarioForGraph(graph));
   }

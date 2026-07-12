@@ -31,3 +31,17 @@ export const SkepticSchema = z.object({
 });
 
 export type SkepticOutput = z.infer<typeof SkepticSchema>;
+
+// Remediation agent (Phase 4): one concrete cheap falsifying test per surviving finding.
+const RemediationSchema = z.object({
+  findingId: z.string(),
+  kind: z.enum(["spine", "hidden"]),
+  action: z.string(),
+  evidenceRefs: z.array(z.string()),
+});
+
+export const RemediateSchema = z.object({
+  remediations: z.array(RemediationSchema),
+});
+
+export type RemediateOutput = z.infer<typeof RemediateSchema>;

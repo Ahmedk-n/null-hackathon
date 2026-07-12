@@ -45,3 +45,35 @@ describe("runCouncil (no API key)", () => {
     }
   });
 });
+
+describe("runCouncil remediations (no API key)", () => {
+  it("includes grounded fixture remediations + a fixture remediationSource", async () => {
+    const result = await runCouncil({
+      graph: fixtureContextGraph(),
+      pack: fixtureDecisionContextPack(),
+      company: fixtureCompanyContext(),
+      findings: [],
+    });
+
+    expect(result.remediationSource).toBe("fixture");
+    expect(result.remediations.length).toBeGreaterThan(0);
+
+    // Every surviving remediation joins to a surviving finding (spine -> keystone; hidden -> label).
+    const hiddenLabels = new Set(result.hiddenAssumptions.map((h) => h.label));
+    for (const r of result.remediations) {
+      if (r.kind === "spine") expect(r.findingId).toBe(result.contextKeystoneId);
+      else expect(hiddenLabels.has(r.findingId)).toBe(true);
+    }
+  });
+
+  it("still resolves (fixture) with remediations when company/pack are malformed", async () => {
+    const result = await runCouncil({
+      graph: fixtureContextGraph(),
+      pack: {} as unknown as DecisionContextPack,
+      company: {} as unknown as CompanyContext,
+      findings: [],
+    });
+    expect(result.remediations.length).toBeGreaterThan(0);
+    expect(["live", "fixture"]).toContain(result.remediationSource);
+  });
+});
