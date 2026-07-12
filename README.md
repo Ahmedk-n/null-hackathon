@@ -10,6 +10,11 @@ fails under load, and the cheapest way to shore it up.
 
 ![Keystone landing](docs/screenshots/01-landing.png)
 
+**The deterministic solver, in motion** — a structure assembles, takes grounded load, cracks at the
+keystone, then the minimal de-risking plan heals it. Every number is the real engine's output, no mockups.
+
+![The live solver in motion](docs/screenshots/hero.gif)
+
 ---
 
 ## Why
