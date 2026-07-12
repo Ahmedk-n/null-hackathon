@@ -4,7 +4,7 @@ import {
   fixtureContextGraphB,
   fixtureContextGraphR,
 } from "@/context/fixtures";
-import { fixtureCouncil } from "./fixtures";
+import { fixtureCouncil, fixtureRemediations } from "./fixtures";
 
 const GRAPHS = {
   A: fixtureContextGraph,
@@ -58,5 +58,38 @@ describe("fixtureCouncil", () => {
     const result = fixtureCouncil("A");
     expect(result.contextKeystoneId).not.toBeNull();
     expect(result.contextKeystoneId).not.toBe("k_credible");
+  });
+});
+
+describe("fixtureRemediations (offline, grounded)", () => {
+  for (const scenario of ["A", "B", "R"] as const) {
+    it(`scenario ${scenario}: remediations are grounded and well-formed`, () => {
+      const council = fixtureCouncil(scenario);
+      expect(council.remediationSource).toBe("fixture");
+      expect(council.remediations.length).toBeGreaterThan(0);
+
+      // Every remediation is grounded (>=1 evidenceRef) and its findingId resolves to a
+      // surviving finding: a "spine" -> the contextKeystoneId; a "hidden" -> a hidden label.
+      const hiddenLabels = new Set(council.hiddenAssumptions.map((h) => h.label));
+      for (const r of council.remediations) {
+        expect(["spine", "hidden"]).toContain(r.kind);
+        expect(r.action.length).toBeGreaterThan(0);
+        expect(r.evidenceRefs.length).toBeGreaterThan(0);
+        if (r.kind === "spine") expect(r.findingId).toBe(council.contextKeystoneId);
+        else expect(hiddenLabels.has(r.findingId)).toBe(true);
+      }
+      // Exactly one spine remediation, targeting the context-keystone.
+      expect(council.remediations.filter((r) => r.kind === "spine")).toHaveLength(1);
+    });
+  }
+
+  it("scenario A's spine remediation targets the shifted spine a_audit", () => {
+    const council = fixtureCouncil("A");
+    const spine = council.remediations.find((r) => r.kind === "spine");
+    expect(spine?.findingId).toBe("a_audit");
+  });
+
+  it("fixtureRemediations returns the same array fixtureCouncil embeds", () => {
+    expect(fixtureRemediations("B")).toEqual(fixtureCouncil("B").remediations);
   });
 });

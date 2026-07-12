@@ -6,7 +6,7 @@
 // ids; `fixtureCompanyContext*`/`fixtureDecisionContextPack*` for con_*/risk_*/obj_*
 // finding ids). No Date/Math.random — every result is a plain literal.
 import type { Graph } from "@/engine";
-import type { CouncilResult } from "./types";
+import type { CouncilResult, Remediation } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SCENARIO A — "Migrate to microservices" (hero). Topological keystone is
@@ -14,6 +14,87 @@ import type { CouncilResult } from "./types";
 // staged-migration story — so the council's contextual keystone is `a_audit`, distinct
 // from the topological keystone. This is the "context changes the spine" demo beat.
 // ─────────────────────────────────────────────────────────────────────────────
+// Grounded, decision-tailored de-risking actions per scenario. findingId of a "spine"
+// remediation is that scenario's contextKeystoneId; "hidden" findingIds echo the scenario's
+// hiddenAssumptions labels verbatim (the join key the critic + UI use). evidenceRefs reuse
+// the same con_*/risk_*/obj_* ids the other fixture findings cite. No Date/Math.random.
+export function fixtureRemediations(scenario: "A" | "B" | "R"): Remediation[] {
+  switch (scenario) {
+    case "A":
+      return [
+        {
+          findingId: "a_audit",
+          kind: "spine",
+          action:
+            "Before tomorrow's meeting, prepare a concrete audit-trail artifact for one service end-to-end (immutable log + access record) you can show live — proving auditability, not just describing the architecture.",
+          evidenceRefs: ["con_reg", "obj_win"],
+        },
+        {
+          findingId: "The buyer conflates 'new architecture' with 'more reliable'",
+          kind: "hidden",
+          action:
+            "Ask the buyer directly what reliability evidence they need to see, so you validate that architecture change (not proven uptime) is actually what they're buying before you commit to it.",
+          evidenceRefs: ["con_reg", "risk_exec"],
+        },
+        {
+          findingId: "A credible-sounding plan will be treated as equivalent to a proven one",
+          kind: "hidden",
+          action:
+            "Rehearse the staged-migration rollback on a copy of one service end-to-end tonight, so tomorrow's claim is backed by a real trace instead of a story.",
+          evidenceRefs: ["con_time"],
+        },
+      ];
+    case "B":
+      return [
+        {
+          findingId: "k_sre",
+          kind: "spine",
+          action:
+            "This week, run one paid on-call trial shift with a contractor to prove the two-SRE rotation is viable before betting the pilot on two unfilled hires.",
+          evidenceRefs: ["con_time", "risk_hire"],
+        },
+        {
+          findingId: "Two SRE hires can be sourced and onboarded before the pilot window closes",
+          kind: "hidden",
+          action:
+            "Post the two SRE roles today and time-box sourcing to two weeks; if the pipeline is thin by then, trigger the contractor fallback rather than slipping the pilot.",
+          evidenceRefs: ["risk_hire", "con_time"],
+        },
+        {
+          findingId: "Runbooks alone substitute for battle-tested incident response",
+          kind: "hidden",
+          action:
+            "Run one game-day incident drill against the runbooks before the pilot to prove they hold under a real failure, not just on paper.",
+          evidenceRefs: ["risk_obs"],
+        },
+      ];
+    case "R":
+      return [
+        {
+          findingId: "team_has_backend_capacity",
+          kind: "spine",
+          action:
+            "Run a 2-day spike: stand up excalidraw-room on your own infra, load-test one collaborative board, and measure how much of the six-person team's week it actually costs before committing at the roadmap meeting.",
+          evidenceRefs: ["con-team", "risk-capacity"],
+        },
+        {
+          findingId: "Building an own backend needs no hires beyond the current 6 people",
+          kind: "hidden",
+          action:
+            "Estimate the ongoing on-call + maintenance hours a self-hosted realtime backend adds, and check it against the team's current roadmap load before assuming the existing 6 can absorb it.",
+          evidenceRefs: ["con-team", "risk-capacity"],
+        },
+        {
+          findingId: "Collaboration quality is the actual conversion lever, not price or breadth",
+          kind: "hidden",
+          action:
+            "Run a cheap pricing/paywall experiment in parallel to test whether conversion is really gated by collab quality versus price, before spending a quarter on backend work.",
+          evidenceRefs: ["obj-convert", "risk-opp-cost"],
+        },
+      ];
+  }
+}
+
 function councilA(): CouncilResult {
   return {
     nodeWeights: [
@@ -95,6 +176,8 @@ function councilA(): CouncilResult {
     fractureNarrative:
       "Under tomorrow's meeting deadline, the plan doesn't crack on migration feasibility — it cracks on auditability, the buyer's actual unstated requirement, which was never proven.",
     grounded: true,
+    remediations: fixtureRemediations("A"),
+    remediationSource: "fixture",
     source: "fixture",
   };
 }
@@ -179,6 +262,8 @@ function councilB(): CouncilResult {
     fractureNarrative:
       "The reinforcement plan holds under tomorrow's meeting pressure because it targets the buyer's real ask directly, so the SRE keystone absorbs the load instead of cracking under it.",
     grounded: true,
+    remediations: fixtureRemediations("B"),
+    remediationSource: "fixture",
     source: "fixture",
   };
 }
@@ -263,6 +348,8 @@ function councilR(): CouncilResult {
     fractureNarrative:
       "With the roadmap meeting only 2 days away, the plan doesn't crack on technical feasibility — it cracks on whether a 6-person team actually has the spare capacity to build and operate what it's committing to.",
     grounded: true,
+    remediations: fixtureRemediations("R"),
+    remediationSource: "fixture",
     source: "fixture",
   };
 }

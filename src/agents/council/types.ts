@@ -16,6 +16,18 @@ export interface HiddenAssumption {
   evidenceRefs: string[];
 }
 
+/** One concrete, cheap falsifying test that de-risks a specific council finding. */
+export interface Remediation {
+  /** The finding this de-risks: the context-keystone nodeId (kind "spine") OR a hidden
+   *  assumption's `label` (kind "hidden"). Joins back to the surviving finding in the critic. */
+  findingId: string;
+  kind: "spine" | "hidden";
+  /** One concrete, cheap experiment/evidence that would falsify the finding before committing. */
+  action: string;
+  /** Grounds the remediation; checked against findingKeys by the critic. */
+  evidenceRefs: string[];
+}
+
 /**
  * Output of the contextual analysis council: a situation-aware read on which node is
  * truly load-bearing (which may differ from the graph's topological keystone), plus
@@ -30,5 +42,11 @@ export interface CouncilResult {
   hiddenAssumptions: HiddenAssumption[];
   fractureNarrative: string;
   grounded: boolean;
+  /** One de-risking action per surviving finding (spine + hidden). Overlay only — never
+   *  consumed by the engine or the attack path. Grounded/filtered by the critic. */
+  remediations: Remediation[];
   source: "live" | "fixture";
+  /** Truthful source of `remediations` ALONE — independent of `source` so a failed action
+   *  call cannot demote the diagnosis or block the live contextual attacks from the engine. */
+  remediationSource: "live" | "fixture";
 }
