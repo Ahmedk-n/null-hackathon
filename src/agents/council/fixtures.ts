@@ -5,6 +5,7 @@
 // (`fixtureContextGraph`/`fixtureContextGraphB`/`fixtureContextGraphR` for graph node
 // ids; `fixtureCompanyContext*`/`fixtureDecisionContextPack*` for con_*/risk_*/obj_*
 // finding ids). No Date/Math.random — every result is a plain literal.
+import type { Graph } from "@/engine";
 import type { CouncilResult } from "./types";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -280,4 +281,18 @@ export function fixtureCouncil(scenario: "A" | "B" | "R"): CouncilResult {
     case "R":
       return councilR();
   }
+}
+
+/**
+ * Detect which demo scenario a graph belongs to by a distinctive node id — so T2/T3/T4 (the
+ * weighting/attack/hidden-assumption council agents) can route their fixture fallback to the
+ * matching hand-authored `fixtureCouncil` result without threading a separate scenario flag
+ * through every call site. Falls back to "A" (the hero scenario) for any unrecognized graph.
+ */
+export function scenarioForGraph(graph: Graph): "A" | "B" | "R" {
+  const ids = new Set(graph.nodes.map((n) => n.id));
+  if (ids.has("k_credible")) return "A";
+  if (ids.has("k_sre")) return "B";
+  if (ids.has("team_has_backend_capacity")) return "R";
+  return "A";
 }
