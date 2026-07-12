@@ -1,6 +1,10 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
 import type { Attack, Graph, ProbabilisticResult, ReinforcementPlan } from "@/engine";
+// P2-T5 (additive): cross-decision calibration. Type-only import of the pure result shape — the
+// store never fetches it (that stays in KeystoneApp via fetchCalibration); it only holds the
+// value pushed in by setCalibration. @/engine/calibrate is pure/key-free, so this is boundary-safe.
+import type { Calibration } from "@/engine/calibrate";
 import {
   applyAttacks,
   cloneGraph,
@@ -112,6 +116,16 @@ export interface KeystoneState {
   // Recomputed alongside every action that rebuilds workingGraph from a solve; reset to null
   // wherever `failures` resets to EMPTY_FAILURES (same "back to baseline" moments).
   probabilistic: ProbabilisticResult | null;
+  // P2-T5 (additive): the caller's cross-decision track record (real, per-user when signed in —
+  // possibly an honest EMPTY record; else the offline over-holder fixture — see fetchCalibration).
+  // null until KeystoneApp's effect resolves it; the store itself never fetches (purity/boundary —
+  // see setCalibration).
+  calibration: Calibration | null;
+  // Phase 2 whole-feature fix (honesty bug): true ONLY for the guest/offline fixture — an
+  // illustrative sample, never the signed-in caller's real record (see fetchCalibration's
+  // CalibrationResult.isSample). Init false so a signed-in user is never mislabelled before the
+  // fetch effect resolves. Consumed by IntegrityGauge to word the caption honestly.
+  calibrationIsSample: boolean;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
@@ -145,6 +159,12 @@ export interface KeystoneState {
   // V3-7 (additive): scrub the time axis — re-derive effective attacks for `day`
   // via adjustmentsAt + reweight and re-run the engine live on a clean clone.
   setTimelineDay: (day: number) => void;
+  // P2-T5 (additive): push a freshly-fetched calibration into the store. The store never calls
+  // fetch itself (see the `calibration` field comment) — KeystoneApp fetches via
+  // fetchCalibration(isGuest) and hands the plain result to this setter. `isSample` defaults to
+  // false (a real/empty record) so callers that only pass the calibration value never
+  // accidentally mislabel it as a sample.
+  setCalibration: (c: Calibration | null, isSample?: boolean) => void;
 }
 
 export function createKeystoneStore() {
@@ -168,6 +188,8 @@ export function createKeystoneStore() {
     failsInDay: null,
     editError: null,
     probabilistic: null,
+    calibration: null,
+    calibrationIsSample: false,
     setGraph: (g) => {
       // Preserve the engine-inert drivers onto the store's base/working graphs — cloneGraph
       // strips them (see solveProbabilistic above), and they are the correlation structure the
@@ -528,6 +550,9 @@ export function createKeystoneStore() {
         probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
+    // P2-T5 · store only HOLDS the value — no fetch here (boundary/purity). KeystoneApp calls
+    // fetchCalibration(isGuest) in an effect and pushes the result in.
+    setCalibration: (c, isSample = false) => set({ calibration: c, calibrationIsSample: isSample }),
   }));
 }
 
@@ -539,6 +564,13 @@ export const selectFailures = (s: KeystoneState): ReadonlySet<string> => s.failu
 // null before any solve / at baseline; populated by applyLoad, setApplyContextWeights,
 // setTimelineDay, reinforce, and rerun.
 export const selectProbabilistic = (s: KeystoneState): ProbabilisticResult | null => s.probabilistic;
+// P2-T5 (additive): the caller's cross-decision calibration (null until KeystoneApp's fetch
+// effect resolves). Consumed by the gauge/rail to render RAW → CALIBRATED P(hold).
+export const selectCalibration = (s: KeystoneState): Calibration | null => s.calibration;
+// Phase 2 whole-feature fix (honesty bug): true ONLY when `calibration` is the guest/offline
+// illustrative fixture — never for a signed-in caller's real record (empty or not). Consumed by
+// IntegrityGauge to word the RAW→CALIBRATED caption honestly.
+export const selectCalibrationIsSample = (s: KeystoneState): boolean => s.calibrationIsSample;
 
 // Shared singleton for the React app.
 export const keystoneStore = createKeystoneStore();

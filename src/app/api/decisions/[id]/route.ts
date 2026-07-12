@@ -5,6 +5,7 @@
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { rowToJSON, nowISO } from "../shared";
+import { PatchBody } from "./patch-schema";
 import type { DecisionRow } from "@/lib/supabase/types";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -41,13 +42,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-    const body = (await req.json().catch(() => null)) as { verdict?: unknown; isPublic?: unknown } | null;
-    if (!body || (body.verdict === undefined && body.isPublic === undefined)) {
-      return NextResponse.json({ error: "nothing to update" }, { status: 400 });
+    const parsed = PatchBody.safeParse(await req.json().catch(() => null));
+    if (!parsed.success) {
+      return NextResponse.json({ error: "invalid patch body" }, { status: 400 });
     }
+    const body = parsed.data;
     const patch: Record<string, unknown> = { updated_at: nowISO() };
     if (body.verdict !== undefined) patch.verdict = body.verdict;
-    if (typeof body.isPublic === "boolean") patch.is_public = body.isPublic;
+    if (body.isPublic !== undefined) patch.is_public = body.isPublic;
+    if (body.outcome !== undefined) {
+      patch.outcome = body.outcome;
+      patch.materialized_categories = body.materializedCategories ?? null;
+      patch.resolved_at = nowISO();
+    }
 
     const { data, error } = await supabase
       .from("decisions")

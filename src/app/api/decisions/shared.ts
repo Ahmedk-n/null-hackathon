@@ -16,6 +16,11 @@ export interface DecisionJSON {
   graph: unknown;
   verdict: unknown;
   isPublic: boolean;
+  // Phase 2 · cross-decision calibration (Task 1 writes predictedPHold only; the rest land Task 2).
+  predictedPHold: number | null;
+  outcome: "held" | "failed" | null;
+  resolvedAtISO: string | null;
+  materializedCategories: string[] | null;
 }
 
 export function rowToJSON(row: DecisionRow): DecisionJSON {
@@ -31,6 +36,10 @@ export function rowToJSON(row: DecisionRow): DecisionJSON {
     graph: row.graph,
     verdict: row.verdict,
     isPublic: row.is_public,
+    predictedPHold: row.predicted_p_hold ?? null,
+    outcome: row.outcome ?? null,
+    resolvedAtISO: row.resolved_at ?? null,
+    materializedCategories: row.materialized_categories ?? null,
   };
 }
 

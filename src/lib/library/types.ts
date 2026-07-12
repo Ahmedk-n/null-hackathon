@@ -34,6 +34,11 @@ export interface LibraryEntry {
   verdict: LibraryVerdict;
   /** Remote-only: whether a share link (/d/<id>) is live. Always false for guest/local entries. */
   isPublic?: boolean;
+  // Phase 2 · cross-decision calibration (Task 1 writes predictedPHold only; the rest land Task 2).
+  predictedPHold?: number | null;
+  outcome?: "held" | "failed" | null;
+  resolvedAtISO?: string | null;
+  materializedCategories?: string[] | null;
 }
 
 // The fields a caller supplies to save a new snapshot; id + seq are assigned by the backend.
@@ -46,4 +51,6 @@ export interface NewLibraryEntry {
   pack: DecisionContextPack | null;
   graph: Graph;
   verdict: LibraryVerdict;
+  /** The model's predicted P(hold) at save time, for later calibration scoring. */
+  predictedPHold?: number | null;
 }

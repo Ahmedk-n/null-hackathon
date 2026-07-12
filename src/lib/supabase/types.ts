@@ -7,6 +7,11 @@ export interface DecisionRow {
   pack: DecisionContextPack | null; graph: Graph;
   verdict: { integrity: number; keystoneId: string | null; failedIds: string[]; loadApplied: boolean };
   seq: number; is_public: boolean; created_at: string; updated_at: string;
+  // Phase 2 · cross-decision calibration (Task 1 writes predicted_p_hold only; the rest land Task 2).
+  predicted_p_hold?: number | null;
+  outcome?: "held" | "failed" | null;
+  resolved_at?: string | null;
+  materialized_categories?: string[] | null;
 }
 export type ConnectionKind = "github" | "linear" | "notion" | "jira" | "calendar" | "custom";
 export interface ConnectionRow {           // server-side shape (includes secret)

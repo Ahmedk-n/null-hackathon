@@ -48,6 +48,7 @@ export async function POST(req: Request) {
       pack?: unknown;
       graph?: unknown;
       verdict?: unknown;
+      predictedPHold?: number | null;
     } | null;
     if (!body || typeof body.title !== "string" || typeof body.mode !== "string" || !body.graph || !body.verdict) {
       return NextResponse.json({ error: "invalid decision payload" }, { status: 400 });
@@ -76,6 +77,7 @@ export async function POST(req: Request) {
         verdict: body.verdict,
         seq: nextSeq,
         is_public: false,
+        predicted_p_hold: body.predictedPHold ?? null,
       })
       .select("*")
       .single();

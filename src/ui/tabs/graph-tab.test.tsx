@@ -16,6 +16,7 @@ vi.mock("@/canvas/Keystone3D", () => ({
 import { GraphTab } from "./GraphTab";
 import { keystoneStore } from "@/store/useKeystone";
 import { fixtureContextGraph, fixtureContextAttacks } from "@/context";
+import type { Calibration } from "@/engine/calibrate";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -124,5 +125,92 @@ describe("GraphTab — Task 7 DETAIL default + probabilistic gauge", () => {
     // The driver-cluster legend appears with at least one driver row.
     expect(screen.getByTestId("driver-legend")).toBeTruthy();
     expect(screen.getAllByTestId("driver-legend-row").length).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("GraphTab — P2-T5 raw → calibrated P(hold)", () => {
+  const negBiasCalibration: Calibration = {
+    bias: -0.6,
+    sampleCount: 15,
+    rawHoldRate: 0.4,
+    predictedMean: 0.65,
+    categoryRates: {},
+  };
+
+  it("shows RAW → CALIBRATED with a lower calibrated value when a negative-bias calibration is present", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setCalibration(negBiasCalibration);
+
+    render(<GraphTab />);
+
+    const line = screen.getByTestId("calibration-line");
+    expect(line.textContent).toMatch(/CALIBRATED/);
+    const rawPct = keystoneStore.getState().probabilistic!.pHold * 100;
+    const match = line.textContent!.match(/RAW (\d+)% → CALIBRATED (\d+)%/);
+    expect(match).not.toBeNull();
+    const [, raw, calibrated] = match!;
+    expect(Number(raw)).toBe(Math.round(rawPct));
+    expect(Number(calibrated)).toBeLessThan(Number(raw));
+
+    keystoneStore.getState().setCalibration(null);
+  });
+
+  it("shows no calibrated value when calibration sampleCount is 0", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setCalibration({
+      bias: 0,
+      sampleCount: 0,
+      rawHoldRate: 0,
+      predictedMean: 0,
+      categoryRates: {},
+    });
+
+    render(<GraphTab />);
+
+    expect(screen.queryByTestId("calibration-line")).toBeNull();
+
+    keystoneStore.getState().setCalibration(null);
+  });
+
+  // Phase 2 whole-feature fix (honesty bug): a guest (or any isSample:true caller) is shown an
+  // explicit "illustrative sample" caption — never worded as their own track record.
+  it("guest/sample calibration reads as an illustrative sample, not the caller's track record", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setCalibration(negBiasCalibration, true);
+
+    render(<GraphTab />);
+
+    const line = screen.getByTestId("calibration-line");
+    expect(line.textContent).toMatch(/illustrative sample/i);
+    expect(line.textContent).not.toMatch(/your track record/i);
+
+    keystoneStore.getState().setCalibration(null);
+  });
+
+  // Phase 2 whole-feature fix (honesty bug): a signed-in caller with a real but EMPTY record
+  // (sampleCount 0, isSample false) must never see a fabricated personal bias — RAW P(hold) only,
+  // no calibrated line, and critically no "your track record" string anywhere on screen (there is
+  // nothing to word, honestly or otherwise).
+  it("signed-in empty record (sampleCount 0, isSample false) shows RAW only — no track-record claim", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setCalibration(
+      { bias: 0, sampleCount: 0, rawHoldRate: 0, predictedMean: 0, categoryRates: {} },
+      false,
+    );
+
+    render(<GraphTab />);
+
+    // The RAW P(hold) headline still renders (the solve is real)...
+    expect(screen.getByTestId("phold-headline")).toBeTruthy();
+    // ...but no calibrated claim, sample disclosure, or track-record wording anywhere.
+    expect(screen.queryByTestId("calibration-line")).toBeNull();
+    expect(screen.queryByText(/your track record/i)).toBeNull();
+    expect(screen.queryByText(/illustrative sample/i)).toBeNull();
+
+    keystoneStore.getState().setCalibration(null);
   });
 });

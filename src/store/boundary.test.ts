@@ -20,10 +20,12 @@ const FORBIDDEN = [
 ];
 
 // Barrels / server-only modules that must never be VALUE-imported into the client bundle or the
-// store (compile / agent dispatchers, the Supabase service-role client). A type-only import is
-// fine (erased at compile time; see `hasValueImport`) — deep pure paths like `@/context/weights`
-// remain the right way to pull real functions.
-const FORBIDDEN_VALUE_IMPORTS = ["@/context", "@/agents", "@/lib/supabase/admin"];
+// store (compile / agent dispatchers, the Supabase service-role client, the cookie-reading SSR
+// client). A type-only import is fine (erased at compile time; see `hasValueImport`) — deep pure
+// paths like `@/context/weights` remain the right way to pull real functions. NOTE:
+// `@/lib/supabase/client` is intentionally NOT on this list — it's the client-safe anon client
+// used by useSession/account, not a key-reading module.
+const FORBIDDEN_VALUE_IMPORTS = ["@/context", "@/agents", "@/lib/supabase/admin", "@/lib/supabase/server"];
 
 // P5-T13: close the loophole above — ANY submodule under these two directories is forbidden as a
 // value import, not just the barrel (agent orchestration / LLM-calling code, which reads the
@@ -104,7 +106,32 @@ const clientFiles = allFiles.filter(
   (p) => (p.endsWith(".tsx") || p.endsWith(".ts")) && !isTest(p) && isClientDirective(readFileSync(p, "utf8")),
 );
 
-const guarded = Array.from(new Set([...storeFiles, ...clientFiles]));
+// Phase 2 whole-feature fix (boundary-test gap): src/lib/library/** and src/context/** are
+// client-reachable (calibration.ts / fixtureOutcomes.ts / index.ts etc. are imported straight
+// into the store and client tabs) but carry neither a "use client" directive nor live under
+// src/store/ — so neither filter above ever scanned them. Add them explicitly.
+//
+// EXCLUDED: src/context/compile.ts. It is a genuinely server-only module (the live context
+// compiler, invoked only from the /api/context route) that value-imports @/agents/retry and
+// @/llm/structured on purpose — sanctioned and already verified by its OWN dedicated guard, the
+// "only sanctioned server transports" check in src/context/boundary.test.ts's SERVER_ONLY set.
+// It is not reachable from the client bundle: the "@/context" barrel (which re-exports it) is
+// itself forbidden as a value import (see FORBIDDEN_VALUE_IMPORTS above), and no client file
+// imports "@/context/compile" directly (also explicitly forbidden, see FORBIDDEN above).
+// Scanning compile.ts here would therefore flag a already-sanctioned server transport, not an
+// actual client-reachability leak — the same reasoning src/context/boundary.test.ts already
+// encodes for this exact file.
+const libraryFiles = allFiles.filter(
+  (p) => p.includes(`${join(SRC_ROOT, "lib", "library")}`) && !isTest(p),
+);
+const contextFiles = allFiles.filter(
+  (p) =>
+    p.includes(`${join(SRC_ROOT, "context")}`) &&
+    !isTest(p) &&
+    p !== join(SRC_ROOT, "context", "compile.ts"),
+);
+
+const guarded = Array.from(new Set([...storeFiles, ...clientFiles, ...libraryFiles, ...contextFiles]));
 
 describe("client/key-safety boundary (§9)", () => {
   it("finds files to guard", () => {
