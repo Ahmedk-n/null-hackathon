@@ -176,6 +176,17 @@ export function Tabs({
   );
 }
 
+// Compact "YYYY-MM-DD · HH:MM" stamp from a server-passed ISO string. Plain
+// string slicing only — this file is a client component and `new Date(...)` /
+// `.toLocaleString()` would read the browser's timezone, causing a
+// server/client hydration mismatch. Falls back to the raw value if the input
+// doesn't look like ISO-8601.
+const ISO_STAMP = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
+function formatStamp(ts: string): string {
+  if (!ISO_STAMP.test(ts)) return ts;
+  return `${ts.slice(0, 10)} · ${ts.slice(11, 16)}`;
+}
+
 // ── TopBar ────────────────────────────────────────────────────────────
 export function TopBar({
   title,
@@ -226,13 +237,21 @@ export function TopBar({
           </span>
         )}
       </div>
-      <div style={{ flex: 1 }} />
+      {/* M-2: the spacer collapses below ~640px (theme.css) so the actions row can claim the
+          remaining width and scroll internally instead of pushing the page wider than the viewport. */}
+      <div className="topbar-spacer" style={{ flex: 1 }} />
       {timestamp && (
-        <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>
-          {timestamp}
+        <span
+          className="mono topbar-stamp"
+          style={{ fontSize: 12, color: "var(--muted)", whiteSpace: "nowrap" }}
+        >
+          {formatStamp(timestamp)}
         </span>
       )}
-      {actions && <div style={{ display: "flex", gap: 8 }}>{actions}</div>}
+      {/* M-2: below ~640px this action cluster becomes a horizontally scrollable, non-wrapping
+          row (theme.css) — like the StatusStrip (T1) — so five buttons never force page h-scroll
+          and the 52px header height stays fixed. */}
+      {actions && <div className="topbar-actions" style={{ display: "flex", gap: 8 }}>{actions}</div>}
     </header>
   );
 }
@@ -246,24 +265,32 @@ export interface StatusItem {
 export function StatusStrip({ items }: { items: StatusItem[] }) {
   return (
     <footer
+      className="status-strip"
       style={{
         display: "flex",
         alignItems: "center",
-        flexWrap: "wrap",
+        flexWrap: "nowrap",
         gap: 6,
         height: 30,
         padding: "0 var(--pad)",
         borderTop: "1px solid var(--hair-strong)",
         background: "var(--panel)",
+        overflowX: "auto",
+        overflowY: "hidden",
       }}
     >
       {items.map((it, i) => (
-        <span key={it.key} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+        <span
+          key={it.key}
+          style={{ display: "inline-flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}
+        >
           {i > 0 && <span style={{ color: "var(--hair-strong)" }}>·</span>}
-          <span className="label">{it.key}</span>
+          <span className="label" style={{ whiteSpace: "nowrap" }}>
+            {it.key}
+          </span>
           <span
             className="mono"
-            style={{ fontSize: 11, color: it.accent ?? "var(--ink)" }}
+            style={{ fontSize: 11, color: it.accent ?? "var(--ink)", whiteSpace: "nowrap" }}
           >
             {it.value}
           </span>

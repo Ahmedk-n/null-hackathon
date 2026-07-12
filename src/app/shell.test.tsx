@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { describe, it, expect, afterEach } from "vitest";
-import { render, cleanup } from "@testing-library/react";
+import { describe, it, expect, afterEach, vi } from "vitest";
+import { render, cleanup, fireEvent, waitFor, within } from "@testing-library/react";
 import KeystoneApp from "./KeystoneApp";
 
 // React 19 + Testing Library act() environment flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
 
 describe("Keystone shell (T9 design conformance)", () => {
   it("renders the shell chrome with ledger tokens", () => {
@@ -17,8 +20,9 @@ describe("Keystone shell (T9 design conformance)", () => {
       />,
     );
 
-    // TopBar renders the ISO-8601 session timestamp.
-    expect(container.textContent).toMatch(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    // TopBar renders a compact "YYYY-MM-DD · HH:MM" session stamp derived from the
+    // server-passed ISO-8601 startedAt (T1 — no raw ISO string, no wrapping).
+    expect(container.textContent).toMatch(/\d{4}-\d{2}-\d{2} · \d{2}:\d{2}/);
 
     // V6-1 · exactly 4 PRIMARY tabs (0·DESIGN → 1·CONTEXT → 2·GRAPH → 3·STRESS). The "exactly 3
     // tabs" contract is DELIBERATELY retargeted to 4 (same precedent as the T10 tilt retarget).
@@ -49,5 +53,32 @@ describe("Keystone shell (T9 design conformance)", () => {
 
     // manual: verify border-radius:0 in browser (jsdom does not load external CSS
     // so computed border-radius is not assertable here).
+  });
+
+  // L-1 — a /api/context failure must surface a visible, dismissible RUN FAILED banner and
+  // re-enable the ANALYSE button, instead of stalling the pipeline overlay silently.
+  it("surfaces a dismissible RUN FAILED banner and re-enables ANALYSE when /api/context errors", async () => {
+    global.fetch = vi.fn(
+      async () => ({ ok: false, status: 500, headers: { get: () => null }, json: async () => ({}) }) as unknown as Response,
+    ) as unknown as typeof fetch;
+
+    const { getByRole, queryByRole } = render(
+      <KeystoneApp startedAt="2026-07-03T22:31:00Z" decision="migrate to microservices" />,
+    );
+
+    fireEvent.click(getByRole("button", { name: /^Analyse$/i }));
+
+    // Scope to the banner's own role="alert" — StatusStrip's Stage cell separately reads "RUN
+    // FAILED" too, so an unscoped text query would match twice.
+    const alert = await waitFor(() => getByRole("alert"));
+    expect(within(alert).getByText(/run failed/i)).toBeTruthy();
+    expect(alert.textContent).toMatch(/\/api\/context failed \(500\)/);
+
+    // The ANALYSE button re-enables (finally already flips `building` false — verifying it holds).
+    expect(getByRole("button", { name: /^Analyse$/i }).hasAttribute("disabled")).toBe(false);
+
+    // Dismissing clears the banner.
+    fireEvent.click(within(alert).getByRole("button", { name: "×" }));
+    expect(queryByRole("alert")).toBeNull();
   });
 });

@@ -1,7 +1,8 @@
 "use client";
 import { motion, useMotionValue, animate } from "motion/react";
 import { useEffect, useRef, useState } from "react";
-import { OK, WARN, BAD, HAIR } from "@/ui/tokens";
+import type { ProbabilisticResult } from "@/engine";
+import { OK, WARN, BAD, HAIR, HAIR_STRONG, MUTED } from "@/ui/tokens";
 
 // The crater, not a snap: ring dash + numeral + color all glide over the same
 // duration/ease so the number appears to *fall* into place (plan W1-1).
@@ -22,7 +23,28 @@ function statusWord(value: number): "HOLDING" | "STRESSED" | "FAILED" {
   return "FAILED";
 }
 
-export function IntegrityGauge({ value }: { value: number }) {
+// P(hold) is a probability of survival (0..1), not an integrity score, so it gets its own
+// bands: a clear majority holds green, a coin-flip amber, an odds-against outcome red.
+function pHoldColor(pHold: number): string {
+  if (pHold >= 0.6) return OK;
+  if (pHold >= 0.35) return WARN;
+  return BAD;
+}
+
+export function IntegrityGauge({
+  value,
+  probabilistic = null,
+}: {
+  value: number;
+  /**
+   * Task 7 · the Monte-Carlo distribution over the current structure. When present the gauge
+   * LEADS with `HOLDS <pHold%>` (the headline the model actually believes) and a [p05–p95]
+   * integrity band, and DEMOTES the deterministic `value` to the labelled "sketch" point
+   * estimate (the ring stays, so the crater animation + status word are unchanged). When null
+   * (before any solve) the gauge renders exactly as it always has.
+   */
+  probabilistic?: ProbabilisticResult | null;
+}) {
   const r = 46;
   const circumference = 2 * Math.PI * r;
   const clamped = Math.min(100, Math.max(0, value));
@@ -59,8 +81,36 @@ export function IntegrityGauge({ value }: { value: number }) {
     wasFailed.current = failedNow;
   }, [value]);
 
+  // Task 7 · probabilistic headline + band derivations (only when a distribution exists).
+  const pHoldPct = probabilistic ? Math.round(probabilistic.pHold * 100) : null;
+  const pColor = probabilistic ? pHoldColor(probabilistic.pHold) : color;
+  const bandLo = probabilistic ? Math.round(probabilistic.band[0]) : null;
+  const bandHi = probabilistic ? Math.round(probabilistic.band[1]) : null;
+
   return (
     <div ref={containerRef} style={{ textAlign: "center" }}>
+      {/* HEADLINE — the number the model believes: fraction of Monte-Carlo runs that hold.
+          Sits ABOVE the ring so it reads first; the ring below is demoted to the "sketch". */}
+      {probabilistic && (
+        <div data-testid="phold-headline" style={{ marginBottom: 8 }}>
+          <div
+            className="mono"
+            style={{
+              fontSize: 24,
+              fontWeight: 700,
+              letterSpacing: "0.04em",
+              lineHeight: 1,
+              color: pColor,
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            {`HOLDS ${pHoldPct}%`}
+          </div>
+          <div className="label" style={{ marginTop: 3, color: MUTED, fontSize: 9 }}>
+            P(hold) · Monte-Carlo
+          </div>
+        </div>
+      )}
       <svg width={120} height={120} viewBox="0 0 120 120">
         {/* Hairline track. */}
         <circle cx={60} cy={60} r={r} fill="none" stroke={HAIR} strokeWidth={3} />
@@ -103,7 +153,34 @@ export function IntegrityGauge({ value }: { value: number }) {
       <div className="label" style={{ color }}>
         {status}
       </div>
-      <div className="label">Structural Integrity</div>
+      {/* When a distribution exists the ring is the deterministic "sketch" (point estimate);
+          otherwise it is the sole integrity readout, labelled as before. */}
+      <div className="label">
+        {probabilistic ? "Sketch · Structural Integrity" : "Structural Integrity"}
+      </div>
+      {/* INTEGRITY BAND — the [p05–p95] hairline range beneath the sketch, so the point value
+          reads as one draw from a spread rather than a promise. */}
+      {probabilistic && bandLo !== null && bandHi !== null && (
+        <div
+          data-testid="integrity-band"
+          style={{
+            marginTop: 8,
+            paddingTop: 6,
+            borderTop: `1px solid ${HAIR_STRONG}`,
+            display: "flex",
+            alignItems: "baseline",
+            justifyContent: "space-between",
+            gap: 8,
+          }}
+        >
+          <span className="label" style={{ color: MUTED }}>
+            Integrity Band
+          </span>
+          <span className="mono" style={{ fontSize: 12, color: MUTED, fontVariantNumeric: "tabular-nums" }}>
+            {`${bandLo}–${bandHi}`}
+          </span>
+        </div>
+      )}
     </div>
   );
 }

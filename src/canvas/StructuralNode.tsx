@@ -23,8 +23,12 @@ import { LAYER_Z as STRATUM_Z, EVIDENCE_Z, KEYSTONE_Z_BUMP } from "./depth";
 // V9-1 · minimalist node box — smaller/cleaner than the old 200×72. The evidence plate,
 // crack overlay and ungrounded drop derive their offsets from these so the box can shrink
 // without re-authoring the geometry.
-const NODE_W = 200;
-const NODE_H = 56;
+// T3 — narrowed to 150 (kept in lockstep with layout.ts NODE_W) so a 7-wide rank stops
+// forcing the fit to shrink to nothing; height bumped to 68 so a 2-line label at the raised
+// font still clears the box. The narrower box wraps the label sooner but the 2-line clamp +
+// hover title keep it legible and lossless.
+const NODE_W = 150;
+const NODE_H = 68;
 
 // V9-1 · a single integrity/status dot replaces the always-on confidence readout at rest.
 // green = grounded/high, amber = soft, red = weak or failed.
@@ -99,6 +103,13 @@ export interface StructuralNodeData {
    * selection ring even while the board is in minimal (detail-off) mode.
    */
   selected?: boolean;
+  /**
+   * Task 7 · dominant-driver cluster colour (assumptions only). When present the node tints its
+   * load-bearing LEFT edge to this colour, grouping assumptions that share a latent failure
+   * driver; the GRAPH rail carries the matching driver→colour legend. Undefined → type accent.
+   */
+  clusterColor?: string;
+  clusterLabel?: string;
   [key: string]: unknown;
 }
 
@@ -124,6 +135,10 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const expand = showDetail || selected;
 
   const accent = data.isKeystone ? KEYSTONE : ACCENT[data.type];
+  // Task 7 · the load-bearing left edge takes the dominant-driver cluster colour when tagged
+  // (assumptions), so the board reads its shared-failure grouping; the thin frame keeps the
+  // type accent. A failed node's red frame always wins (failure signal is never overridden).
+  const edgeAccent = !data.isFailed && data.clusterColor ? data.clusterColor : accent;
   const dotColor = statusColor(data.confidence, data.isFailed);
   const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? KEYSTONE_Z_BUMP : 0);
   // V4-1 — stratum focus dims the strata you're not inspecting.
@@ -195,7 +210,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         width: NODE_W,
         height: NODE_H,
         border: `1px solid ${accent}`,
-        borderLeft: `3px solid ${accent}`,
+        borderLeft: `3px solid ${edgeAccent}`,
         background: data.isFailed ? BAD_BG : PANEL,
         boxShadow: data.isFailed ? failedShadow : restingShadow,
         // V9-1 · a selected node draws a calm ring so the board still reads which node the
@@ -261,10 +276,12 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
       <div
         style={{
           fontFamily: "var(--sans)",
-          fontSize: 12,
+          // T3 — 13px (up from 12): the fit now lands at a higher zoom, so the label reads
+          // without a manual zoom; the 2-line clamp below still guards the box height.
+          fontSize: 13,
           marginTop: 4,
           lineHeight: 1.25,
-          // Clamp to 2 lines so a long label can't spill past the 72px box toward the
+          // Clamp to 2 lines so a long label can't spill past the 68px box toward the
           // evidence plate below. Keep the clamp on the LABEL only — putting overflow
           // on the node box would clip the absolutely-positioned plate/glow/callout.
           display: "-webkit-box",

@@ -21,3 +21,11 @@ export const MUTED = "#7a786f";
 export const BG = "#f5f4ef";
 export const PANEL = "#fbfaf6";
 export const PANEL_2 = "#efeee8";
+
+// ── Driver-cluster palette (Task 7) ──────────────────────────────────────
+// Muted, ledger-safe accents used ONLY to tag/group assumption nodes by their
+// dominant latent driver (the correlation clusters from the probabilistic brain).
+// Ordered so cluster #i (by clusters[] index) always draws the same colour, and the
+// GRAPH legend row #i matches. Keystone-red (#b23a2e) is deliberately EXCLUDED — it
+// stays reserved for the load-bearing keystone signal, never a cluster hue.
+export const CLUSTER_PALETTE = ["#2c4a76", "#2f6b64", "#a9741a", "#6d5773", "#4a6b3a"] as const;

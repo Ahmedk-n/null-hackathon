@@ -1,6 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { useStore } from "zustand";
-import type { Attack, Graph, ReinforcementPlan } from "@/engine";
+import type { Attack, Graph, ProbabilisticResult, ReinforcementPlan } from "@/engine";
 import {
   applyAttacks,
   cloneGraph,
@@ -10,6 +10,10 @@ import {
   keystone,
   minimalReinforcement,
 } from "@/engine";
+// PROBABILISTIC (Task 6): pure, seeded Monte-Carlo over the frozen engine. Deep path (never
+// through a barrel that also drags in llm/context) — safe under the client/key-safety boundary
+// guard. Called ONLY inside store actions (never in render); no Date/Math.random anywhere in it.
+import { runProbabilistic } from "@/engine/probabilistic";
 // Pure, key-free transform (data-in/data-out). Safe to bundle client-side. This is the ONLY
 // context import allowed in the store — never the compiler, the llm client, or the Anthropic SDK.
 import { reweightAttacksByContext } from "@/context/weights";
@@ -52,6 +56,18 @@ function uniqueId(base: string, taken: ReadonlySet<string>): string {
   return `${base}-${n}`;
 }
 
+// Task 7 · DRIVER-PRESERVING PROBABILISTIC SOLVE. The engine's `cloneGraph` (sensitivity.ts,
+// off-limits) intentionally drops the engine-inert `graph.drivers`, so any working graph rebuilt
+// through `applyAttacks(cloneGraph(base), …)` carries NO drivers — and the Monte-Carlo brain would
+// then infer zero correlation structure (empty clusters / keystoneDrivers / coFailure), collapsing
+// the whole "correlated failure" story back to independent noise. We keep the drivers on the store's
+// baseGraph (see setGraph) and re-attach them onto the working graph here before every solve. This
+// is provably engine-inert: the pure solver (propagation/sensitivity/load) never reads graph.drivers.
+function solveProbabilistic(working: Graph, base: Graph | null): ProbabilisticResult {
+  const drivers = base?.drivers;
+  return runProbabilistic(drivers && drivers.length > 0 ? { ...working, drivers } : working);
+}
+
 // Stable empty reference reused for the "no failures" case. Returning a fresh `new Set()` from a
 // selector on every render breaks React 19's useSyncExternalStore (snapshot must be referentially
 // stable) and causes "Maximum update depth exceeded" + hydration mismatch. `failures` therefore
@@ -91,6 +107,11 @@ export interface KeystoneState {
   // V5-3 (additive): the last graph-edit rejection reason, surfaced as a --warn chip in the
   // SelectionPanel EDIT section. null = no pending error. Every SUCCESSFUL edit clears it.
   editError: string | null;
+  // PROBABILISTIC (Task 6): the Monte-Carlo distribution over the CURRENT workingGraph. null
+  // until a solve has run (baseline / no-load state has no meaningful distribution to show).
+  // Recomputed alongside every action that rebuilds workingGraph from a solve; reset to null
+  // wherever `failures` resets to EMPTY_FAILURES (same "back to baseline" moments).
+  probabilistic: ProbabilisticResult | null;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
@@ -146,8 +167,17 @@ export function createKeystoneStore() {
     timelineDay: 0,
     failsInDay: null,
     editError: null,
-    setGraph: (g) =>
-      set({ baseGraph: cloneGraph(g), workingGraph: cloneGraph(g), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null }),
+    probabilistic: null,
+    setGraph: (g) => {
+      // Preserve the engine-inert drivers onto the store's base/working graphs — cloneGraph
+      // strips them (see solveProbabilistic above), and they are the correlation structure the
+      // probabilistic brain needs. Undefined when the graph carries no drivers (harmless).
+      const base = cloneGraph(g);
+      const working = cloneGraph(g);
+      base.drivers = g.drivers;
+      working.drivers = g.drivers;
+      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
+    },
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
       if (!wg) return;
@@ -155,8 +185,13 @@ export function createKeystoneStore() {
       const node = next.nodes.find((n) => n.id === id);
       if (node) node.confidence = Math.min(1, Math.max(0, value));
       // Re-derive failures only if we are in the post-load state; before load nothing is "failed".
-      const failures = get().loadApplied ? detectFailures(next) : EMPTY_FAILURES;
-      set({ workingGraph: next, failures, reinforcementPlan: null });
+      const loadApplied = get().loadApplied;
+      const failures = loadApplied ? detectFailures(next) : EMPTY_FAILURES;
+      // Task 7 fold-in — the confidence edit rebuilt `next`, so the probabilistic distribution
+      // over the OLD working graph is now stale. Recompute it from the rebuilt graph while load
+      // is applied (matches the "workingGraph changed under load" contract of the other actions);
+      // at baseline there is no distribution to show, so it stays null.
+      set({ workingGraph: next, failures, reinforcementPlan: null, probabilistic: loadApplied ? solveProbabilistic(next, get().baseGraph) : null });
     },
     // ── V5-3 · GRAPH EDITING ────────────────────────────────────────────────
     // Structural edits (delete / add / flip) reset the stress verdict back to baseline:
@@ -182,6 +217,9 @@ export function createKeystoneStore() {
         set({ editError: "Rename rejected — the structure would be invalid." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // (via validateManualEdit) strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
       // Non-structural: PRESERVE the current stress state. Mirror the edit onto the working
       // graph in place (same node id) so an attacked structure keeps its verdict.
       let nextWorking = workingGraph;
@@ -192,6 +230,7 @@ export function createKeystoneStore() {
           wNode.label = label;
           wNode.provenance = "modified";
         }
+        nextWorking.drivers = workingGraph.drivers;
       }
       set({ baseGraph: validated, workingGraph: nextWorking, editError: null });
     },
@@ -217,9 +256,14 @@ export function createKeystoneStore() {
         set({ editError: "Delete rejected — the remaining Structure would be invalid." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(validated);
+      nextWorking.drivers = baseGraph.drivers;
       set({
         baseGraph: validated,
-        workingGraph: cloneGraph(validated),
+        workingGraph: nextWorking,
         // If the deleted (or an orphaned) node was selected, drop the stale selection.
         selectedNodeId:
           selectedNodeId && validated.nodes.some((n) => n.id === selectedNodeId)
@@ -232,6 +276,7 @@ export function createKeystoneStore() {
         reinforcementPlan: null,
         timelineDay: 0,
         failsInDay: null,
+        probabilistic: null,
         editError: null,
       });
     },
@@ -263,9 +308,14 @@ export function createKeystoneStore() {
         set({ editError: "Add rejected — the Structure would exceed the node limit." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(validated);
+      nextWorking.drivers = baseGraph.drivers;
       set({
         baseGraph: validated,
-        workingGraph: cloneGraph(validated),
+        workingGraph: nextWorking,
         selectedNodeId: id,
         attacks: [],
         rawAttacks: [],
@@ -274,6 +324,7 @@ export function createKeystoneStore() {
         reinforcementPlan: null,
         timelineDay: 0,
         failsInDay: null,
+        probabilistic: null,
         editError: null,
       });
     },
@@ -294,9 +345,14 @@ export function createKeystoneStore() {
         set({ editError: "Flip rejected — the Structure would be invalid." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(validated);
+      nextWorking.drivers = baseGraph.drivers;
       set({
         baseGraph: validated,
-        workingGraph: cloneGraph(validated),
+        workingGraph: nextWorking,
         attacks: [],
         rawAttacks: [],
         loadApplied: false,
@@ -304,6 +360,7 @@ export function createKeystoneStore() {
         reinforcementPlan: null,
         timelineDay: 0,
         failsInDay: null,
+        probabilistic: null,
         editError: null,
       });
     },
@@ -326,7 +383,7 @@ export function createKeystoneStore() {
       // the RAW attacks + context timeline — reset the scrub to now and (grounded-only)
       // derive the day it craters.
       const failsInDay = deriveFailsInDay(base, attacks, decisionContextPack, applyContextWeights);
-      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay });
+      set({ workingGraph, attacks: effective, rawAttacks: attacks, loadApplied: true, failures: detectFailures(workingGraph), reinforcementPlan: null, timelineDay: 0, failsInDay, probabilistic: solveProbabilistic(workingGraph, base) });
     },
     // A/B toggle: IGNORE CONTEXT (raw) ⟷ GROUND IN CONTEXT (reweighted). Flipping it
     // re-derives the outcome live from the stored raw attacks — no re-fetch needed.
@@ -353,12 +410,13 @@ export function createKeystoneStore() {
         // Reset the scrub to now so the two views stay coherent.
         timelineDay: 0,
         failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, value),
+        probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null });
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),
@@ -399,6 +457,7 @@ export function createKeystoneStore() {
         // Re-run rebuilds the working graph from the raw attacks (the attacked verdict),
         // discarding any applied reinforcement — drop the stale plan.
         reinforcementPlan: null,
+        probabilistic: solveProbabilistic(nextGraph, baseGraph),
       });
     },
     clearRerunConfirmed: () => set({ rerunConfirmed: false }),
@@ -437,6 +496,7 @@ export function createKeystoneStore() {
         failures: detectFailures(workingGraph),
         reinforcementPlan: plan,
         failsInDay,
+        probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
     // V3-7 · TIME-AXIS SCRUB. Re-derive effective attacks for `day` (temporal
@@ -465,6 +525,7 @@ export function createKeystoneStore() {
         // re-derive the (un-reinforced) failure horizon so the chip stays coherent.
         reinforcementPlan: null,
         failsInDay: deriveFailsInDay(baseGraph, rawAttacks, decisionContextPack, applyContextWeights),
+        probabilistic: solveProbabilistic(workingGraph, baseGraph),
       });
     },
   }));
@@ -474,6 +535,10 @@ export const selectIntegrity = (s: KeystoneState): number => (s.workingGraph ? i
 export const selectKeystoneId = (s: KeystoneState): string | null => (s.workingGraph ? keystone(s.workingGraph)?.id ?? null : null);
 // Reads stable state — never allocates. Rebuilt only inside actions above.
 export const selectFailures = (s: KeystoneState): ReadonlySet<string> => s.failures;
+// PROBABILISTIC (Task 6): the Monte-Carlo distribution over the current workingGraph.
+// null before any solve / at baseline; populated by applyLoad, setApplyContextWeights,
+// setTimelineDay, reinforce, and rerun.
+export const selectProbabilistic = (s: KeystoneState): ProbabilisticResult | null => s.probabilistic;
 
 // Shared singleton for the React app.
 export const keystoneStore = createKeystoneStore();

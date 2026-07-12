@@ -69,8 +69,18 @@ export default function KeystoneApp({
   // plumbs through context → extract → attacks. See src/ui/tabs/ContextTab.tsx.
   const [mode, setMode] = useState<ContextMode>("R");
   // Per-stage progress through the compile/extract/attacks chain, surfaced in the StatusStrip
-  // using the plan's terminal vocabulary so a live run reads honestly, quietly.
-  const [stage, setStage] = useState<"idle" | "context" | "extract" | "attacks" | "done">("idle");
+  // using the plan's terminal vocabulary so a live run reads honestly, quietly. "error" (L-1) marks
+  // a run that threw or returned non-OK — see analyse()/applyLoad() catch blocks below.
+  const [stage, setStage] = useState<"idle" | "context" | "extract" | "attacks" | "done" | "error">(
+    "idle",
+  );
+  // L-1 · the last run's failure, human-readable, or null between/after a clean run. Drives the
+  // dismissible --bad banner below <Tabs>. Cleared at the start of every run and on reset() calls
+  // (see the Reset button / StressTab onReset wrappers) so a stale banner never lingers.
+  const [runError, setRunError] = useState<string | null>(null);
+  // L-1 · which run the banner's RETRY should re-invoke ("analyse" replays the stashed input via
+  // lastAnalyseInputRef; "applyLoad" takes no args). null while no run has failed yet.
+  const [lastRunKind, setLastRunKind] = useState<"analyse" | "applyLoad" | null>(null);
   // Truthful per-stage provenance for THIS run. context comes from the /api/context body `source`;
   // extract/attacks read the additive `x-keystone-source` response header (V3-8, was inferred from
   // the context stage alone). null = the stage hasn't executed yet in this run.
@@ -85,6 +95,10 @@ export default function KeystoneApp({
   // optional `findings` so live extraction grounds assumption confidences in evidence (V3-6).
   // A ref, not state — render never reads it; analyse() snapshots it at fetch time.
   const gatherFactsRef = useRef<Partial<Record<GatherKind, GatherFinding[]>>>({});
+  // L-1 · the last analyse() input, stashed so the error banner's RETRY can re-invoke the same run
+  // without the user re-typing the form. null until the first analyse() call. Not state — retrying
+  // doesn't need a render, and it must survive past a failed run.
+  const lastAnalyseInputRef = useRef<ContextInput | null>(null);
 
   // V5-4 · the library entry THIS session is editing. analyse() creates one; Apply Load / Reinforce
   // patch its verdict; reopening a snapshot adopts its id. null = nothing saved yet this session.
@@ -200,10 +214,14 @@ export default function KeystoneApp({
 
   // Orchestration reaches the model ONLY over HTTP — never imports server modules.
   async function analyse(input: ContextInput) {
+    lastAnalyseInputRef.current = input;
+    setLastRunKind("analyse");
     setBuilding(true);
     setShowPipeline(true);
-    // Fresh run → clear last run's provenance (attacks stays null until Apply Load fires).
+    // Fresh run → clear last run's provenance (attacks stays null until Apply Load fires) AND any
+    // stale failure banner from a prior run (L-1).
     setStageSource({ context: null, extract: null, attacks: null });
+    setRunError(null);
     try {
       // The gathered rich findings snapshotted for THIS run. Fed into BOTH stages: the compiler
       // (V8-C1, so the pack is grounded in real multi-source research) and extraction (grounds
@@ -232,6 +250,7 @@ export default function KeystoneApp({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ ...input, scenario: scenarioArg, findings: contextFindings }),
       });
+      if (!ctxRes.ok) throw new Error(`/api/context failed (${ctxRes.status})`);
       const { companyContext, decisionContextPack: pack, source } = (await ctxRes.json()) as {
         companyContext: CompanyContext;
         decisionContextPack: DecisionContextPack;
@@ -263,6 +282,7 @@ export default function KeystoneApp({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ decision: input.decisionText, pack, scenario: scenarioArg, findings }),
       });
+      if (!exRes.ok) throw new Error(`/api/extract failed (${exRes.status})`);
       const graph = (await exRes.json()) as Graph;
       setStageSource((s) => ({
         ...s,
@@ -290,6 +310,13 @@ export default function KeystoneApp({
       }
       setStage("done");
       setActiveTab("graph");
+    } catch (err) {
+      // L-1 · a thrown non-OK response or a network/parse failure. Surface it honestly and drop
+      // the stalled pipeline overlay — it would otherwise sit on "COMPILING CONTEXT…"/"EXTRACTING
+      // STRUCTURE…" forever since `stage` never reaches "done".
+      setStage("error");
+      setRunError(err instanceof Error ? err.message : "analyse failed");
+      setShowPipeline(false);
     } finally {
       setBuilding(false);
     }
@@ -297,10 +324,12 @@ export default function KeystoneApp({
 
   async function applyLoad() {
     if (!workingGraph) return;
+    setLastRunKind("applyLoad");
     setLoading(true);
     setShowPipeline(true);
     // Stage 3 — GENERATE ATTACKS (same scenario gating as the compile/extract stages).
     setStage("attacks");
+    setRunError(null); // fresh run → clear any stale failure banner (L-1)
     try {
       const res = await fetch("/api/attacks", {
         method: "POST",
@@ -311,6 +340,7 @@ export default function KeystoneApp({
           scenario: scenarioArg,
         }),
       });
+      if (!res.ok) throw new Error(`/api/attacks failed (${res.status})`);
       const { attacks: generated } = (await res.json()) as { attacks: Attack[] };
       setStageSource((s) => ({
         ...s,
@@ -320,8 +350,26 @@ export default function KeystoneApp({
       // V5-4 · the applied-load verdict updates the current snapshot in the library.
       await syncCurrentVerdict();
       setStage("done");
+    } catch (err) {
+      // L-1 · same treatment as analyse(): honest failure + drop the stalled overlay so
+      // "GENERATING ATTACKS…" can't hang forever.
+      setStage("error");
+      setRunError(err instanceof Error ? err.message : "apply load failed");
+      setShowPipeline(false);
     } finally {
       setLoading(false);
+    }
+  }
+
+  // L-1 · re-invoke whichever run last failed. analyse() replays the stashed input (form state
+  // itself lives in ContextTab, not here); applyLoad() takes no args and just re-reads the
+  // current workingGraph. No-op if nothing has run yet (defensive — the banner can't render
+  // without lastRunKind being set first).
+  function retryLastRun() {
+    if (lastRunKind === "analyse" && lastAnalyseInputRef.current) {
+      void analyse(lastAnalyseInputRef.current);
+    } else if (lastRunKind === "applyLoad") {
+      void applyLoad();
     }
   }
 
@@ -329,6 +377,22 @@ export default function KeystoneApp({
   async function handleReinforce() {
     keystoneStore.getState().reinforce();
     await syncCurrentVerdict();
+  }
+
+  // L-1 · clear the failure banner AND retire the "error" Stage indicator together, so dismissing
+  // the banner doesn't leave the StatusStrip "Stage" cell stuck reading RUN FAILED in --bad. Safe:
+  // on error the run has already finished (finally cleared building/loading), so "idle" (→ READY)
+  // is the correct resting stage.
+  function clearRunError() {
+    setRunError(null);
+    setStage((s) => (s === "error" ? "idle" : s));
+  }
+
+  // L-1 · store reset() only clears engine/store state — it has no idea runError exists (this
+  // state lives here, not in the store). Wrap it so a stale failure banner never survives a Reset.
+  function handleReset() {
+    keystoneStore.getState().reset();
+    clearRunError();
   }
 
   // Bottom status strip: live reads of engine/store outputs. LINKS = total edges
@@ -348,6 +412,7 @@ export default function KeystoneApp({
     extract: "EXTRACTING STRUCTURE…",
     attacks: "GENERATING ATTACKS…",
     done: "READY",
+    error: "RUN FAILED",
   };
   const running = building || loading;
   // V4-1 — DEPTH: the dimensionality of the analysis (strata present + evidence
@@ -378,7 +443,9 @@ export default function KeystoneApp({
     {
       key: "Stage",
       value: STAGE_LABEL[stage],
-      accent: running ? "var(--warn)" : undefined,
+      // L-1: a failed run reads --bad here even though `running` is already false (finally already
+      // flipped it) — same honest-status treatment as the Integrity/Grounded items below.
+      accent: stage === "error" ? "var(--bad)" : running ? "var(--warn)" : undefined,
     },
     { key: "Nodes", value: workingGraph ? workingGraph.nodes.length : "—" },
     { key: "Links", value: linkCount ?? "—" },
@@ -419,7 +486,7 @@ export default function KeystoneApp({
     <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
       <TopBar
         title="▣ Keystone"
-        subtitle={`STRUCTURAL ANALYSIS FOR DECISIONS — ${decision}`}
+        subtitle={decision}
         timestamp={startedAt}
         actions={
           <>
@@ -430,7 +497,7 @@ export default function KeystoneApp({
             <Button onClick={() => setFitSignal((n) => n + 1)} title="Fit graph to view">
               Fit
             </Button>
-            <Button onClick={() => keystoneStore.getState().reset()}>Reset</Button>
+            <Button onClick={handleReset}>Reset</Button>
             {/* V5-2 — PRINT MEMO: SPA Link (preserves the in-memory store) to the
                 drawing-sheet memo. Disabled-looking until a verdict exists. */}
             {workingGraph ? (
@@ -447,6 +514,37 @@ export default function KeystoneApp({
       />
 
       <Tabs tabs={TABS} active={activeTab} onChange={setActiveTab} />
+
+      {/* L-1 · RUN FAILED banner — the honest, dismissible affordance for a run that threw or came
+          back non-OK (analyse()/applyLoad() catch blocks above). Additive: renders nothing while
+          runError is null, so the happy path is pixel-identical to before. Placed under <Tabs> so
+          it's the first thing in view regardless of which tab is active. */}
+      {runError && (
+        <div
+          role="alert"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "var(--gap)",
+            padding: "8px var(--pad)",
+            borderBottom: "1px solid var(--bad)",
+            background: "var(--bad-bg)",
+          }}
+        >
+          <span className="label" style={{ color: "var(--bad)" }}>
+            Run Failed
+          </span>
+          <span className="mono" style={{ fontSize: 12, color: "var(--ink)", flex: 1, minWidth: 0 }}>
+            {runError} — the run did not complete; re-run when ready.
+          </span>
+          {(lastRunKind === "applyLoad" || (lastRunKind === "analyse" && lastAnalyseInputRef.current)) && (
+            <Button onClick={retryLastRun}>Retry</Button>
+          )}
+          <Button onClick={clearRunError} title="Dismiss">
+            ×
+          </Button>
+        </div>
+      )}
 
       <main style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
         {activeTab === "design" && <DesignTab mode={mode} onOpenInStudio={openInStudio} />}
@@ -466,13 +564,14 @@ export default function KeystoneApp({
               if (entry) restoreEntry(entry);
             }}
             onLibraryChange={() => setLibraryVersion((n) => n + 1)}
+            onOpenGraph={() => setActiveTab("graph")}
           />
         )}
         {activeTab === "graph" && <GraphTab fitSignal={fitSignal} />}
         {activeTab === "stress" && (
           <StressTab
             onApplyLoad={applyLoad}
-            onReset={() => keystoneStore.getState().reset()}
+            onReset={handleReset}
             onReinforce={handleReinforce}
             loading={loading}
           />
@@ -486,7 +585,11 @@ export default function KeystoneApp({
           is a plain snapshot lifted from the finished agent runs (no @/agents import crosses here). */}
       {showPipeline && (
         <LivePipeline
-          stage={stage}
+          // L-1 · LivePipeline's stage prop predates the "error" member (it never needs to render
+          // that state: the catch blocks above call setShowPipeline(false) in the same tick they
+          // set stage to "error", so this branch is a type-safety fallback only, never a real UI
+          // state — the overlay is already gone before it could paint "error").
+          stage={stage === "error" ? "idle" : stage}
           stageSource={stageSource}
           running={running}
           gatherFacts={Object.values(gatherFactsRef.current)

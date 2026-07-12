@@ -322,35 +322,46 @@ export function SelectionPanel({
   }, [graph, selectedNodeId]);
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
+    // Task 7 · roomier detail panel. The old panel crammed the label, four metric rows, the FEEDS
+    // list, the EDIT controls and the ENCODING key into one undifferentiated stack. It now breathes:
+    // the selected node's LABEL + TYPE lead as a header block over a hairline, the read-out metrics
+    // sit in their own quiet group, and EDIT / ENCODING are set off by full-width hairline rules so
+    // the hierarchy (what · its numbers · how to change it · the key) reads top-to-bottom.
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div>
         <SectionHeader>Selection</SectionHeader>
         {detail ? (
           <>
-            <div
-              style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 13, margin: "2px 0 8px" }}
-            >
-              {detail.node.label}
+            {/* Header block — the node's identity, given room to be the first thing read. */}
+            <div style={{ paddingBottom: 10, borderBottom: "1px solid var(--hair)", marginBottom: 12 }}>
+              <div
+                style={{ fontFamily: "var(--sans)", fontWeight: 600, fontSize: 14, lineHeight: 1.35, marginBottom: 8 }}
+              >
+                {detail.node.label}
+              </div>
+              <LedgerRow
+                label="Type"
+                value={detail.node.id === keystoneId ? "KEYSTONE" : detail.node.type.toUpperCase()}
+                accent={detail.node.id === keystoneId ? KEYSTONE : TYPE_COLOR[detail.node.type]}
+              />
             </div>
-            <LedgerRow
-              label="Type"
-              value={detail.node.id === keystoneId ? "KEYSTONE" : detail.node.type.toUpperCase()}
-              accent={detail.node.id === keystoneId ? KEYSTONE : TYPE_COLOR[detail.node.type]}
-            />
-            <ConfidenceRow node={detail.node} />
-            <LedgerRow label="Support" value={`${Math.round(detail.support * 100)}%`} />
-            <LedgerRow
-              label="Knock-out Impact"
-              value={detail.impact === null ? "—" : `${detail.impact.toFixed(1)} pts`}
-              accent={detail.impact !== null && detail.impact > 0 ? KEYSTONE : undefined}
-            />
-            <div style={{ marginTop: 4 }}>
-              <span className="label" style={{ display: "block", marginBottom: 4 }}>
+            {/* Metrics group — confidence/support/knock-out read as one cluster of numbers. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <ConfidenceRow node={detail.node} />
+              <LedgerRow label="Support" value={`${Math.round(detail.support * 100)}%`} />
+              <LedgerRow
+                label="Knock-out Impact"
+                value={detail.impact === null ? "—" : `${detail.impact.toFixed(1)} pts`}
+                accent={detail.impact !== null && detail.impact > 0 ? KEYSTONE : undefined}
+              />
+            </div>
+            <div style={{ marginTop: 14 }}>
+              <span className="label" style={{ display: "block", marginBottom: 6 }}>
                 Feeds
               </span>
               {detail.feeds.length ? (
                 detail.feeds.map((f) => (
-                  <div key={f} className="mono" style={{ fontSize: 11, lineHeight: 1.5 }}>
+                  <div key={f} className="mono" style={{ fontSize: 11, lineHeight: 1.6 }}>
                     → {f}
                   </div>
                 ))
@@ -362,7 +373,7 @@ export function SelectionPanel({
             </div>
           </>
         ) : (
-          <div className="label" style={{ marginTop: 6 }}>
+          <div className="label" style={{ marginTop: 8, color: "var(--muted)" }}>
             Select a node
           </div>
         )}
@@ -370,22 +381,26 @@ export function SelectionPanel({
 
       {/* V5-3 · EDIT section — only when editing is wired AND a node is selected. Keyed by node
           id so field state resets on selection change. The solver re-verdicts live: structural
-          edits rebuild workingGraph and the integrity/keystone selectors recompute immediately. */}
+          edits rebuild workingGraph and the integrity/keystone selectors recompute immediately.
+          Task 7 · set off by a full-width hairline so it reads as a distinct band, not a fifth
+          row in the metrics stack. */}
       {editable && detail ? (
-        <EditSection
-          key={detail.node.id}
-          graph={graph as Graph}
-          node={detail.node}
-          onRename={onRename}
-          onSetConfidence={onSetConfidence}
-          onAddAssumption={onAddAssumption}
-          onFlipGroup={onFlipGroup}
-          onDelete={onDelete}
-          editError={editError}
-        />
+        <div style={{ borderTop: "1px solid var(--hair-strong)", paddingTop: 16 }}>
+          <EditSection
+            key={detail.node.id}
+            graph={graph as Graph}
+            node={detail.node}
+            onRename={onRename}
+            onSetConfidence={onSetConfidence}
+            onAddAssumption={onAddAssumption}
+            onFlipGroup={onFlipGroup}
+            onDelete={onDelete}
+            editError={editError}
+          />
+        </div>
       ) : null}
 
-      <div>
+      <div style={{ borderTop: "1px solid var(--hair-strong)", paddingTop: 16 }}>
         <SectionHeader>Encoding</SectionHeader>
         {ENCODING.map((e) => (
           <ColorChip key={e.label} label={e.label} color={e.color} />

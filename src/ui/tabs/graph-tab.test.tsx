@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
-// V9-2 · GraphTab VIEW control now offers a third render mode — 3D (react-three-fiber).
-// jsdom can't run WebGL, so we do NOT mount the real three canvas: the lazy Keystone3D module
-// is stubbed, and we assert (a) the 3D segment exists alongside PLAN/SECTION and (b) selecting
-// 3D lazy-swaps the board without throwing (the 2.5D react-flow board unmounts). The heavy
-// three.js integration is covered by the build + e2e gates, not jsdom.
+// V9-2 · GraphTab VIEW control offers a 3D render mode (react-three-fiber). T9 removed SECTION,
+// so the toggle is now two segments — 2D / 3D. jsdom can't run WebGL, so we do NOT mount the
+// real three canvas: the lazy Keystone3D module is stubbed, and we assert (a) the toggle offers
+// 2D / 3D and (b) selecting 3D lazy-swaps the board without throwing (the flat react-flow board
+// unmounts). The heavy three.js integration is covered by the build + e2e gates, not jsdom.
 import { describe, it, expect, afterEach, beforeAll, vi } from "vitest";
 import { render, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 
@@ -15,7 +15,7 @@ vi.mock("@/canvas/Keystone3D", () => ({
 
 import { GraphTab } from "./GraphTab";
 import { keystoneStore } from "@/store/useKeystone";
-import { fixtureContextGraph } from "@/context";
+import { fixtureContextGraph, fixtureContextAttacks } from "@/context";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -49,24 +49,24 @@ beforeAll(() => {
 afterEach(cleanup);
 
 describe("GraphTab VIEW control — V9-2 3D leg", () => {
-  it("offers PLAN / SECTION / 3D in the VIEW control", () => {
+  it("offers 2D / 3D in the VIEW control (SECTION removed in T9)", () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());
     render(<GraphTab />);
 
     const toggle = screen.getByTestId("depth-view-toggle");
     const labels = [...toggle.querySelectorAll("button")].map((b) => b.textContent?.trim());
-    expect(labels).toEqual(["Plan", "Section", "3D"]);
+    expect(labels).toEqual(["2D", "3D"]);
     expect(screen.getByTestId("view-3d")).toBeTruthy();
   });
 
-  it("selecting 3D lazy-swaps the board (2.5D react-flow unmounts) without throwing", async () => {
+  it("selecting 3D lazy-swaps the board (flat react-flow unmounts) without throwing", async () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());
     const { container } = render(<GraphTab />);
 
-    // The 2.5D board renders react-flow by default.
+    // The flat 2D board renders react-flow by default.
     expect(container.querySelector(".react-flow")).not.toBeNull();
 
-    // Switch to 3D — must not throw; the lazy Keystone3D stub mounts and the 2.5D board goes.
+    // Switch to 3D — must not throw; the lazy Keystone3D stub mounts and the flat board goes.
     fireEvent.click(screen.getByTestId("view-3d"));
     expect(await screen.findByTestId("keystone-3d-stub")).toBeTruthy();
     await waitFor(() => expect(container.querySelector(".react-flow")).toBeNull());
@@ -76,19 +76,53 @@ describe("GraphTab VIEW control — V9-2 3D leg", () => {
     expect(screen.getByTestId("detail-toggle").hasAttribute("disabled")).toBe(true);
   });
 
-  it("returning to PLAN restores the 2.5D board", async () => {
+  it("returning to 2D restores the flat board", async () => {
     keystoneStore.getState().setGraph(fixtureContextGraph());
     const { container } = render(<GraphTab />);
 
     fireEvent.click(screen.getByTestId("view-3d"));
     await screen.findByTestId("keystone-3d-stub");
 
-    // Back to PLAN — the react-flow board returns, the stub goes.
-    const planBtn = [...screen.getByTestId("depth-view-toggle").querySelectorAll("button")].find(
-      (b) => b.textContent?.trim() === "Plan",
+    // Back to 2D — the react-flow board returns, the stub goes.
+    const flatBtn = [...screen.getByTestId("depth-view-toggle").querySelectorAll("button")].find(
+      (b) => b.textContent?.trim() === "2D",
     )!;
-    fireEvent.click(planBtn);
+    fireEvent.click(flatBtn);
     await waitFor(() => expect(container.querySelector(".react-flow")).not.toBeNull());
     expect(screen.queryByTestId("keystone-3d-stub")).toBeNull();
+  });
+});
+
+describe("GraphTab — Task 7 DETAIL default + probabilistic gauge", () => {
+  it("renders the board with DETAIL ON by default (toggle pressed)", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    render(<GraphTab />);
+    // The DETAIL disclosure now defaults ON so the graph opens with its full chrome.
+    expect(screen.getByTestId("detail-toggle").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  it("shows only the deterministic integrity (no P(hold)) before a solve", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph()); // clears probabilistic → null
+    render(<GraphTab />);
+    expect(screen.queryByTestId("phold-headline")).toBeNull();
+    expect(screen.queryByTestId("driver-legend")).toBeNull();
+  });
+
+  it("surfaces HOLDS <pct> + an integrity band + the driver legend once a solve has run", () => {
+    // Seed a solve so selectProbabilistic is populated (applyLoad runs the Monte-Carlo brain).
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    expect(keystoneStore.getState().probabilistic).not.toBeNull();
+
+    render(<GraphTab />);
+
+    // The gauge LEADS with the P(hold) headline.
+    const headline = screen.getByTestId("phold-headline");
+    expect(headline.textContent).toMatch(/HOLDS \d+%/);
+    // …and carries the [p05–p95] integrity band beneath the demoted "sketch" value.
+    expect(screen.getByTestId("integrity-band").textContent).toMatch(/\d+–\d+/);
+    // The driver-cluster legend appears with at least one driver row.
+    expect(screen.getByTestId("driver-legend")).toBeTruthy();
+    expect(screen.getAllByTestId("driver-legend-row").length).toBeGreaterThanOrEqual(1);
   });
 });

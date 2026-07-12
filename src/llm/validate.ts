@@ -70,6 +70,11 @@ function cloneGraph(g: Graph): Graph {
       ...(n.evidence !== undefined ? { evidence: cloneEvidence(n.evidence) } : {}),
       // V5-3 · preserve human-edit provenance through the manual-edit validation path too.
       ...(n.provenance !== undefined ? { provenance: n.provenance } : {}),
+      // PROBABILISTIC (Task 4) · preserve evidenceStrength through the repair path. Engine-inert
+      // like evidence/provenance above; cloneGraph copies nodes field-by-field, so without this
+      // spread the schema-validated value would be silently stripped before reaching the
+      // returned GraphNode and never reach the MC solver's sampling-spread lookup.
+      ...(n.evidenceStrength !== undefined ? { evidenceStrength: n.evidenceStrength } : {}),
     })),
   };
 }

@@ -130,29 +130,55 @@ const BOARD_Y0 = 12; // top pad %
 const BOARD_Y1 = 90; // bottom pad %
 
 // fitView padding — when constraints are docked, reserve the right gutter so nodes never
-// extend under the rail; otherwise fall back to a symmetric 12% frame.
+// extend under the rail; otherwise fall back to a tight symmetric frame.
+// T3 — tightened 12% → 6% now the layout aspect matches the board: the wasted margin was
+// coming from the wide-and-short graph, not from padding, so the frame can hug the graph and
+// hand the reclaimed pixels to zoom (legibility).
 function fitPaddingFor(hasPlanes: boolean) {
   return hasPlanes
-    ? ({ top: "12%", bottom: "12%", left: `${BOARD_X0}%`, right: `${RIGHT_GUTTER_PCT}%` } as const)
-    : ("12%" as const);
+    ? ({ top: "6%", bottom: "6%", left: `${BOARD_X0}%`, right: `${RIGHT_GUTTER_PCT}%` } as const)
+    : ("6%" as const);
 }
 
-// FIX 2 — let smaller graphs fit LARGER (comfortable default text) while the padding that
-// keeps the keystone from clipping (left 12% / right gutter 15%) is untouched. The Controls
-// + wheel zoom are the real lever for the width-bound 13-node case.
-const FIT_MAX_ZOOM = 1.4;
+// T3 — the fit is WIDTH-bound for the 13-node graph, so this cap almost never binds; it only
+// governs small graphs (which may fill taller than wide). Raised 1.4 → 1.8 so a small
+// height-bound graph fills instead of floating tiny. The 13-node legibility win comes from the
+// rebalanced layout aspect (layout.ts) + the tighter padding above, not from this number —
+// the two prior "FIX 2" passes tuned this cap without moving the width-bound fit at all.
+const FIT_MAX_ZOOM = 1.8;
 function fitOptionsFor(hasPlanes: boolean) {
   return { padding: fitPaddingFor(hasPlanes), maxZoom: FIT_MAX_ZOOM } as const;
 }
 
-// Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action).
-// Lives inside <ReactFlow> so useReactFlow() resolves the flow instance context.
-function FitController({ fitSignal, hasPlanes }: { fitSignal?: number; hasPlanes: boolean }) {
+// Re-runs fitView whenever `fitSignal` changes (drives the TopBar FIT action) OR whenever the
+// board mode changes (PLAN⟷SECTION, DETAIL on/off) — a mode switch reshapes the frame (SECTION
+// tilts, DETAIL docks the constraint gutter), so the default must re-fit to stay centered and
+// full without a manual FIT. Lives inside <ReactFlow> so useReactFlow() resolves the context.
+function FitController({
+  fitSignal,
+  hasPlanes,
+  section,
+}: {
+  fitSignal?: number;
+  hasPlanes: boolean;
+  section: boolean;
+}) {
   const { fitView } = useReactFlow();
+  // Explicit FIT action (TopBar) — animated.
   useEffect(() => {
     if (fitSignal === undefined) return;
     fitView({ ...fitOptionsFor(hasPlanes), duration: 400 });
   }, [fitSignal, fitView, hasPlanes]);
+  // Mode change — re-fit to the reshaped frame. Skipped on first mount (the <ReactFlow
+  // fitView> prop already fits the initial view) so it only fires on an actual toggle.
+  const mounted = useRef(false);
+  useEffect(() => {
+    if (!mounted.current) {
+      mounted.current = true;
+      return;
+    }
+    fitView({ ...fitOptionsFor(hasPlanes), duration: 400 });
+  }, [section, hasPlanes, fitView]);
   return null;
 }
 
@@ -172,6 +198,7 @@ export function KeystoneCanvas({
   fitSignal,
   detail = true,
   selectedId = null,
+  driverTags,
 }: {
   graph: Graph;
   keystoneId: string | null;
@@ -215,6 +242,14 @@ export function KeystoneCanvas({
   detail?: boolean;
   /** V9-1 · the selected node id — expanded inline + ringed even while the board is minimal. */
   selectedId?: string | null;
+  /**
+   * Task 7 · driver-cluster tags. Maps an assumption id → its dominant latent driver's
+   * { label, colour } (the correlation clusters from the probabilistic brain). When provided,
+   * each tagged assumption node tints its load-bearing left edge to the cluster colour so the
+   * board groups by shared-failure driver at a glance; a matching legend lives in the GRAPH rail.
+   * Undefined (STRESS, or before a solve) → no cluster tinting, node styling unchanged.
+   */
+  driverTags?: ReadonlyMap<string, { label: string; color: string }>;
 }) {
   const effectiveLoadApplied = loadApplied ?? failures.size > 0;
 
@@ -283,6 +318,9 @@ export function KeystoneCanvas({
           plateDimmed,
           detail,
           selected: n.id === selectedId,
+          // Task 7 · dominant-driver cluster tag (assumptions only; keystone keeps its red edge).
+          clusterColor: !isKeystone ? driverTags?.get(n.id)?.color : undefined,
+          clusterLabel: !isKeystone ? driverTags?.get(n.id)?.label : undefined,
         },
       };
     });
@@ -295,11 +333,15 @@ export function KeystoneCanvas({
             id: `${childId}->${parent.id}`,
             source: childId,
             target: parent.id,
+            // Task 7 · straight hairlines read as CAD load-path members, not soft bezier
+            // curves — crisper and truer to the drafting aesthetic the founder wanted.
+            type: "straight",
             style: {
-              // V9-1 · thinner, calmer support edges; the keystone load-path stays a touch
-              // heavier so it still reads as the spine without shouting.
-              stroke: fromKeystone ? KEYSTONE : HAIR,
-              strokeWidth: fromKeystone ? 1.8 : 1,
+              // Support edges use the STRONG hairline (the faint --hair was near-invisible on
+              // paper); the keystone load-path stays keystone-red and a touch heavier so it
+              // reads as the spine without shouting.
+              stroke: fromKeystone ? KEYSTONE : HAIR_STRONG,
+              strokeWidth: fromKeystone ? 1.5 : 1,
             },
             animated: fromKeystone,
           });
@@ -319,6 +361,7 @@ export function KeystoneCanvas({
     focusLayer,
     detail,
     selectedId,
+    driverTags,
   ]);
 
   // V4-1 — the strata present in this graph (drives the stratum chrome). Evidence
@@ -399,6 +442,12 @@ export function KeystoneCanvas({
         height: "100%",
         perspective: section ? "1400px" : "none",
         background: BG,
+        // Task 7 · CLIP to the canvas bounds. Without this the React Flow edge SVG (and the
+        // SECTION tilt's projected nodes) could bleed past the pane into the flanking rails —
+        // the "connection lines overflow to the side panes" bug. Clipping here contains every
+        // layer (edges, node callouts, chrome) to the board at desktop AND mobile widths.
+        overflow: "hidden",
+        position: "relative",
       }}
     >
       {/* Shake wrapper (W1-4): jitters the whole board on failure WITHOUT touching
@@ -462,7 +511,7 @@ export function KeystoneCanvas({
               gap={130}
               color={detail ? HAIR_STRONG : HAIR}
             />
-            <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} />
+            <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} section={section} />
             {/* FIX 2 — zoom in/out/fit buttons, restyled to the terminal/CAD aesthetic
                 (zero radius, hairline border, mono, paper ground). They call the flow API,
                 so zoom works even in SECTION mode where pointer-based pan is disabled. */}
@@ -566,12 +615,21 @@ function StratumChrome({
 // V4-2 — CONSTRAINT FRAME. "Ideas have constraints" as visible geometry: each relevant
 // constraint is a named CAD boundary plane — a hairline vertical rule stacked in the
 // RIGHT margin (opposite the L0..L3 stratum labels, so the two never collide), zero
-// radius, --muted, with its terse uppercase .mono label running down the rule. When
-// load is applied and an attack's category maps to a plane's categories, that plane
-// STRIKES: it flashes/settles to a persistent --bad VIOLATED state with a strike tally
-// (×n), and draws a brief strike-line (animated strokeDashoffset, like the cracks) from
-// the plane edge to the attacked node. Deterministic (strikes derive from planeStrikes,
-// no randomness); pointer-events off so it never intercepts canvas interaction.
+// radius, --muted. When load is applied and an attack's category maps to a plane's
+// categories, that plane STRIKES: it flashes/settles to a persistent --bad VIOLATED
+// state with a strike tally (×n), and draws a brief strike-line (animated
+// strokeDashoffset, like the cracks) from the plane edge to the attacked node.
+// Deterministic (strikes derive from planeStrikes, no randomness); pointer-events off
+// so it never intercepts canvas interaction.
+//
+// T5 (finding S-1) — the rules used to carry their label rotated `writing-mode:
+// vertical-rl`, jammed edge-to-edge in the gutter: unreadable, overlapping noise. The
+// rules now stay as pure CAD geometry (a hairline + an upright index tick, 1..n); the
+// actual label/status reads horizontally in a numbered legend band docked under the
+// CONSTRAINTS header, same index order so rule #i and legend row #i are the same plane.
+// Strike-lines still originate from the numbered rule. All violated/tally state below
+// is the same engine-derived `planeStrikes` output as before — only the presentation
+// of the label changed.
 function ConstraintFrame({
   planes,
   strikes,
@@ -588,6 +646,11 @@ function ConstraintFrame({
   // Each plane's rule sits at this canvas-% from the right — all inside the reserved
   // right gutter (RIGHT_GUTTER_PCT), so no rule/label/tally can cross the node area.
   const ruleRightPct = (i: number) => 2 + i * 3;
+  // T5 — legend band docks along the BOTTOM edge of the gutter (not under the
+  // CONSTRAINTS header): the StressTab overlays an opaque IntegrityGauge card top-right
+  // of the canvas (outside this component, out of scope here), so a top-docked legend
+  // would render unreadable underneath it. The bottom of the gutter is clear.
+  const LEGEND_BOTTOM_PCT = 6;
   return (
     <div
       data-testid="constraint-planes"
@@ -662,18 +725,17 @@ function ConstraintFrame({
           );
         })}
       </svg>
+      {/* T5 — the rules are now pure CAD geometry: a hairline + an upright index tick
+          (1..n, never rotated). The readable label/status lives in the legend band
+          below; this keeps the "boundary plane" read without the rotated-text noise. */}
       {planes.map((p, i) => {
         const strike = strikeFor(p.id);
         const violated = active && !!strike?.struck;
         const color = violated ? BAD : MUTED;
         return (
-          <motion.div
+          <div
             key={p.id}
-            data-constraint-plane={p.id}
-            data-violated={violated ? "true" : undefined}
-            initial={false}
-            animate={violated ? { opacity: [0.3, 1, 0.85] } : { opacity: 1 }}
-            transition={{ duration: 0.4, ease: "easeOut" }}
+            aria-hidden
             style={{ position: "absolute", top: "6%", bottom: "6%", right: `${ruleRightPct(i)}%` }}
           >
             {/* the boundary rule — 1px hairline, zero radius */}
@@ -688,45 +750,94 @@ function ConstraintFrame({
                 opacity: violated ? 0.9 : 0.55,
               }}
             />
-            {/* label runs DOWN the rule (vertical), terse uppercase .mono */}
+            {/* upright index tick — correlates this rule to its legend row below */}
             <span
               className="mono"
               style={{
                 position: "absolute",
-                top: 4,
-                right: 4,
-                writingMode: "vertical-rl",
-                fontSize: 9,
-                fontWeight: 600,
-                letterSpacing: "0.14em",
+                top: 2,
+                right: 3,
+                fontSize: 8,
+                fontWeight: 700,
+                letterSpacing: 0,
                 color,
-                whiteSpace: "nowrap",
               }}
             >
-              {p.label}
+              {i + 1}
             </span>
-            {/* persistent VIOLATED tally at the foot of a struck rule */}
-            {violated && (
+          </div>
+        );
+      })}
+      {/* T5 — horizontal CONSTRAINTS legend: one readable row per plane, docked along
+          the bottom of the gutter (clear of the StressTab's IntegrityGauge card, which
+          overlays the top-right of this same canvas outside this component), entirely
+          inside the reserved gutter so it never crosses the board. index → terse label
+          → status, reusing the exact engine-derived violated state + tally (no
+          writing-mode: vertical-rl, no overlap). */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: `${LEGEND_BOTTOM_PCT}%`,
+          right: 6,
+          width: `${RIGHT_GUTTER_PCT - 1}%`,
+          minWidth: 132,
+          display: "flex",
+          flexDirection: "column",
+          gap: 3,
+        }}
+      >
+        {planes.map((p, i) => {
+          const strike = strikeFor(p.id);
+          const violated = active && !!strike?.struck;
+          const color = violated ? BAD : MUTED;
+          return (
+            <motion.div
+              key={p.id}
+              data-constraint-plane={p.id}
+              data-violated={violated ? "true" : undefined}
+              initial={false}
+              animate={violated ? { opacity: [0.3, 1, 0.85] } : { opacity: 1 }}
+              transition={{ duration: 0.4, ease: "easeOut" }}
+              style={{ display: "flex", alignItems: "baseline", gap: 4, minWidth: 0 }}
+            >
+              <span className="mono" style={{ fontSize: 8, fontWeight: 700, color, flexShrink: 0 }}>
+                {i + 1}
+              </span>
               <span
                 className="mono"
                 style={{
-                  position: "absolute",
-                  bottom: 0,
-                  right: 4,
-                  writingMode: "vertical-rl",
-                  fontSize: 9,
-                  fontWeight: 700,
-                  letterSpacing: "0.14em",
-                  color: BAD,
+                  fontSize: 8,
+                  fontWeight: 600,
+                  letterSpacing: "0.02em",
+                  color,
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                  whiteSpace: "nowrap",
+                  flex: 1,
+                  minWidth: 0,
+                }}
+              >
+                {p.label}
+              </span>
+              {/* status — MET (muted) or the persistent VIOLATED ×n tally (bad), same
+                  engine-derived tally as before, just laid out horizontally now */}
+              <span
+                className="mono"
+                style={{
+                  fontSize: 8,
+                  fontWeight: violated ? 700 : 500,
+                  letterSpacing: "0.04em",
+                  color,
+                  flexShrink: 0,
                   whiteSpace: "nowrap",
                 }}
               >
-                {`VIOLATED ×${strike!.tally}`}
+                {violated ? `VIOLATED ×${strike!.tally}` : "MET"}
               </span>
-            )}
-          </motion.div>
-        );
-      })}
+            </motion.div>
+          );
+        })}
+      </div>
     </div>
   );
 }

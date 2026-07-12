@@ -13,9 +13,9 @@
 //  - Never 500 / never throw: every live path catches everything → fixture. fixture.ts is frozen.
 //  - The validation wall (validate.ts) shape-checks/repairs live output before the pure engine sees it;
 //    on any transport/validate failure the run() throws so retryOnce retries once, then catch → fixture.
-import type { Attack, Graph } from "@/engine";
+import type { Attack, Driver, Graph } from "@/engine";
 import { fixtureAttacks, fixtureGraph } from "./fixture";
-import { AttacksSchema, GraphSchema } from "./schemas";
+import { AttacksSchema, DriversSchema, GraphSchema } from "./schemas";
 import { validateAttacks, validateGraph } from "./validate";
 import { hasApiKey, structuredCall } from "./structured";
 import type { ScenarioId } from "@/context";
@@ -115,7 +115,8 @@ graph matching this JSON shape EXACTLY and return ONLY that JSON object (no pros
       "groups": [ { "kind": "AND" | "OR", "childIds": ["<other node ids>"] } ],
       "evidence": [ { "source": "<file path / url / notes, VERBATIM from a finding>",
                       "fact": "<the cited finding>",
-                      "stance": "supports" | "contradicts" } ] | null }
+                      "stance": "supports" | "contradicts" } ] | null,
+      "evidenceStrength": "weak" | "moderate" | "strong" }
   ]
 }
 
@@ -150,6 +151,8 @@ EVIDENCE & CONFIDENCE PROVENANCE (disarms "you invented these numbers"):
 - Set confidence HIGHER (0.7–0.9) when the cited findings DIRECTLY support the assumption; LOWER
   (0.3–0.55) when findings are ABSENT or when a "contradicts" citation applies.
 - An assumption with NO relevant finding MUST set "evidence": null. thesis/claim nodes set "evidence": null.
+- evidenceStrength: "strong" when >=2 specific, recent, corroborating findings back the assumption;
+  "weak" when thin/absent/dated; else "moderate". Assumptions only — omit it on thesis/claim nodes.
 
 GROUND THE STRUCTURE IN CONTEXT. Make the assumptions COMPANY-SPECIFIC, not generic — prefer
 assumptions the provided business/technical/temporal facts stress. When temporal context raises
@@ -324,4 +327,86 @@ export async function generateAttacks(
   scenario?: ScenarioId,
 ): Promise<Attack[]> {
   return (await generateAttacksWithSource(graph, pack, scenario)).attacks;
+}
+
+// ── DRIVERS (PROBABILISTIC) ──────────────────────────────────────────────
+const DRIVERS_SYSTEM = `Given this decision's assumptions, infer up to 5 latent common-mode factors (a shared vendor,
+a market/rate condition, one adoption bet, one team/capability constraint) that MULTIPLE assumptions
+depend on together — the correlation structure a naive independent-assumption model misses. For
+each factor, list the assumptionIds that load on it, with a loading in 0..1 (0 = no dependence, 1 =
+the assumption is fully determined by this factor). Only propose a driver that at least 2 assumptions
+load on with loading >= 0.3 — a factor only one assumption depends on isn't a common-mode risk.
+Return ONLY this JSON object (no prose):
+{ "drivers": [ { "id": "drv_<slug>", "label": "<short factor name>",
+                 "loadings": [ { "assumptionId": "<an assumption id from the graph>", "loading": 0.0-1.0 } ] } ] }`;
+
+/** Local, total clamp (NaN → 0). Self-contained, no import from validate.ts's private helper. */
+function clampLoading(n: number): number {
+  if (Number.isNaN(n)) return 0;
+  return Math.min(1, Math.max(0, n));
+}
+
+/**
+ * Repair pass over the schema-valid `emit_drivers` output (mirrors validateAttacks's
+ * repair-vs-reject shape, scoped to this one call):
+ *  - loadings whose assumptionId isn't in the graph → dropped (never surface a dangling ref).
+ *  - loading outside [0,1] / NaN → clamped.
+ *  - a driver with fewer than 2 loadings >= 0.3 → dropped (not a real common-mode factor).
+ *  - result capped at 5 drivers (per the brief; the prompt already asks for <=5).
+ * Never mutates the input graph or the parsed drivers.
+ */
+function repairDrivers(graph: Graph, drivers: Driver[]): Driver[] {
+  const assumptionIds = new Set(
+    graph.nodes.filter((n) => n.type === "assumption").map((n) => n.id),
+  );
+  const repaired = drivers
+    .map((d) => ({
+      id: d.id,
+      label: d.label,
+      loadings: d.loadings
+        .filter((l) => assumptionIds.has(l.assumptionId))
+        .map((l) => ({ assumptionId: l.assumptionId, loading: clampLoading(l.loading) })),
+    }))
+    .filter((d) => d.loadings.filter((l) => l.loading >= 0.3).length >= 2);
+  return repaired.slice(0, 5);
+}
+
+/** One live driver-inference attempt: throws on any network/parse/schema failure (retryOnce retries). */
+async function driversRun(graph: Graph): Promise<Driver[]> {
+  const assumptionLines = graph.nodes
+    .filter((n) => n.type === "assumption")
+    .map((n) => `- ${n.id}: ${n.label} (confidence ${n.confidence})`)
+    .join("\n");
+  const user = [`DECISION THESIS: ${graph.thesisId}`, `ASSUMPTIONS:\n${assumptionLines}`].join("\n\n");
+  const parsed = await structuredCall({
+    system: DRIVERS_SYSTEM,
+    user,
+    schema: DriversSchema,
+    toolName: "emit_drivers",
+    toolDescription: "Emit latent common-mode drivers shared across multiple assumptions.",
+  });
+  return repairDrivers(graph, parsed.drivers);
+}
+
+/**
+ * Infer latent common-mode `Driver`s over a graph's assumptions — the new PROBABILISTIC-layer
+ * input (Task 4) that feeds the Monte-Carlo solver's correlated sampling. Unlike
+ * extractStructure/generateAttacks there is NO fixture fallback: Drivers are a purely additive
+ * signal the deterministic engine never needed, so degrading to `[]` (the solver's
+ * independent-assumption default) IS the demo-safe fallback, not a stand-in for one. Returns `[]`
+ * when no API key is present OR on ANY caught error — this must never throw.
+ *
+ * `apiKey` is accepted for interface parity with the brief's signature but is NOT wired into the
+ * transport: `structuredCall` (src/llm/structured.ts, out of scope for this task) always reads
+ * `ANTHROPIC_API_KEY` from the environment, so an explicit override has no effect here. Gating
+ * uses `hasApiKey()` only, exactly like every other live path in this file.
+ */
+export async function generateDrivers(graph: Graph, apiKey?: string): Promise<Driver[]> {
+  void apiKey;
+  if (!hasApiKey()) return [];
+  try {
+    return await retryOnce(() => driversRun(graph));
+  } catch {
+    return [];
+  }
 }

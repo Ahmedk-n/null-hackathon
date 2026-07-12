@@ -27,6 +27,7 @@ import {
 import { STRATUM_LEVEL } from "@/canvas/depth";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { MiniStructure, layoutStructure } from "@/ui/MiniStructure";
+import { usePrefersReducedMotion } from "@/ui/useReducedMotion";
 import {
   BAD,
   CLAIM,
@@ -133,6 +134,11 @@ export function LivePipeline({
   const [tick, setTick] = useState(0);
   const [fading, setFading] = useState(false);
   const [hovered, setHovered] = useState<StageKey | null>(null);
+  // A-3: the master clock keeps running (it also paces real-data polling elsewhere), but under
+  // prefers-reduced-motion we stop treating it as an artificial minimum dwell/cinematic floor —
+  // a stage resolves the instant its REAL data is ready, and the stage-beat pulse/particles (pure
+  // decoration) are suppressed. CSS transitions for the rest are killed globally in theme.css.
+  const reducedMotion = usePrefersReducedMotion();
 
   // Cleanup-safe master clock. Elapsed = tick × TICK_MS (since mount) — never a wall-clock read.
   useEffect(() => {
@@ -184,7 +190,7 @@ export function LivePipeline({
   const rows = useMemo(() => {
     let sawActive = false;
     const out = STAGES.map((s) => {
-      const dwellPassed = tick >= MIN[s.key];
+      const dwellPassed = reducedMotion || tick >= MIN[s.key];
       const resolved = realDone[s.key] || skipped[s.key];
       let status: StageStatus;
       if (dwellPassed && resolved) status = "done";
@@ -202,7 +208,7 @@ export function LivePipeline({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tick, packReady, graphReady, attacksReady, runDone, gatherRan, stage]);
+  }, [tick, packReady, graphReady, attacksReady, runDone, gatherRan, stage, reducedMotion]);
 
   // ── Record real elapsed-at-completion per stage (effect, not render — deterministic). ──
   const doneAt = useRef<Partial<Record<StageKey, number>>>({});
@@ -224,11 +230,15 @@ export function LivePipeline({
     if (dismissedRef.current) return;
     dismissedRef.current = true;
     setFading(true);
-    setTimeout(() => onDismissRef.current(), FADE_MS);
+    // A-3: the fade transition itself is killed via theme.css under reduced motion, so don't
+    // also sit on a dark, static overlay for FADE_MS with nothing visibly happening — hand off
+    // immediately.
+    setTimeout(() => onDismissRef.current(), reducedMotion ? 0 : FADE_MS);
   }
 
-  // Auto-dismiss on real completion, but never before the min cinematic beat.
-  const readyToDismiss = runDone && tick >= MIN_TOTAL_TICKS;
+  // Auto-dismiss on real completion, but never before the min cinematic beat (A-3: skip that
+  // floor under reduced motion — dismiss the moment the real run is done).
+  const readyToDismiss = runDone && (reducedMotion || tick >= MIN_TOTAL_TICKS);
   useEffect(() => {
     if (readyToDismiss) dismiss();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -261,15 +271,18 @@ export function LivePipeline({
   }, [workingGraph, keystoneId]);
 
   // SOLVE reveal — deterministic on tick, starts once the structure exists (after EXTRACT dwell).
-  const solveProgress = clamp((tick - MIN.extract) / 16, 0, 1);
-  const genTick = Math.max(0, tick - MIN.extract);
+  // A-3: reduced motion jumps both straight to their end value (support rows all filled, every
+  // MiniStructure node past its `appear` tick) instead of ramping/staggering in.
+  const solveProgress = reducedMotion ? 1 : clamp((tick - MIN.extract) / 16, 0, 1);
+  const genTick = reducedMotion ? Number.MAX_SAFE_INTEGER : Math.max(0, tick - MIN.extract);
   const keystoneFailed = keystoneId != null && failures.has(keystoneId);
 
   const dim = (k: StageKey) => (hovered && hovered !== k ? 0.34 : 1);
   const tooltip = hovered ? STAGES.find((s) => s.key === hovered)?.explain ?? "" : "";
 
-  // A deterministic blink for the ● RUNNING pulse (no timers of its own).
-  const pulse = tick % 4 < 2;
+  // A deterministic blink for the ● RUNNING pulse (no timers of its own) — held steady (no
+  // flicker) under reduced motion (A-3).
+  const pulse = reducedMotion ? true : tick % 4 < 2;
 
   return (
     <div
@@ -405,6 +418,7 @@ export function LivePipeline({
                 flowInto={i < rows.length - 1}
                 flowActive={r.status !== "queued" && rows[i + 1]?.status === "active"}
                 tick={tick}
+                reducedMotion={reducedMotion}
               />
             );
           })}
@@ -643,6 +657,7 @@ function StageCard({
   flowInto,
   flowActive,
   tick,
+  reducedMotion,
 }: {
   n: string;
   name: string;
@@ -657,6 +672,7 @@ function StageCard({
   flowInto: boolean;
   flowActive: boolean;
   tick: number;
+  reducedMotion: boolean;
 }) {
   const accent = status === "done" ? OK : status === "active" ? KEYSTONE : HAIR_STRONG;
   const inkColor = status === "queued" ? MUTED : INK;
@@ -753,7 +769,10 @@ function StageCard({
           }}
         >
           <line x1={0} y1={5} x2={16} y2={5} stroke={HAIR_STRONG} strokeWidth={0.8} />
+          {/* A-3: the traveling dots are pure decoration (provenance already reads from the
+              LIVE/CACHED chip + ✓/RUNNING/QUEUED state) — suppressed under reduced motion. */}
           {flowActive &&
+            !reducedMotion &&
             [0, 0.5].map((off) => {
               const t = ((tick / 8 + off) % 1);
               return <circle key={off} cx={t * 16} cy={5} r={1.6} fill={CLAIM} />;
