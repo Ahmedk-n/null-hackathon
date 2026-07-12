@@ -16,3 +16,18 @@ export const WeightingSchema = z.object({
 });
 
 export type WeightingOutput = z.infer<typeof WeightingSchema>;
+
+// Skeptic debate agent (Phase 3, Task 4): the 1–3 unstated assumptions the situation hides,
+// each grounded in a finding, plus a one-sentence fracture narrative.
+const HiddenAssumptionSchema = z.object({
+  label: z.string(),
+  why: z.string(),
+  evidenceRefs: z.array(z.string()),
+});
+
+export const SkepticSchema = z.object({
+  hiddenAssumptions: z.array(HiddenAssumptionSchema),
+  fractureNarrative: z.string(),
+});
+
+export type SkepticOutput = z.infer<typeof SkepticSchema>;
