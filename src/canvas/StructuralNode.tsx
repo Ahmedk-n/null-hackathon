@@ -3,21 +3,9 @@ import { Handle, Position } from "@xyflow/react";
 import { motion } from "motion/react";
 import { useState } from "react";
 import type { NodeType, NodeEvidence } from "@/engine";
-import {
-  THESIS,
-  CLAIM,
-  ASSUMPTION,
-  KEYSTONE,
-  BAD,
-  BAD_BG,
-  PANEL,
-  INK,
-  INK_2,
-  MUTED,
-  HAIR_STRONG,
-  OK,
-  WARN,
-} from "@/ui/tokens";
+// Crack/debris SVG overlays keep the JS token reds; the node's clean-modern frame,
+// eyebrow and evidence plate now use theme-aware CSS vars (see `V` below).
+import { KEYSTONE, BAD, INK, MUTED } from "@/ui/tokens";
 import { LAYER_Z as STRATUM_Z, EVIDENCE_Z, KEYSTONE_Z_BUMP } from "./depth";
 
 // V9-1 · minimalist node box — smaller/cleaner than the old 200×72. The evidence plate,
@@ -30,13 +18,32 @@ import { LAYER_Z as STRATUM_Z, EVIDENCE_Z, KEYSTONE_Z_BUMP } from "./depth";
 const NODE_W = 150;
 const NODE_H = 68;
 
+// Clean-modern (2026-07 redesign) palette — theme-aware CSS vars so the node reads on
+// the new white cards in light + dark. The imported JS token constants stay in use for
+// the crack/debris SVG overlays (hardcoded reds) below.
+const V = {
+  thesis: "var(--thesis)",
+  claim: "var(--claim)",
+  assumption: "var(--assumption)",
+  keystone: "var(--keystone)",
+  accent: "var(--accent)",
+  bad: "var(--bad)",
+  badBg: "var(--bad-bg)",
+  panel: "var(--panel)",
+  ink: "var(--ink)",
+  muted: "var(--muted)",
+  hairStrong: "var(--hair-strong)",
+  ok: "var(--ok)",
+  warn: "var(--warn)",
+} as const;
+
 // V9-1 · a single integrity/status dot replaces the always-on confidence readout at rest.
 // green = grounded/high, amber = soft, red = weak or failed.
 function statusColor(confidence: number, isFailed: boolean): string {
-  if (isFailed) return BAD;
-  if (confidence >= 0.66) return OK;
-  if (confidence >= 0.4) return WARN;
-  return BAD;
+  if (isFailed) return V.bad;
+  if (confidence >= 0.66) return V.ok;
+  if (confidence >= 0.4) return V.warn;
+  return V.bad;
 }
 
 /**
@@ -113,8 +120,8 @@ export interface StructuralNodeData {
   [key: string]: unknown;
 }
 
-// Light-ledger accents per structural role (plan §1.1). Keystone overrides to red.
-const ACCENT: Record<NodeType, string> = { thesis: THESIS, claim: CLAIM, assumption: ASSUMPTION };
+// Accent per structural role (clean-modern). Keystone overrides to red, thesis to accent.
+const ACCENT: Record<NodeType, string> = { thesis: V.thesis, claim: V.claim, assumption: V.assumption };
 
 // V4-1 — Z ENCODES reasoning depth (shared single source in ./depth): thesis highest,
 // descending claims → assumptions → evidence. The canvas passes each node's resting
@@ -134,11 +141,21 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const selected = data.selected ?? false;
   const expand = showDetail || selected;
 
-  const accent = data.isKeystone ? KEYSTONE : ACCENT[data.type];
-  // Task 7 · the load-bearing left edge takes the dominant-driver cluster colour when tagged
-  // (assumptions), so the board reads its shared-failure grouping; the thin frame keeps the
-  // type accent. A failed node's red frame always wins (failure signal is never overridden).
-  const edgeAccent = !data.isFailed && data.clusterColor ? data.clusterColor : accent;
+  const accent = data.isKeystone ? V.keystone : ACCENT[data.type];
+  // Clean-modern frame: soft neutral border for claims/assumptions; the type colour only
+  // paints the frame for the two load-bearing roles (thesis → accent, keystone → red). A
+  // failed node's red frame always wins (failure signal is never overridden).
+  const frameColor = data.isFailed
+    ? V.bad
+    : data.isKeystone
+      ? V.keystone
+      : data.type === "thesis"
+        ? V.accent
+        : V.hairStrong;
+  // Task 7 · a tagged assumption keeps a colored 3px LEFT edge = its dominant-driver cluster,
+  // so the board still reads its shared-failure grouping; untagged nodes stay a clean uniform
+  // frame (matches the mockup's plain rounded boxes).
+  const clusterEdge = !data.isFailed && !data.isKeystone && data.clusterColor;
   const dotColor = statusColor(data.confidence, data.isFailed);
   const restingZ = data.translateZ ?? LAYER_Z[data.type] + (data.isKeystone ? KEYSTONE_Z_BUMP : 0);
   // V4-1 — stratum focus dims the strata you're not inspecting.
@@ -147,15 +164,16 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   // The evidence plate sits on the L3 plane regardless of this node's own elevation.
   const plateZDelta = EVIDENCE_Z - restingZ;
 
-  const showCracks = data.isFailed || data.isKeystone;
-  // A failed keystone shatters hardest.
-  const crackStrength = data.isFailed && data.isKeystone ? 1 : data.isKeystone ? 0.55 : 0.75;
+  // Clean-modern: the standing keystone stays clean (red frame + ring carry the signal);
+  // cracks draw only on actual failure (the attacked state). A failed keystone shatters hardest.
+  const showCracks = data.isFailed;
+  const crackStrength = data.isFailed && data.isKeystone ? 1 : 0.75;
 
-  // Contact shadow grows with elevation → stacked-plates depth. The keystone's outer
-  // rim glow is owned by <KeystoneGlow/> (W1-7); the node keeps just the inset ring.
-  const contact = `0 ${6 + restingZ / 4}px ${10 + restingZ / 3}px rgba(26,26,21,0.16)`;
-  const keystoneRing = "inset 0 0 0 1px rgba(178,58,46,0.35)";
-  const restingShadow = data.isKeystone ? `${keystoneRing}, ${contact}` : contact;
+  // Clean-modern elevation: a soft card shadow at rest; the keystone adds a red-weak ring
+  // (matches the mockup). The keystone's outer rim glow is owned by <KeystoneGlow/> (W1-7).
+  const restingShadow = data.isKeystone
+    ? "0 0 0 3px var(--bad-bg), var(--shadow-sm)"
+    : "var(--shadow-sm)";
   const failedShadow = `0 0 18px rgba(178,58,46,0.5), 0 16px 26px rgba(26,26,21,0.28)`;
 
   const collapseDelay = data.collapseDelay ?? 0;
@@ -209,18 +227,19 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         position: "relative",
         width: NODE_W,
         height: NODE_H,
-        border: `1px solid ${accent}`,
-        borderLeft: `3px solid ${edgeAccent}`,
-        background: data.isFailed ? BAD_BG : PANEL,
+        borderRadius: "var(--radius)",
+        border: `1px solid ${frameColor}`,
+        borderLeft: clusterEdge ? `3px solid ${data.clusterColor}` : `1px solid ${frameColor}`,
+        background: data.isFailed ? V.badBg : V.panel,
         boxShadow: data.isFailed ? failedShadow : restingShadow,
-        // V9-1 · a selected node draws a calm ring so the board still reads which node the
+        // V9-1 · a selected node draws a calm accent ring so the board still reads which node the
         // SelectionPanel is describing, without adding on-canvas text.
-        outline: selected && !data.isFailed ? `1.5px solid ${accent}` : undefined,
+        outline: selected && !data.isFailed ? `1.5px solid ${V.accent}` : undefined,
         outlineOffset: 2,
-        filter: hover && !data.isFailed ? "brightness(1.04)" : "none",
-        padding: 7,
+        filter: hover && !data.isFailed ? "brightness(1.02)" : "none",
+        padding: "8px 10px",
         boxSizing: "border-box",
-        color: INK,
+        color: V.ink,
       }}
     >
       {/* W1-7 — keystone tension telegraph: breathing pulse under load, bright flare
@@ -237,10 +256,10 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
           alignItems: "center",
           fontFamily: "var(--sans)",
           fontSize: 9,
-          fontWeight: 600,
-          letterSpacing: "0.12em",
+          fontWeight: 650,
+          letterSpacing: "0.07em",
           textTransform: "uppercase",
-          color: accent,
+          color: data.isFailed ? V.bad : data.isKeystone ? V.keystone : V.muted,
         }}
       >
         <span style={{ display: "flex", alignItems: "center", gap: 6, minWidth: 0 }}>
@@ -267,9 +286,15 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         {expand && (
           <span
             className="mono"
-            style={{ fontSize: 10, color: data.isFailed ? BAD : MUTED, flex: "0 0 auto" }}
+            style={{
+              fontSize: 10,
+              color: data.isFailed ? V.bad : V.muted,
+              flex: "0 0 auto",
+              textTransform: "none",
+              letterSpacing: "normal",
+            }}
           >
-            {data.confidence.toFixed(2)}
+            {`conf ${data.confidence.toFixed(2)}`}
           </span>
         )}
       </div>
@@ -513,7 +538,7 @@ function EvidencePlate({
           top: 0,
           width: 1,
           height: 16,
-          background: HAIR_STRONG,
+          background: V.hairStrong,
           transform: "translateX(-0.5px)",
         }}
       />
@@ -533,11 +558,12 @@ function EvidencePlate({
           left: 14,
           right: 14,
           top: 16,
-          border: `1px solid ${HAIR_STRONG}`,
-          borderLeft: `2px solid ${ASSUMPTION}`,
-          background: PANEL,
-          padding: "3px 6px",
-          borderRadius: 0,
+          border: `1px solid ${V.hairStrong}`,
+          borderLeft: `2px solid ${V.assumption}`,
+          background: V.panel,
+          padding: "4px 7px",
+          borderRadius: "var(--radius-sm)",
+          boxShadow: "var(--shadow-sm)",
         }}
       >
         <div
@@ -545,7 +571,7 @@ function EvidencePlate({
           style={{
             fontSize: 8,
             letterSpacing: "0.08em",
-            color: MUTED,
+            color: V.muted,
             whiteSpace: "nowrap",
             overflow: "hidden",
             textOverflow: "ellipsis",
@@ -553,19 +579,19 @@ function EvidencePlate({
         >
           {primary.source}
         </div>
-        <div style={{ fontSize: 9, color: INK_2, lineHeight: 1.3, marginTop: 1 }}>{fact}</div>
+        <div style={{ fontSize: 9, color: "var(--ink-2)", lineHeight: 1.3, marginTop: 1 }}>{fact}</div>
         {contra && (
           <div
             data-testid="evidence-contradicts"
-            style={{ marginTop: 3, paddingTop: 3, borderTop: `1px solid ${BAD_BG}` }}
+            style={{ marginTop: 3, paddingTop: 3, borderTop: `1px solid ${V.badBg}` }}
           >
             <div
               className="mono"
-              style={{ fontSize: 8, letterSpacing: "0.1em", color: BAD }}
+              style={{ fontSize: 8, letterSpacing: "0.1em", color: V.bad }}
             >
               CONTRADICTS · {contra.source}
             </div>
-            <div style={{ fontSize: 9, color: BAD, lineHeight: 1.3, marginTop: 1 }}>
+            <div style={{ fontSize: 9, color: V.bad, lineHeight: 1.3, marginTop: 1 }}>
               {clip(contra.fact)}
             </div>
           </div>
@@ -592,7 +618,7 @@ function UngroundedDrop({ hover, dimmed }: { hover: boolean; dimmed: boolean }) 
       }}
     >
       <svg width={2} height={30} viewBox="0 0 2 30" style={{ overflow: "visible", display: "block" }}>
-        <line x1={1} y1={0} x2={1} y2={30} stroke={HAIR_STRONG} strokeWidth={1} strokeDasharray="2 3" />
+        <line x1={1} y1={0} x2={1} y2={30} stroke={V.hairStrong} strokeWidth={1} strokeDasharray="2 3" />
       </svg>
       {hover && (
         <span
@@ -603,7 +629,7 @@ function UngroundedDrop({ hover, dimmed }: { hover: boolean; dimmed: boolean }) 
             top: 20,
             fontSize: 8,
             letterSpacing: "0.14em",
-            color: MUTED,
+            color: V.muted,
             whiteSpace: "nowrap",
           }}
         >
