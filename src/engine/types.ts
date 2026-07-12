@@ -52,11 +52,18 @@ export interface GraphNode {
    * edited belief). Undefined means untouched (LLM- or fixture-authored).
    */
   provenance?: "modified";
+  /**
+   * PROBABILISTIC · assumption-only evidence strength → Monte-Carlo sampling spread. Engine-inert.
+   * Undefined defaults to "moderate" in the solver.
+   */
+  evidenceStrength?: EvidenceStrength;
 }
 
 export interface Graph {
   nodes: GraphNode[];
   thesisId: string;
+  /** PROBABILISTIC · latent common-mode drivers. Engine-inert; consumed only by probabilistic.ts. */
+  drivers?: Driver[];
 }
 
 export interface Attack {
@@ -66,4 +73,37 @@ export interface Attack {
   /** How much this attack undermines its target, 0..1. */
   severity: number;
   rationale: string;
+}
+
+/**
+ * PROBABILISTIC MODEL additions (2026-07). All OPTIONAL, purely additive, ENGINE-INERT:
+ * the pure solver (propagation/sensitivity/load/cascade) NEVER reads these. They feed the
+ * separate Monte-Carlo brain in `probabilistic.ts`. Kept engine-inert exactly like `evidence`.
+ */
+
+/** How solid an assumption's cited evidence is → maps to sampling spread. Assumptions only. */
+export type EvidenceStrength = "weak" | "moderate" | "strong";
+
+/**
+ * A latent common-mode factor several assumptions share (a vendor, an adoption bet, a rate
+ * environment). `loading ∈ [0,1]` is the magnitude of an assumption's dependence on it; a driver
+ * "failing" pushes every loaded assumption's confidence DOWN together. This is the correlation
+ * structure the naive independent product ignores.
+ */
+export interface Driver {
+  id: string;
+  label: string;
+  loadings: { assumptionId: string; loading: number }[];
+}
+
+/** Output of the Monte-Carlo brain. Integrity as a distribution, not a point. */
+export interface ProbabilisticResult {
+  pHold: number;                 // fraction of samples with thesis support >= FAILURE_THRESHOLD
+  mean: number;                  // mean integrity, 0..100
+  band: [number, number];        // [p05, p95] of integrity
+  samples: number;               // N used
+  keystoneDrivers: { id: string; label: string; sensitivity: number }[];   // Sobol first-order, desc
+  keystoneAssumptions: { id: string; influence: number }[];                // squared corr(y, c_i), desc
+  clusters: { driverId: string; label: string; assumptionIds: string[]; variance: number; loadBearing: number }[];
+  coFailure: { driverId: string; label: string; assumptionIds: string[] }[]; // who falls together on a low-driver shock
 }
