@@ -1,7 +1,13 @@
 "use client";
 import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
-import { keystoneStore, useKeystone, selectProbabilistic, selectCalibration } from "@/store/useKeystone";
+import {
+  keystoneStore,
+  useKeystone,
+  selectProbabilistic,
+  selectCalibration,
+  selectCalibrationIsSample,
+} from "@/store/useKeystone";
 import { CLUSTER_PALETTE } from "@/ui/tokens";
 // GRAPH shows the CLEAN STANDING structure — baseline numbers come straight from the
 // pure engine on the base graph, never the store's post-stress (workingGraph) selectors.
@@ -204,6 +210,10 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   // P2-T5 · the caller's cross-decision track record (null until KeystoneApp's fetch effect
   // resolves). Threaded straight to the gauge for the RAW → CALIBRATED line.
   const calibration = useKeystone(selectCalibration);
+  // Phase 2 whole-feature fix (honesty bug): true ONLY for the guest/offline illustrative
+  // fixture — threaded to the gauge so it never words a fabricated bias as the signed-in
+  // caller's own track record.
+  const calibrationIsSample = useKeystone(selectCalibrationIsSample);
   const pack = useKeystone((s) => s.decisionContextPack);
   const contextAdjustments = pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS;
   // V4-2 — the pack's constraints as boundary planes (mirrors contextAdjustments' flow).
@@ -311,7 +321,12 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
             assumption), the first thing you see. */}
         <div>
           <SectionHeader>Verdict</SectionHeader>
-          <IntegrityGauge value={integrityValue} probabilistic={probabilistic} calibration={calibration} />
+          <IntegrityGauge
+            value={integrityValue}
+            probabilistic={probabilistic}
+            calibration={calibration}
+            calibrationIsSample={calibrationIsSample}
+          />
           <LedgerRow label="Keystone" value={keystoneId ?? "—"} accent="var(--keystone)" />
           <LedgerRow
             label="Weakest Assumption"

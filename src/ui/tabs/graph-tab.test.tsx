@@ -173,4 +173,44 @@ describe("GraphTab — P2-T5 raw → calibrated P(hold)", () => {
 
     keystoneStore.getState().setCalibration(null);
   });
+
+  // Phase 2 whole-feature fix (honesty bug): a guest (or any isSample:true caller) is shown an
+  // explicit "illustrative sample" caption — never worded as their own track record.
+  it("guest/sample calibration reads as an illustrative sample, not the caller's track record", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setCalibration(negBiasCalibration, true);
+
+    render(<GraphTab />);
+
+    const line = screen.getByTestId("calibration-line");
+    expect(line.textContent).toMatch(/illustrative sample/i);
+    expect(line.textContent).not.toMatch(/your track record/i);
+
+    keystoneStore.getState().setCalibration(null);
+  });
+
+  // Phase 2 whole-feature fix (honesty bug): a signed-in caller with a real but EMPTY record
+  // (sampleCount 0, isSample false) must never see a fabricated personal bias — RAW P(hold) only,
+  // no calibrated line, and critically no "your track record" string anywhere on screen (there is
+  // nothing to word, honestly or otherwise).
+  it("signed-in empty record (sampleCount 0, isSample false) shows RAW only — no track-record claim", () => {
+    keystoneStore.getState().setGraph(fixtureContextGraph());
+    keystoneStore.getState().applyLoad(fixtureContextAttacks());
+    keystoneStore.getState().setCalibration(
+      { bias: 0, sampleCount: 0, rawHoldRate: 0, predictedMean: 0, categoryRates: {} },
+      false,
+    );
+
+    render(<GraphTab />);
+
+    // The RAW P(hold) headline still renders (the solve is real)...
+    expect(screen.getByTestId("phold-headline")).toBeTruthy();
+    // ...but no calibrated claim, sample disclosure, or track-record wording anywhere.
+    expect(screen.queryByTestId("calibration-line")).toBeNull();
+    expect(screen.queryByText(/your track record/i)).toBeNull();
+    expect(screen.queryByText(/illustrative sample/i)).toBeNull();
+
+    keystoneStore.getState().setCalibration(null);
+  });
 });

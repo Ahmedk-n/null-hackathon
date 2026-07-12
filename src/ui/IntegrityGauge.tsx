@@ -9,11 +9,18 @@ import { applyCalibration, type Calibration } from "@/engine/calibrate";
 import { OK, WARN, BAD, HAIR, HAIR_STRONG, MUTED } from "@/ui/tokens";
 
 // P2-T5 · one-line reading of the bias direction, named the way a founder would read it: a
-// negative bias means resolved decisions held MORE often than the model predicted (the caller
-// tends to over-hold / under-rate their own thesis's odds); positive means the reverse. Small
-// |bias| reads as "well-calibrated" rather than forcing a direction onto noise.
-function calibrationReading(cal: Calibration): string {
+// negative bias means resolved decisions held LESS often than the model predicted (the caller
+// tends to over-hold / discount their own thesis's odds too optimistically); positive means the
+// reverse (under-rate). Small |bias| reads as "well-calibrated" rather than forcing a direction
+// onto noise.
+//
+// Phase 2 whole-feature fix (honesty bug): `isSample` is true ONLY for the guest/offline fixture
+// (see fetchCalibration's CalibrationResult.isSample) — it must never be worded as the caller's
+// own track record, so it gets its own illustrative-sample caption instead of the "your track
+// record" lines below.
+function calibrationReading(cal: Calibration, isSample: boolean): string {
   const n = `n=${cal.sampleCount}`;
+  if (isSample) return `Illustrative sample calibration — resolve your own decisions to personalize · ${n}`;
   if (Math.abs(cal.bias) < 0.05) return `Well-calibrated · ${n}`;
   if (cal.bias < 0) return `Adjusted for your track record — you tend to over-hold · ${n}`;
   return `Adjusted for your track record — you tend to under-rate · ${n}`;
@@ -50,6 +57,7 @@ export function IntegrityGauge({
   value,
   probabilistic = null,
   calibration = null,
+  calibrationIsSample = false,
 }: {
   value: number;
   /**
@@ -67,6 +75,13 @@ export function IntegrityGauge({
    * raw-only (no calibrated claim rendered).
    */
   calibration?: Calibration | null;
+  /**
+   * Phase 2 whole-feature fix (honesty bug) · true ONLY when `calibration` is the guest/offline
+   * illustrative fixture, never for a signed-in caller's real record. Swaps the caption beneath
+   * the RAW→CALIBRATED line from "your track record" wording to an explicit "illustrative
+   * sample" disclosure, so a fabricated bias is never attributed to the viewer.
+   */
+  calibrationIsSample?: boolean;
 }) {
   const r = 46;
   const circumference = 2 * Math.PI * r;
@@ -154,7 +169,7 @@ export function IntegrityGauge({
             {`RAW ${pHoldPct}% → CALIBRATED ${calibratedPct}%`}
           </div>
           <div className="label" style={{ marginTop: 2, color: MUTED, fontSize: 9 }}>
-            {calibrationReading(calibration)}
+            {calibrationReading(calibration, calibrationIsSample)}
           </div>
         </div>
       )}

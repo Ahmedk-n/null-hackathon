@@ -117,13 +117,15 @@ export default function KeystoneApp({
   const { user } = useSession();
 
   // P2-T5 · fetch the cross-decision calibration once auth resolves, and again whenever it changes
-  // (sign-in/out swaps guest-fixture ⟷ real per-user calibration). fetchCalibration never throws
-  // (network/parse failures fall back to the fixture internally), so no catch is needed here; the
-  // effect just pushes whatever it resolves to into the store via setCalibration.
+  // (sign-in/out swaps guest-fixture ⟷ real per-user calibration). fetchCalibration never throws —
+  // guest sessions resolve to the offline fixture (isSample: true); signed-in sessions resolve to
+  // their real record, empty or not, and NEVER the fixture, even on network/parse failure
+  // (isSample: false) — so no catch is needed here. The effect just pushes both fields into the
+  // store via setCalibration.
   useEffect(() => {
     let cancelled = false;
-    fetchCalibration(!user).then((calibration) => {
-      if (!cancelled) keystoneStore.getState().setCalibration(calibration);
+    fetchCalibration(!user).then(({ calibration, isSample }) => {
+      if (!cancelled) keystoneStore.getState().setCalibration(calibration, isSample);
     });
     return () => {
       cancelled = true;

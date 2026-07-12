@@ -77,6 +77,7 @@ export async function remoteDuplicate(id: string): Promise<LibraryEntry | null> 
     pack: source.pack,
     graph: source.graph,
     verdict: source.verdict,
+    predictedPHold: source.predictedPHold ?? null,
   });
 }
 

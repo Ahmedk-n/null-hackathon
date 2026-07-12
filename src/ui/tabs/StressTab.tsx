@@ -22,6 +22,7 @@ import {
   selectFailures,
   selectProbabilistic,
   selectCalibration,
+  selectCalibrationIsSample,
 } from "@/store/useKeystone";
 import type { ProbabilisticResult } from "@/engine";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
@@ -1018,6 +1019,10 @@ export function StressTab({
   // P2-T5 · the caller's cross-decision track record (null until KeystoneApp's fetch effect
   // resolves). Threaded straight to the gauge for the RAW → CALIBRATED line.
   const calibration = useKeystone(selectCalibration);
+  // Phase 2 whole-feature fix (honesty bug): true ONLY for the guest/offline illustrative
+  // fixture — threaded to the gauge so it never words a fabricated bias as the signed-in
+  // caller's own track record.
+  const calibrationIsSample = useKeystone(selectCalibrationIsSample);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -1196,7 +1201,12 @@ export function StressTab({
             padding: 8,
           }}
         >
-          <IntegrityGauge value={integrityValue} probabilistic={probabilistic} calibration={calibration} />
+          <IntegrityGauge
+            value={integrityValue}
+            probabilistic={probabilistic}
+            calibration={calibration}
+            calibrationIsSample={calibrationIsSample}
+          />
         </div>
       </div>
   );
