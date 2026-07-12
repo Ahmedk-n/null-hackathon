@@ -217,6 +217,9 @@ export function createKeystoneStore() {
         set({ editError: "Rename rejected — the structure would be invalid." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // (via validateManualEdit) strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
       // Non-structural: PRESERVE the current stress state. Mirror the edit onto the working
       // graph in place (same node id) so an attacked structure keeps its verdict.
       let nextWorking = workingGraph;
@@ -227,6 +230,7 @@ export function createKeystoneStore() {
           wNode.label = label;
           wNode.provenance = "modified";
         }
+        nextWorking.drivers = workingGraph.drivers;
       }
       set({ baseGraph: validated, workingGraph: nextWorking, editError: null });
     },
@@ -252,9 +256,14 @@ export function createKeystoneStore() {
         set({ editError: "Delete rejected — the remaining Structure would be invalid." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(validated);
+      nextWorking.drivers = baseGraph.drivers;
       set({
         baseGraph: validated,
-        workingGraph: cloneGraph(validated),
+        workingGraph: nextWorking,
         // If the deleted (or an orphaned) node was selected, drop the stale selection.
         selectedNodeId:
           selectedNodeId && validated.nodes.some((n) => n.id === selectedNodeId)
@@ -299,9 +308,14 @@ export function createKeystoneStore() {
         set({ editError: "Add rejected — the Structure would exceed the node limit." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(validated);
+      nextWorking.drivers = baseGraph.drivers;
       set({
         baseGraph: validated,
-        workingGraph: cloneGraph(validated),
+        workingGraph: nextWorking,
         selectedNodeId: id,
         attacks: [],
         rawAttacks: [],
@@ -331,9 +345,14 @@ export function createKeystoneStore() {
         set({ editError: "Flip rejected — the Structure would be invalid." });
         return;
       }
+      // Preserve the engine-inert drivers onto the rebuilt base/working graphs — cloneGraph
+      // strips them; see setGraph for the same idiom.
+      validated.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(validated);
+      nextWorking.drivers = baseGraph.drivers;
       set({
         baseGraph: validated,
-        workingGraph: cloneGraph(validated),
+        workingGraph: nextWorking,
         attacks: [],
         rawAttacks: [],
         loadApplied: false,
