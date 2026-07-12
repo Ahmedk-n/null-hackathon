@@ -2,6 +2,9 @@
 import { useMemo, useState } from "react";
 import type { Graph, GraphNode } from "@/engine";
 import { computeSupport, rankLoadBearing } from "@/engine";
+// P3-T8 · type-only — the council's per-node contextual weighting is server-produced and pushed
+// into the store; this client only READS it (boundary-clean; no `@/agents` value import).
+import type { NodeWeighting } from "@/agents/council/types";
 import { THESIS, CLAIM, ASSUMPTION, KEYSTONE, HAIR_STRONG, OK, WARN, BAD } from "@/ui/tokens";
 import { LedgerRow, SectionHeader, Field, Button, Chip } from "@/ui/primitives";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
@@ -286,6 +289,7 @@ export function SelectionPanel({
   graph,
   selectedNodeId,
   keystoneId,
+  nodeWeights,
   onRename,
   onSetConfidence,
   onAddAssumption,
@@ -296,6 +300,10 @@ export function SelectionPanel({
   graph: Graph | null;
   selectedNodeId: string | null;
   keystoneId: string | null;
+  // P3-T8 · the grounded council's per-node contextual weightings (undefined when no grounded
+  // council). When the selected node has an entry, its context weight + rationale surface below
+  // the metrics — the situation-aware "how load-bearing is THIS node given the decision".
+  nodeWeights?: readonly NodeWeighting[];
 } & SelectionEditHandlers) {
   // Editing is enabled when the studio wires at least one action (kept off for the pure
   // read-only render in the V3-6 provenance test).
@@ -320,6 +328,13 @@ export function SelectionPanel({
 
     return { node, support, impact, feeds };
   }, [graph, selectedNodeId]);
+
+  // P3-T8 · the council's contextual weighting for the selected node (if a grounded council
+  // scored it). Read-only; resolves by id straight from the props.
+  const weight = useMemo(
+    () => (selectedNodeId ? nodeWeights?.find((w) => w.nodeId === selectedNodeId) ?? null : null),
+    [nodeWeights, selectedNodeId],
+  );
 
   return (
     // Task 7 · roomier detail panel. The old panel crammed the label, four metric rows, the FEEDS
@@ -371,6 +386,24 @@ export function SelectionPanel({
                 </span>
               )}
             </div>
+            {/* P3-T8 · CONTEXT WEIGHT — the council's situation-aware read of how load-bearing this
+                node is GIVEN the decision, with its grounded rationale. Only when the (grounded)
+                council scored this node; otherwise the panel is unchanged. */}
+            {weight ? (
+              <div style={{ marginTop: 14 }} data-testid="council-node-weight">
+                <span className="label" style={{ display: "block", marginBottom: 6 }}>
+                  Context Weight
+                </span>
+                <LedgerRow label="Weight" value={weight.contextWeight.toFixed(2)} accent={KEYSTONE} />
+                <div
+                  className="mono"
+                  data-testid="council-node-rationale"
+                  style={{ fontSize: 11, lineHeight: 1.5, color: "var(--ink-2)", marginTop: 4 }}
+                >
+                  {weight.rationale}
+                </div>
+              </div>
+            ) : null}
           </>
         ) : (
           <div className="label" style={{ marginTop: 8, color: "var(--muted)" }}>

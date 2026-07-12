@@ -10,6 +10,7 @@ import {
   fixtureCompanyContext,
   fixtureDecisionContextPack,
 } from "@/context";
+import { fixtureCouncil } from "@/agents/council/fixtures";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -390,5 +391,57 @@ describe("StressTab (R4)", () => {
     expect(keystoneStore.getState().rerunIdentical).toBe(true);
     expect(keystoneStore.getState().rerunConfirmed).toBe(true);
     expect(screen.getByTestId("rerun-chip").textContent).toMatch(/IDENTICAL/i);
+  });
+
+  // ── P3-T8 · WHAT THE COUNCIL FOUND block ──────────────────────────────
+  it("renders the council's fracture narrative + context-keystone line when grounded", () => {
+    const council = fixtureCouncil("A");
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph());
+    s.setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    s.setApplyContextWeights(true);
+    s.setCouncil(council);
+    s.applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    // The block, the exact fracture sentence, and the "real spine" context-keystone line.
+    const block = screen.getByTestId("council-findings");
+    expect(screen.getByTestId("council-fracture").textContent).toBe(council.fractureNarrative);
+
+    // A's contextKeystoneId (a_audit) ≠ topological keystone → the spine line + label + rationale.
+    const spine = screen.getByTestId("council-context-keystone");
+    const spineLabel = keystoneStore
+      .getState()
+      .baseGraph!.nodes.find((n) => n.id === council.contextKeystoneId)!.label;
+    expect(spine.textContent).toMatch(/real spine is/i);
+    expect(spine.textContent).toContain(spineLabel);
+    const spineWeight = council.nodeWeights.find((w) => w.nodeId === council.contextKeystoneId)!;
+    expect(spine.textContent).toContain(spineWeight.rationale);
+
+    // The 1–2 hidden assumptions (label + why).
+    const hidden = screen.getAllByTestId("council-hidden-assumption");
+    expect(hidden.length).toBeGreaterThanOrEqual(1);
+    expect(hidden[0].textContent).toContain(council.hiddenAssumptions[0].label);
+
+    // Fixture-sourced → the honesty ILLUSTRATIVE tag.
+    expect(screen.getByTestId("council-illustrative").textContent).toMatch(/ILLUSTRATIVE/i);
+    expect(block).toBeDefined();
+  });
+
+  it("renders nothing council-related when the council is null or not grounded", () => {
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph()); // setGraph nulls any prior council
+    s.applyLoad(fixtureContextAttacks());
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(screen.queryByTestId("council-findings")).toBeNull();
+    cleanup();
+
+    // A council with grounded:false is likewise suppressed (deterministic view only).
+    s.setGraph(fixtureContextGraph());
+    s.setCouncil({ ...fixtureCouncil("A"), grounded: false });
+    s.applyLoad(fixtureContextAttacks());
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+    expect(screen.queryByTestId("council-findings")).toBeNull();
   });
 });

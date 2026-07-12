@@ -7,6 +7,7 @@ import {
   selectProbabilistic,
   selectCalibration,
   selectCalibrationIsSample,
+  selectCouncil,
 } from "@/store/useKeystone";
 import { CLUSTER_PALETTE } from "@/ui/tokens";
 // GRAPH shows the CLEAN STANDING structure — baseline numbers come straight from the
@@ -204,6 +205,9 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
   const failures = EMPTY_SET;
   const selectedNodeId = useKeystone((s) => s.selectedNodeId);
   const editError = useKeystone((s) => s.editError);
+  // P3-T8 · the contextual council result — feeds the SelectionPanel a node's context weight +
+  // rationale on selection (only when grounded; else undefined → panel unchanged).
+  const council = useKeystone(selectCouncil);
   // Task 7 · the Monte-Carlo distribution (null before a solve). Drives the gauge's P(hold)+band
   // and the driver-cluster tags/legend below. Shared singleton, so a STRESS solve lights GRAPH up.
   const probabilistic = useKeystone(selectProbabilistic);
@@ -513,6 +517,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           graph={displayGraph}
           selectedNodeId={selectedNodeId}
           keystoneId={keystoneId}
+          nodeWeights={council?.grounded ? council.nodeWeights : undefined}
           editError={editError}
           onRename={(id, label) => keystoneStore.getState().renameNode(id, label)}
           onSetConfidence={(id, v) => keystoneStore.getState().setConfidence(id, v)}
