@@ -12,6 +12,7 @@ describe("weighContext (no API key)", () => {
 
     const nodeIds = new Set(graph.nodes.map((n) => n.id));
 
+    expect(result.source).toBe("fixture");
     expect(Array.isArray(result.nodeWeights)).toBe(true);
     expect(result.nodeWeights.length).toBeGreaterThan(0);
     for (const w of result.nodeWeights) {

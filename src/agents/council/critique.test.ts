@@ -133,6 +133,32 @@ describe("critique (deterministic grounding gate)", () => {
     expect(result.grounded).toBe(false);
   });
 
+  it("grounded is false when the keystone is orphaned even though other claims survive", () => {
+    // contextKeystoneId points at n1, which gets dropped (ungrounded evidenceRefs); n2's
+    // nodeWeight and the hiddenAssumption both survive. hasSurvivingClaim is true (n2 +
+    // the hidden assumption survive), so grounded:false here is driven SOLELY by
+    // keystoneStillValid — the orphaned keystone, not a lack of surviving claims.
+    const draft = makeDraft({
+      nodeWeights: [
+        { nodeId: "n1", contextWeight: 0.8, rationale: "ungrounded keystone claim", evidenceRefs: [] },
+        { nodeId: "n2", contextWeight: 0.6, rationale: "grounded survivor", evidenceRefs: ["risk_exec"] },
+      ],
+      hiddenAssumptions: [{ label: "survives", why: "cited", evidenceRefs: ["risk_exec"] }],
+      contextKeystoneId: "n1",
+    });
+    const findingKeys = new Set(["risk_exec"]);
+
+    const result = critique(draft, findingKeys);
+
+    // Surviving claims are present (n2 + the hidden assumption) — grounded:false is NOT
+    // due to hasSurvivingClaim being false.
+    expect(result.nodeWeights).toHaveLength(1);
+    expect(result.nodeWeights[0].nodeId).toBe("n2");
+    expect(result.hiddenAssumptions).toHaveLength(1);
+    expect(result.contextKeystoneId).toBeNull();
+    expect(result.grounded).toBe(false);
+  });
+
   it("keeps contextKeystoneId when it points at a surviving node", () => {
     const draft = makeDraft({
       nodeWeights: [{ nodeId: "n1", contextWeight: 0.8, rationale: "x", evidenceRefs: ["risk_exec"] }],

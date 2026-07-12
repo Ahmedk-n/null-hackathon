@@ -25,6 +25,10 @@ export interface WeighingFinding {
 export interface WeighContextResult {
   nodeWeights: NodeWeighting[];
   contextKeystoneId: string | null;
+  /** "live" ONLY on the successful live path (post-validation); "fixture" on no-key or any
+   *  failure — lets callers (runCouncil) tell a truly-live seat from a canned fallback dressed
+   *  up as a result, mirroring generateAttacksWithSource (src/llm/client.ts). */
+  source: "live" | "fixture";
 }
 
 const WEIGHTING_SYSTEM = `You are the weighting seat on Keystone's contextual analysis council.
@@ -151,6 +155,10 @@ async function weighRun(
  * hasApiKey() gate -> retryOnce(live) -> fixtureCouncil(scenarioForGraph(graph)) fallback on
  * no-key or any failure. Never throws; the no-key path makes no network call.
  *
+ * The returned `source` is truthful, not env-presence: "live" only on the successful live path
+ * (post-validation), "fixture" on the no-key short-circuit AND the catch fallback — a key being
+ * present does not by itself make this seat's output "live" if the live call actually failed.
+ *
  * `apiKey` is accepted for interface parity with the brief's signature but is NOT wired into
  * the transport: `structuredCall` always reads `ANTHROPIC_API_KEY` from the environment, so an
  * explicit override has no effect here — same convention as `generateDrivers`
@@ -167,7 +175,11 @@ export async function weighContext(
 
   const fallback = (): WeighContextResult => {
     const council = fixtureCouncil(scenarioForGraph(graph));
-    return { nodeWeights: council.nodeWeights, contextKeystoneId: council.contextKeystoneId };
+    return {
+      nodeWeights: council.nodeWeights,
+      contextKeystoneId: council.contextKeystoneId,
+      source: "fixture",
+    };
   };
 
   if (!hasApiKey()) return fallback();
@@ -189,7 +201,7 @@ export async function weighContext(
       result.contextKeystoneId !== null && nodeIds.has(result.contextKeystoneId)
         ? result.contextKeystoneId
         : null;
-    return { nodeWeights, contextKeystoneId };
+    return { nodeWeights, contextKeystoneId, source: "live" };
   } catch {
     return fallback();
   }

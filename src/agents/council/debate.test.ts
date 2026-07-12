@@ -9,6 +9,7 @@ describe("debateSkeptic (no API key)", () => {
 
     const result = await debateSkeptic(graph, pack, []);
 
+    expect(result.source).toBe("fixture");
     expect(Array.isArray(result.hiddenAssumptions)).toBe(true);
     expect(result.hiddenAssumptions.length).toBeLessThanOrEqual(3);
     for (const a of result.hiddenAssumptions) {

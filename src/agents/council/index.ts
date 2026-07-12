@@ -8,7 +8,6 @@
 // to a full `CouncilResult` via `fixtureCouncil` — this function never throws.
 import type { Graph } from "@/engine";
 import type { CompanyContext, DecisionContextPack } from "@/context";
-import { hasApiKey } from "@/llm/structured";
 import { weighContext } from "./weigh";
 import { stressContext } from "./stress";
 import { debateSkeptic } from "./debate";
@@ -79,10 +78,14 @@ function collectFindingKeys(
 
 /**
  * Runs the contextual analysis council end-to-end: the three seats concurrently, the
- * deterministic grounding critic over their combined draft, then stamps `source` ("live" iff
- * an API key is configured, else "fixture" — mirrors every other council/agent module's
- * convention; each seat independently falls back to its own fixture on any live failure, so
- * this flag reflects whether live calls were attempted, not whether every seat succeeded).
+ * deterministic grounding critic over their combined draft, then stamps `source`. Each seat
+ * (weighContext/stressContext/debateSkeptic) now carries its OWN truthful `source` — "live"
+ * only when that seat's live call actually succeeded post-validation, "fixture" on the no-key
+ * short-circuit or any live failure (including a seat that internally fell back). The overall
+ * `source` is "live" ONLY when ALL THREE seats report "live"; otherwise "fixture" — conservative
+ * and honest: if any surfaced part of the council is canned, the whole result is illustrative,
+ * which also keeps the store's `source==="live"` gate from letting fixture attacks reach the
+ * engine when an API key is present but a live call actually failed.
  *
  * Never throws: any failure building `findingKeys` or running the three seats/critic falls
  * back to the whole hand-authored `fixtureCouncil(scenarioForGraph(graph))` result.
@@ -101,14 +104,16 @@ export async function runCouncil(input: RunCouncilInput): Promise<CouncilResult>
     const draft: CouncilDraft = {
       nodeWeights: w.nodeWeights,
       contextKeystoneId: w.contextKeystoneId,
-      contextualAttacks: atks,
+      contextualAttacks: atks.attacks,
       hiddenAssumptions: deb.hiddenAssumptions,
       fractureNarrative: deb.fractureNarrative,
     };
 
     const graded = critique(draft, findingKeys);
 
-    return { ...graded, source: hasApiKey() ? "live" : "fixture" };
+    const allLive = w.source === "live" && atks.source === "live" && deb.source === "live";
+
+    return { ...graded, source: allLive ? "live" : "fixture" };
   } catch {
     return fixtureCouncil(scenarioForGraph(graph));
   }

@@ -518,6 +518,7 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           selectedNodeId={selectedNodeId}
           keystoneId={keystoneId}
           nodeWeights={council?.grounded ? council.nodeWeights : undefined}
+          nodeWeightsSource={council?.grounded ? council.source : undefined}
           editError={editError}
           onRename={(id, label) => keystoneStore.getState().renameNode(id, label)}
           onSetConfidence={(id, v) => keystoneStore.getState().setConfidence(id, v)}

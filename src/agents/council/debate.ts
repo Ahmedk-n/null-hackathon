@@ -18,6 +18,10 @@ const MAX_HIDDEN_ASSUMPTIONS = 3;
 export interface DebateSkepticResult {
   hiddenAssumptions: HiddenAssumption[];
   fractureNarrative: string;
+  /** "live" ONLY on the successful live path (post-validation); "fixture" on no-key or any
+   *  failure — lets callers (runCouncil) tell a truly-live seat from a canned fallback dressed
+   *  up as a result, mirroring generateAttacksWithSource (src/llm/client.ts). */
+  source: "live" | "fixture";
 }
 
 const SKEPTIC_SYSTEM = `You run an adversarial wind tunnel on this decision. First argue FOR it, then
@@ -68,12 +72,15 @@ function renderFindings(findings: readonly WeighingFinding[]): string {
   return findings.map((f) => `- [${f.source ?? "unknown"}] ${f.fact ?? "(no fact recorded)"}`).join("\n");
 }
 
+/** Raw shape of one live skeptic-debate attempt, before this module stamps `source: "live"`. */
+type DebateRunResult = Omit<DebateSkepticResult, "source">;
+
 /** One live skeptic-debate attempt: throws on any network/parse/schema failure (retryOnce retries). */
 async function debateRun(
   graph: Graph,
   pack: DecisionContextPack,
   findings: readonly WeighingFinding[],
-): Promise<DebateSkepticResult> {
+): Promise<DebateRunResult> {
   const user = [
     `GRAPH NODES (only reference these ids):\n${renderGraph(graph)}`,
     `DECISION CONTEXT PACK:\n${renderPack(pack)}`,
@@ -98,6 +105,11 @@ async function debateRun(
  * no-key, any failure, or an empty fractureNarrative. Never throws; the no-key path makes no
  * network call.
  *
+ * The returned `source` is truthful, not env-presence: "live" only on the successful live path
+ * (post-validation), "fixture" on the no-key short-circuit AND the catch fallback (including the
+ * empty-fractureNarrative case) — a key being present does not by itself make this seat's output
+ * "live" if the live call actually failed.
+ *
  * `apiKey` is accepted for interface parity with the brief's signature but is NOT wired into
  * the transport: `structuredCall` always reads `ANTHROPIC_API_KEY` from the environment, so an
  * explicit override has no effect here — same convention as `weighContext`/`stressContext`.
@@ -113,7 +125,11 @@ export async function debateSkeptic(
 
   const fallback = (): DebateSkepticResult => {
     const council = fixtureCouncil(scenarioForGraph(graph));
-    return { hiddenAssumptions: council.hiddenAssumptions, fractureNarrative: council.fractureNarrative };
+    return {
+      hiddenAssumptions: council.hiddenAssumptions,
+      fractureNarrative: council.fractureNarrative,
+      source: "fixture",
+    };
   };
 
   if (!hasApiKey()) return fallback();
@@ -126,7 +142,7 @@ export async function debateSkeptic(
     const hiddenAssumptions: HiddenAssumption[] = result.hiddenAssumptions
       .slice(0, MAX_HIDDEN_ASSUMPTIONS)
       .map((a) => ({ label: a.label, why: a.why, evidenceRefs: a.evidenceRefs }));
-    return { hiddenAssumptions, fractureNarrative: result.fractureNarrative };
+    return { hiddenAssumptions, fractureNarrative: result.fractureNarrative, source: "live" };
   } catch {
     return fallback();
   }

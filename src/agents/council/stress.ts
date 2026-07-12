@@ -15,6 +15,14 @@ const MIN_SEVERITY = 0.15;
 const MAX_SEVERITY = 0.55;
 const MAX_ATTACKS = 8;
 
+export interface StressContextResult {
+  attacks: Attack[];
+  /** "live" ONLY on the successful live path (post-validation); "fixture" on no-key or any
+   *  failure — lets callers (runCouncil) tell a truly-live seat from a canned fallback dressed
+   *  up as a result, mirroring generateAttacksWithSource (src/llm/client.ts). */
+  source: "live" | "fixture";
+}
+
 const STRESS_SYSTEM = `You are the stress-testing seat on Keystone's contextual analysis council.
 
 Generate the failure modes THIS company actually faces — grounded in its real competitors,
@@ -134,6 +142,10 @@ async function stressRun(
  * hasApiKey() gate -> retryOnce(live) -> fixtureCouncil(scenarioForGraph(graph)).contextualAttacks
  * fallback on no-key or any failure. Never throws; the no-key path makes no network call.
  *
+ * The returned `source` is truthful, not env-presence: "live" only on the successful live path
+ * (post-validation), "fixture" on the no-key short-circuit AND the catch fallback — a key being
+ * present does not by itself make this seat's output "live" if the live call actually failed.
+ *
  * `apiKey` is accepted for interface parity with the brief's signature but is NOT wired into
  * the transport: `structuredCall` always reads `ANTHROPIC_API_KEY` from the environment, so an
  * explicit override has no effect here — same convention as `weighContext`/`generateDrivers`.
@@ -145,10 +157,13 @@ export async function stressContext(
   company: CompanyContext,
   findings: readonly WeighingFinding[],
   apiKey?: string,
-): Promise<Attack[]> {
+): Promise<StressContextResult> {
   void apiKey;
 
-  const fallback = (): Attack[] => fixtureCouncil(scenarioForGraph(graph)).contextualAttacks;
+  const fallback = (): StressContextResult => ({
+    attacks: fixtureCouncil(scenarioForGraph(graph)).contextualAttacks,
+    source: "fixture",
+  });
 
   if (!hasApiKey()) return fallback();
 
@@ -168,7 +183,7 @@ export async function stressContext(
         severity: Math.min(MAX_SEVERITY, Math.max(MIN_SEVERITY, a.severity)),
         rationale: a.rationale,
       }));
-    return attacks;
+    return { attacks, source: "live" };
   } catch {
     return fallback();
   }

@@ -8,10 +8,12 @@ describe("stressContext (no API key)", () => {
     const pack = fixtureDecisionContextPack();
     const company = fixtureCompanyContext();
 
-    const attacks = await stressContext(graph, pack, company, []);
+    const result = await stressContext(graph, pack, company, []);
+    const { attacks } = result;
 
     const nodeIds = new Set(graph.nodes.map((n) => n.id));
 
+    expect(result.source).toBe("fixture");
     expect(Array.isArray(attacks)).toBe(true);
     expect(attacks.length).toBeGreaterThan(0);
     expect(attacks.length).toBeLessThanOrEqual(8);

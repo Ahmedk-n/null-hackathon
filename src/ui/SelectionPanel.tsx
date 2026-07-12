@@ -290,6 +290,7 @@ export function SelectionPanel({
   selectedNodeId,
   keystoneId,
   nodeWeights,
+  nodeWeightsSource,
   onRename,
   onSetConfidence,
   onAddAssumption,
@@ -304,6 +305,11 @@ export function SelectionPanel({
   // council). When the selected node has an entry, its context weight + rationale surface below
   // the metrics — the situation-aware "how load-bearing is THIS node given the decision".
   nodeWeights?: readonly NodeWeighting[];
+  // Whole-feature fix (honesty) · the council's own `source` for the weightings above
+  // ("live"/"fixture"). Threaded alongside `nodeWeights` (not derived from it) so a
+  // fixture-sourced council's per-node prose can be tagged ILLUSTRATIVE, mirroring StressTab's
+  // `council-illustrative` chip. Undefined (no nodeWeights / no council) renders no tag.
+  nodeWeightsSource?: "live" | "fixture";
 } & SelectionEditHandlers) {
   // Editing is enabled when the studio wires at least one action (kept off for the pure
   // read-only render in the V3-6 provenance test).
@@ -391,9 +397,20 @@ export function SelectionPanel({
                 council scored this node; otherwise the panel is unchanged. */}
             {weight ? (
               <div style={{ marginTop: 14 }} data-testid="council-node-weight">
-                <span className="label" style={{ display: "block", marginBottom: 6 }}>
-                  Context Weight
-                </span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+                  <span className="label" style={{ display: "block", marginBottom: 6 }}>
+                    Context Weight
+                  </span>
+                  {nodeWeightsSource === "fixture" && (
+                    <span
+                      className="chip mono"
+                      data-testid="council-node-illustrative"
+                      style={{ flex: "0 0 auto", fontSize: 9, color: "var(--muted)", borderColor: "var(--hair-strong)" }}
+                    >
+                      ILLUSTRATIVE
+                    </span>
+                  )}
+                </div>
                 <LedgerRow label="Weight" value={weight.contextWeight.toFixed(2)} accent={KEYSTONE} />
                 <div
                   className="mono"
