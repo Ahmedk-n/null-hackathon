@@ -32,6 +32,10 @@ import { TopBar, Tabs, StatusStrip, Button, type TabDef } from "@/ui/primitives"
 // also subscribes on its own (so it works if mounted elsewhere too); both calls are cheap/idempotent.
 import { AccountMenu } from "@/ui/AccountMenu";
 import { useSession } from "@/lib/useSession";
+// P2-T5 · client-reachable calibration fetch (boundary-clean — see src/lib/library/calibration.ts).
+// Guest → the offline over-holder fixture; signed-in → the RLS-scoped route (fixture fallback on
+// any failure). Never called from the store itself — only from this client component's effect.
+import { fetchCalibration } from "@/lib/library/calibration";
 // LIVE PIPELINE — the dismissable "system at work" overlay. Mounts while a run is in flight and
 // reflects the REAL run (stage + stageSource + the store's graph/attacks + the pure engine MATH).
 import { LivePipeline } from "@/ui/pipeline/LivePipeline";
@@ -110,7 +114,21 @@ export default function KeystoneApp({
   // P2-T6 · mounting the session hook here (in addition to inside <AccountMenu/>) guarantees the
   // library backend flips to "user"/"guest" on every auth-state change even if AccountMenu is ever
   // reworked/removed from the TopBar — see src/lib/useSession.ts (setLibraryBackend call).
-  useSession();
+  const { user } = useSession();
+
+  // P2-T5 · fetch the cross-decision calibration once auth resolves, and again whenever it changes
+  // (sign-in/out swaps guest-fixture ⟷ real per-user calibration). fetchCalibration never throws
+  // (network/parse failures fall back to the fixture internally), so no catch is needed here; the
+  // effect just pushes whatever it resolves to into the store via setCalibration.
+  useEffect(() => {
+    let cancelled = false;
+    fetchCalibration(!user).then((calibration) => {
+      if (!cancelled) keystoneStore.getState().setCalibration(calibration);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [user]);
 
   // CUSTOM sends NO scenario (live path fires when a key exists); A/B pin the fixture chain.
   const scenarioArg = mode === "custom" ? undefined : mode;

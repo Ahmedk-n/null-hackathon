@@ -21,6 +21,7 @@ import {
   selectKeystoneId,
   selectFailures,
   selectProbabilistic,
+  selectCalibration,
 } from "@/store/useKeystone";
 import type { ProbabilisticResult } from "@/engine";
 import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
@@ -1014,6 +1015,9 @@ export function StressTab({
   const reinforcementPlan = useKeystone((s) => s.reinforcementPlan);
   // Task 7 · the Monte-Carlo distribution over the current working graph (null before a solve).
   const probabilistic = useKeystone(selectProbabilistic);
+  // P2-T5 · the caller's cross-decision track record (null until KeystoneApp's fetch effect
+  // resolves). Threaded straight to the gauge for the RAW → CALIBRATED line.
+  const calibration = useKeystone(selectCalibration);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -1192,7 +1196,7 @@ export function StressTab({
             padding: 8,
           }}
         >
-          <IntegrityGauge value={integrityValue} probabilistic={probabilistic} />
+          <IntegrityGauge value={integrityValue} probabilistic={probabilistic} calibration={calibration} />
         </div>
       </div>
   );

@@ -2,7 +2,22 @@
 import { motion, useMotionValue, animate } from "motion/react";
 import { useEffect, useRef, useState } from "react";
 import type { ProbabilisticResult } from "@/engine";
+// P2-T5 (additive): cross-decision calibration. Pure, key-free transform (data-in/data-out, no
+// Date/Math.random) — safe to call in render, same idiom as the engine's other pure derivations
+// already used in client tabs.
+import { applyCalibration, type Calibration } from "@/engine/calibrate";
 import { OK, WARN, BAD, HAIR, HAIR_STRONG, MUTED } from "@/ui/tokens";
+
+// P2-T5 · one-line reading of the bias direction, named the way a founder would read it: a
+// negative bias means resolved decisions held MORE often than the model predicted (the caller
+// tends to over-hold / under-rate their own thesis's odds); positive means the reverse. Small
+// |bias| reads as "well-calibrated" rather than forcing a direction onto noise.
+function calibrationReading(cal: Calibration): string {
+  const n = `n=${cal.sampleCount}`;
+  if (Math.abs(cal.bias) < 0.05) return `Well-calibrated · ${n}`;
+  if (cal.bias < 0) return `Adjusted for your track record — you tend to over-hold · ${n}`;
+  return `Adjusted for your track record — you tend to under-rate · ${n}`;
+}
 
 // The crater, not a snap: ring dash + numeral + color all glide over the same
 // duration/ease so the number appears to *fall* into place (plan W1-1).
@@ -34,6 +49,7 @@ function pHoldColor(pHold: number): string {
 export function IntegrityGauge({
   value,
   probabilistic = null,
+  calibration = null,
 }: {
   value: number;
   /**
@@ -44,6 +60,13 @@ export function IntegrityGauge({
    * (before any solve) the gauge renders exactly as it always has.
    */
   probabilistic?: ProbabilisticResult | null;
+  /**
+   * P2-T5 · the caller's cross-decision track record. When present WITH a non-empty sample
+   * (sampleCount > 0) AND a probabilistic result, the gauge adds a `RAW <pct>% → CALIBRATED
+   * <pct>%` line plus a one-line bias reading beneath the HOLDS headline. Absent/empty sample →
+   * raw-only (no calibrated claim rendered).
+   */
+  calibration?: Calibration | null;
 }) {
   const r = 46;
   const circumference = 2 * Math.PI * r;
@@ -87,6 +110,14 @@ export function IntegrityGauge({
   const bandLo = probabilistic ? Math.round(probabilistic.band[0]) : null;
   const bandHi = probabilistic ? Math.round(probabilistic.band[1]) : null;
 
+  // P2-T5 · RAW → CALIBRATED. Only when both a distribution AND a non-empty sample exist —
+  // otherwise there is nothing honest to recalibrate against, so raw stands alone.
+  const showCalibration = !!(probabilistic && calibration && calibration.sampleCount > 0);
+  const calibratedPct =
+    showCalibration && probabilistic && calibration
+      ? Math.round(applyCalibration(probabilistic, calibration).calibratedPHold * 100)
+      : null;
+
   return (
     <div ref={containerRef} style={{ textAlign: "center" }}>
       {/* HEADLINE — the number the model believes: fraction of Monte-Carlo runs that hold.
@@ -108,6 +139,22 @@ export function IntegrityGauge({
           </div>
           <div className="label" style={{ marginTop: 3, color: MUTED, fontSize: 9 }}>
             P(hold) · Monte-Carlo
+          </div>
+        </div>
+      )}
+      {/* P2-T5 · RAW → CALIBRATED — the cross-decision track record applied to THIS structure's
+          P(hold). Sits right beneath the HOLDS headline, ledger-styled (mono line + muted
+          caption), and only renders once there is an actual sample to recalibrate against. */}
+      {showCalibration && calibratedPct !== null && calibration && (
+        <div data-testid="calibration-line" style={{ marginBottom: 8 }}>
+          <div
+            className="mono"
+            style={{ fontSize: 12, color: MUTED, fontVariantNumeric: "tabular-nums" }}
+          >
+            {`RAW ${pHoldPct}% → CALIBRATED ${calibratedPct}%`}
+          </div>
+          <div className="label" style={{ marginTop: 2, color: MUTED, fontSize: 9 }}>
+            {calibrationReading(calibration)}
           </div>
         </div>
       )}
