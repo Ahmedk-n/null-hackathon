@@ -3,6 +3,7 @@ import { describe, it, expect, afterEach, beforeAll, vi } from "vitest";
 import { render, cleanup, fireEvent, within } from "@testing-library/react";
 import { ContextTab } from "./tabs/ContextTab";
 import { SCENARIOS } from "@/context/fixtures";
+import { RUN_DEADLINE_MS } from "@/lib/useAgentStream";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -268,5 +269,33 @@ describe("ContextTab (R3-UI static structure)", () => {
       businessContextText: SCENARIOS.A.input.businessContextText,
       decisionText: SCENARIOS.A.input.decisionText,
     });
+  });
+
+  // ── Agent-run regressions (live demo QA) ────────────────────────────────
+  it("keeps the agent pane mounted across a parent re-render (log persists after a run finishes)", () => {
+    const { getByText, getByPlaceholderText } = render(
+      <ContextTab onAnalyse={() => {}} analysing={false} mode="A" onModeChange={() => {}} />,
+    );
+    // The business sub-tab is active by default → exactly one RUN AGENT button.
+    const runBtnBefore = getByText("RUN AGENT");
+
+    // A finished gather calls onSummary → setBusiness (parent state) → ContextTab re-renders.
+    // Editing the manual textarea drives the SAME setBusiness path, so it reproduces that render.
+    fireEvent.change(getByPlaceholderText(/layer your own context/i), {
+      target: { value: "user layered note" },
+    });
+
+    // Before the hoist, ContextPane was declared inside the render body, so this re-render minted
+    // a new component type and REMOUNTED the pane — a new button node, and AgentGather's streamed
+    // log/findings wiped. Hoisted to module scope → the same DOM node survives the re-render.
+    const runBtnAfter = getByText("RUN AGENT");
+    expect(runBtnAfter).toBe(runBtnBefore);
+  });
+
+  it("gives a live agent run a deadline long enough for the slow business web agent", () => {
+    // The business agent measured ~116s end-to-end and can reach ~275s in the wild; the old 75s
+    // ceiling aborted every live business run mid-search. Guard against a regression to a value
+    // that would kill it again.
+    expect(RUN_DEADLINE_MS).toBeGreaterThanOrEqual(240_000);
   });
 });

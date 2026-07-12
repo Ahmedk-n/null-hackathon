@@ -14,7 +14,13 @@ export interface UseAgentStream {
 
 // Hard client-side deadline so `running` can never spin forever if the server hangs.
 // Uses setTimeout (no Date.now / timestamp math — GOAL T8).
-const RUN_DEADLINE_MS = 75_000;
+//
+// The BUSINESS agent runs live web-search/fetch tools whose latency is unbounded: measured at
+// ~116s end-to-end against a real company, and up to ~275s in the wild. The old 75s ceiling
+// aborted every live business run mid-"Searching the web…", so the log stalled and never
+// produced findings. 300s comfortably covers the observed + worst-case business latency while
+// still capping a genuinely hung server. Technical/temporal finish in seconds and are unaffected.
+export const RUN_DEADLINE_MS = 300_000;
 // Constant placeholder ts for client-generated terminal events (never a live clock).
 const CLIENT_TS = "";
 

@@ -64,6 +64,61 @@ function mergeSummary(prev: string, summary: string): string {
 }
 
 const COL: React.CSSProperties = { minWidth: 0, display: "flex", flexDirection: "column", gap: "var(--gap)" };
+
+// MODULE-LEVEL so its identity is STABLE across ContextTab re-renders. Previously this was a
+// function declared inside ContextTab's body and used as <ContextPane/> — every parent re-render
+// minted a new component type, so React unmounted+remounted the whole pane, wiping AgentGather's
+// streamed log + findings. Because a finished gather calls onSummary → setBusiness (parent state),
+// finishing a run triggered exactly that remount: the agent log "disappeared the second it
+// finished". Hoisting it keeps AgentGather (and its useAgentStream state) mounted across renders.
+function ContextPane({
+  kind,
+  mode,
+  manualValue,
+  manualSet,
+  onManualEdit,
+  onGatherFindings,
+}: {
+  kind: GatherKind;
+  mode: ContextMode;
+  /** Current manual text — agent summaries merge onto it (no edit-flip). */
+  manualValue: string;
+  /** Raw setter — used by onSummary so an agent summary does NOT trip the scenario-pin flip. */
+  manualSet: (v: string) => void;
+  /** Edit-flip-wrapped setter — used by the textarea so a direct keystroke drops the pin. */
+  onManualEdit: (v: string) => void;
+  onGatherFindings?: (kind: GatherKind, facts: GatherFinding[]) => void;
+}) {
+  // The pinned scenario's REAL source values for this kind (blank on CUSTOM). Keyed on `mode`
+  // (via AgentGather's seedKey) so an explicit scenario switch re-seeds the source fields.
+  const seed = mode === "custom" ? undefined : SCENARIOS[mode].sources?.[kind];
+  return (
+    <div className="context-pane">
+      <div className="context-pane-gather" style={COL}>
+        {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
+            direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
+        <AgentGather
+          kind={kind}
+          seed={seed}
+          seedKey={mode}
+          onSummary={(s) => manualSet(mergeSummary(manualValue, s))}
+          onFindings={(facts) => onGatherFindings?.(kind, facts)}
+        />
+      </div>
+      <div className="context-pane-manual" style={COL}>
+        <SectionHeader>Manual</SectionHeader>
+        <Field
+          label={`${kind} context`}
+          value={manualValue}
+          onChange={onManualEdit}
+          rows={12}
+          placeholder="layer your own context on top of the agent summary…"
+          mono={false}
+        />
+      </div>
+    </div>
+  );
+}
 // C-1: PANE used to be an inline ROW (`display:"flex"`) laying AgentGather beside the manual
 // textarea. That's now the `.context-pane` class in theme.css, which stacks below ~900px
 // (gather ABOVE its matching textarea) and gives the manual textarea the dominant width on
@@ -499,38 +554,22 @@ export function ContextTab({
     temporal: { value: temporalContextText, set: setTemporal },
   };
 
-  function ContextPane({ kind }: { kind: GatherKind }) {
+  // Renders the active kind's pane through the STABLE module-level ContextPane (see its comment
+  // for why identity stability matters). Threads the raw setter (agent summaries, no edit-flip)
+  // and the edit-wrapped setter (textarea keystrokes, flips the pin) separately.
+  const renderPane = (kind: GatherKind) => {
     const manual = MANUAL[kind];
-    // The pinned scenario's REAL source values for this kind (blank on CUSTOM). Keyed on `mode`
-    // so an explicit scenario switch re-seeds the source fields, mirroring the manual textareas.
-    const seed = mode === "custom" ? undefined : SCENARIOS[mode].sources?.[kind];
     return (
-      <div className="context-pane">
-        <div className="context-pane-gather" style={COL}>
-          {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
-              direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
-          <AgentGather
-            kind={kind}
-            seed={seed}
-            seedKey={mode}
-            onSummary={(s) => manual.set(mergeSummary(manual.value, s))}
-            onFindings={(facts) => onGatherFindings?.(kind, facts)}
-          />
-        </div>
-        <div className="context-pane-manual" style={COL}>
-          <SectionHeader>Manual</SectionHeader>
-          <Field
-            label={`${kind} context`}
-            value={manual.value}
-            onChange={editing(manual.set)}
-            rows={12}
-            placeholder="layer your own context on top of the agent summary…"
-            mono={false}
-          />
-        </div>
-      </div>
+      <ContextPane
+        kind={kind}
+        mode={mode}
+        manualValue={manual.value}
+        manualSet={manual.set}
+        onManualEdit={editing(manual.set)}
+        onGatherFindings={onGatherFindings}
+      />
     );
-  }
+  };
 
   return (
     <div
@@ -562,9 +601,9 @@ export function ContextTab({
       <Tabs tabs={SUB_TABS} active={active} onChange={setActive} />
 
       <div style={{ flex: 1, minWidth: 0 }}>
-        {active === "business" && <ContextPane kind="business" />}
-        {active === "technical" && <ContextPane kind="technical" />}
-        {active === "temporal" && <ContextPane kind="temporal" />}
+        {active === "business" && renderPane("business")}
+        {active === "technical" && renderPane("technical")}
+        {active === "temporal" && renderPane("temporal")}
         {active === "decision" && (
           <div style={{ maxWidth: 640 }}>
             <SectionHeader>Decision</SectionHeader>
