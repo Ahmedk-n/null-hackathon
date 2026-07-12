@@ -53,11 +53,25 @@ function pHoldColor(pHold: number): string {
   return BAD;
 }
 
+// A muted, sentence-case one-liner that sits under a metric to say — in plain language — what it
+// is and how it differs from the numbers around it. Deliberately NOT `.label` (that class forces
+// uppercase/tracking, which reads as a heading, not an explanation).
+const GLOSS: React.CSSProperties = {
+  color: MUTED,
+  fontSize: 10.5,
+  lineHeight: 1.35,
+  fontWeight: 400,
+  maxWidth: 220,
+  marginLeft: "auto",
+  marginRight: "auto",
+};
+
 export function IntegrityGauge({
   value,
   probabilistic = null,
   calibration = null,
   calibrationIsSample = false,
+  explain = false,
 }: {
   value: number;
   /**
@@ -82,6 +96,13 @@ export function IntegrityGauge({
    * sample" disclosure, so a fabricated bias is never attributed to the viewer.
    */
   calibrationIsSample?: boolean;
+  /**
+   * GRAPH verdict card only · when true the gauge renders a muted plain-language caption under
+   * each metric (what P(hold), the sketch integrity, the band and the calibrated line each mean,
+   * and how they differ). Off everywhere else (STRESS overlay, LIVE pipeline) so those compact
+   * placements stay unchanged.
+   */
+  explain?: boolean;
 }) {
   const r = 46;
   const circumference = 2 * Math.PI * r;
@@ -157,6 +178,11 @@ export function IntegrityGauge({
           </div>
         </div>
       )}
+      {explain && probabilistic && (
+        <div style={{ ...GLOSS, marginTop: -3, marginBottom: 9 }}>
+          Probability the structure survives once real-world uncertainty is sampled.
+        </div>
+      )}
       {/* P2-T5 · RAW → CALIBRATED — the cross-decision track record applied to THIS structure's
           P(hold). Sits right beneath the HOLDS headline, ledger-styled (mono line + muted
           caption), and only renders once there is an actual sample to recalibrate against. */}
@@ -171,6 +197,11 @@ export function IntegrityGauge({
           <div className="label" style={{ marginTop: 2, color: MUTED, fontSize: 9 }}>
             {calibrationReading(calibration, calibrationIsSample)}
           </div>
+        </div>
+      )}
+      {explain && showCalibration && (
+        <div style={{ ...GLOSS, marginTop: -3, marginBottom: 9 }}>
+          What the raw odds become after adjusting for past prediction accuracy.
         </div>
       )}
       <svg width={120} height={120} viewBox="0 0 120 120">
@@ -220,6 +251,11 @@ export function IntegrityGauge({
       <div className="label">
         {probabilistic ? "Sketch · Structural Integrity" : "Structural Integrity"}
       </div>
+      {explain && (
+        <div style={{ ...GLOSS, marginTop: 4 }}>
+          How well the thesis is supported by its claims + assumptions right now (deterministic).
+        </div>
+      )}
       {/* INTEGRITY BAND — the [p05–p95] hairline range beneath the sketch, so the point value
           reads as one draw from a spread rather than a promise. */}
       {probabilistic && bandLo !== null && bandHi !== null && (
@@ -241,6 +277,11 @@ export function IntegrityGauge({
           <span className="mono" style={{ fontSize: 12, color: MUTED, fontVariantNumeric: "tabular-nums" }}>
             {`${bandLo}–${bandHi}`}
           </span>
+        </div>
+      )}
+      {explain && probabilistic && (
+        <div style={{ ...GLOSS, marginTop: 5 }}>
+          The p05–p95 range — where integrity landed across the sampled runs.
         </div>
       )}
     </div>

@@ -335,6 +335,14 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
       : integrityValue >= 10
         ? { tone: "warn", label: "Under strain" }
         : { tone: "crack", label: "Cracking" };
+  // One-line, plain-language read of the same verdict — the answer in a sentence, above the
+  // numbers, so the card leads with meaning rather than metrics.
+  const verdictLine =
+    verdict.tone === "hold"
+      ? "This thesis holds — its claims and assumptions currently carry the load."
+      : verdict.tone === "warn"
+        ? "This thesis is under strain — some load-bearing support is thin."
+        : "This thesis is cracking — critical support is giving way.";
   const keystoneNode = keystoneId ? displayGraph.nodes.find((n) => n.id === keystoneId) ?? null : null;
 
   // LEFT — the VERDICT card. Leads with the answer (pill + gauge + P(hold)/band) and its weak
@@ -347,11 +355,17 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
         <Pill tone={verdict.tone}>{verdict.label}</Pill>
       </div>
 
+      {/* The answer, in a sentence — leads with meaning before the gauge throws numbers. */}
+      <div style={{ fontSize: 13.5, lineHeight: 1.45, color: "var(--ink-2)", marginTop: -2 }}>
+        {verdictLine}
+      </div>
+
       <IntegrityGauge
         value={integrityValue}
         probabilistic={probabilistic}
         calibration={calibration}
         calibrationIsSample={calibrationIsSample}
+        explain
       />
 
       {/* Keystone callout — the load-bearing assumption the whole structure hangs from. */}
@@ -381,8 +395,12 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           clusters the probabilistic brain inferred), colour-matched to the tint on each
           assumption node's left edge. Only appears once a solve has produced a distribution. */}
       {driverLegend.length > 0 && (
-        <Disclosure summary="Shared-failure drivers" defaultOpen testId="driver-legend">
+        <Disclosure summary="Shared-failure drivers" testId="driver-legend">
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--muted)", marginBottom: 2 }}>
+              Latent factors several assumptions lean on at once. If one gives way, every
+              assumption tied to it tends to fail together.
+            </div>
             {driverLegend.map((d) => (
               <div
                 key={d.id}
@@ -408,6 +426,9 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
       {/* STRUCTURE — the counts + depth + weakest assumption, folded away for a first read. */}
       <Disclosure summary="Structure" testId="graph-structure">
         <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--ink-2)" }}>
+          <div style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--muted)" }}>
+            How large and how deep the argument is, and where its thinnest belief sits.
+          </div>
           <div>
             <span className="mono" style={{ color: "var(--ink)" }}>{stats.claimCount}</span> claims ·{" "}
             <span className="mono" style={{ color: "var(--ink)" }}>{stats.assumptions.length}</span> assumptions
@@ -437,6 +458,9 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
               >
                 {depth.grounded}/{depth.assumptions}
               </span>
+              <div style={{ fontSize: 11, lineHeight: 1.4, color: "var(--muted)", marginTop: 3 }}>
+                Assumptions that rest on further support, not bare belief.
+              </div>
             </div>
           )}
         </div>
@@ -475,6 +499,9 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
 
       {/* ADJUST ASSUMPTIONS — the ~9 confidence sliders, folded away; one click from every slider. */}
       <Disclosure summary="Adjust assumptions" testId="graph-assumptions">
+        <div style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--muted)", marginBottom: 12 }}>
+          Drag an assumption&rsquo;s confidence to see the verdict react (what-if).
+        </div>
         {stats.assumptions.map((a) => (
           <ConfidenceSlider
             key={a.id}
