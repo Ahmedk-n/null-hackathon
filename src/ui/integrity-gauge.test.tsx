@@ -32,11 +32,11 @@ describe("IntegrityGauge (W1-1)", () => {
     const colorOf = (word: string) =>
       (screen.getByText(word) as HTMLElement).style.color;
     const { rerender } = render(<IntegrityGauge value={62} />);
-    expect(colorOf("HOLDING")).toBe("rgb(63, 122, 52)"); // --ok #3f7a34 (warm-editorial redesign)
+    expect(colorOf("HOLDING")).toBe("rgb(47, 138, 62)"); // --ok #2f8a3e (green)
     rerender(<IntegrityGauge value={20} />);
-    expect(colorOf("STRESSED")).toBe("rgb(181, 133, 15)"); // --warn #b5850f (gold)
+    expect(colorOf("STRESSED")).toBe("rgb(181, 133, 15)"); // --warn #b5850f (amber)
     rerender(<IntegrityGauge value={6} />);
-    expect(colorOf("FAILED")).toBe("rgb(166, 42, 40)"); // --bad #a62a28 (crimson)
+    expect(colorOf("FAILED")).toBe("rgb(198, 40, 40)"); // --bad #c62828 (red)
   });
 
   it("renders the rounded value and keeps the persistent label", () => {

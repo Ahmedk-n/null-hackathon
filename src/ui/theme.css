@@ -7,32 +7,34 @@
 :root {
   color-scheme: light;   /* LIGHT ONLY — the studio never goes dark, regardless of OS preference */
 
-  /* surfaces + ink — warm editorial (ivory paper, ink text) */
-  --bg:            #f4efe6;   /* warm ivory canvas */
-  --panel:         #fffdf8;   /* warm white card */
-  --panel-2:       #f2ece1;   /* warm inset / subtle fill */
-  --ink:           #211e19;   /* warm near-black */
-  --ink-2:         #57514a;   /* warm stone (secondary) */
-  --muted:         #786f63;   /* warm taupe (labels/captions — measured ≥4.5:1 on card) */
-  --hair:          #e8e0d4;   /* warm hairline */
-  --hair-strong:   #d9cfbf;   /* stronger dividers / control borders */
+  /* surfaces + ink — editorial white / near-black / gray / red (the home-page manifesto scheme):
+     white surfaces, a strong neutral near-black, cool grey neutrals, and RED as the single accent. */
+  --bg:            #f4f4f5;   /* cool near-white canvas */
+  --panel:         #ffffff;   /* white card */
+  --panel-2:       #f0f0f2;   /* light-grey inset / subtle fill */
+  --ink:           #18181b;   /* near-black (the dark — manifesto band ground) */
+  --ink-2:         #3f3f46;   /* dark grey (secondary text) */
+  --muted:         #71717a;   /* neutral grey (labels/captions — ≥4.5:1 on white) */
+  --hair:          #e4e4e7;   /* light-grey hairline */
+  --hair-strong:   #d4d4d8;   /* stronger dividers / control borders */
 
-  /* the single brand accent — terracotta (warm, editorial); kept distinct from the collapse-red */
-  --accent:        #b24e2a;   /* terracotta — active tab, primary CTA, thesis, focus ring */
-  --accent-weak:   #f6e8df;   /* accent wash (weak bg) */
+  /* the single brand accent — RED (the keystone red from the manifesto) */
+  --accent:        #c62828;   /* red — active tab, primary CTA, links, keystone, focus ring */
+  --accent-weak:   #fbeaea;   /* red wash (weak bg) */
 
-  /* semantic node + verdict colors (spread across the warm spectrum so none reads as the accent) */
-  --thesis:        #b24e2a;   /* accent terracotta */
-  --claim:         #3f7a34;   /* forest green */
-  --assumption:    #8b8377;   /* warm grey */
-  --keystone:      #a62a28;   /* deep crimson (blue-red — distinct from terracotta) */
-  --increase:      #b5850f;   /* gold (weight ▲ / temporal) */
-  --decrease:      #8b8377;   /* warm grey (weight ▼) */
-  --ok:            #3f7a34;   /* integrity high / HOLDING */
-  --ok-weak:       #e7f0e2;
-  --warn:          #b5850f;   /* integrity mid (gold) */
-  --bad:           #a62a28;   /* integrity low / FAILED (crimson) */
-  --bad-bg:        #f7e4e1;   /* failed-node fill (soft crimson wash) */
+  /* node + verdict colors. RED is the keystone/critical signal (== accent); the thesis is the dark
+     anchor; claims/assumptions are greys; holds stays green (functional, as the manifesto legend). */
+  --thesis:        #18181b;   /* dark-ink anchor node */
+  --claim:         #4b5563;   /* slate grey */
+  --assumption:    #9ca3af;   /* light grey */
+  --keystone:      #c62828;   /* red */
+  --increase:      #b5850f;   /* amber (weight ▲ / temporal) */
+  --decrease:      #9ca3af;   /* light grey (weight ▼) */
+  --ok:            #2f8a3e;   /* integrity high / HOLDING (green — functional) */
+  --ok-weak:       #e8f4ea;
+  --warn:          #b5850f;   /* integrity mid (amber) */
+  --bad:           #c62828;   /* integrity low / FAILED (red) */
+  --bad-bg:        #fbeaea;   /* failed-node fill (soft red wash) */
 
   /* type — fonts loaded via next/font in src/app/layout.tsx (exposed as
      --font-inter / --font-jbmono on <html>), with system fallback stacks.
@@ -43,9 +45,9 @@
   /* rhythm + elevation */
   --row-h: 34px;  --gap: 14px;  --pad: 16px;
   --radius: 10px;  --radius-sm: 8px;  --radius-lg: 14px;
-  /* warm-tinted elevation for the ivory/editorial ground */
-  --shadow-sm: 0 1px 2px rgba(74, 58, 40, 0.05);
-  --shadow: 0 1px 2px rgba(74, 58, 40, 0.05), 0 4px 16px rgba(74, 58, 40, 0.07);
+  /* neutral elevation for the white/grey ground */
+  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06);
+  --shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 4px 16px rgba(24, 24, 27, 0.08);
 }
 
 /* LIGHT ONLY — the dark theme was removed by request. There is no
