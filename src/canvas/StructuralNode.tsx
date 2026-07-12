@@ -174,7 +174,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
   const restingShadow = data.isKeystone
     ? "0 0 0 3px var(--bad-bg), var(--shadow-sm)"
     : "var(--shadow-sm)";
-  const failedShadow = `0 0 18px rgba(178,58,46,0.5), 0 16px 26px rgba(26,26,21,0.28)`;
+  const failedShadow = `0 0 18px rgba(224,72,77,0.45), 0 16px 26px rgba(20,22,28,0.22)`;
 
   const collapseDelay = data.collapseDelay ?? 0;
   const buildDelay = data.buildDelay ?? 0;
@@ -653,19 +653,19 @@ function KeystoneGlow({ loadApplied, isFailed }: { loadApplied: boolean; isFaile
         isFailed
           ? {
               boxShadow: [
-                "0 0 30px 6px rgba(178,58,46,0.9)",
-                "0 0 16px 2px rgba(178,58,46,0.55)",
+                "0 0 30px 6px rgba(224,72,77,0.9)",
+                "0 0 16px 2px rgba(224,72,77,0.55)",
               ],
             }
           : breathe
             ? {
                 boxShadow: [
-                  "0 0 8px 0px rgba(178,58,46,0.35)",
-                  "0 0 20px 4px rgba(178,58,46,0.75)",
-                  "0 0 8px 0px rgba(178,58,46,0.35)",
+                  "0 0 8px 0px rgba(224,72,77,0.35)",
+                  "0 0 20px 4px rgba(224,72,77,0.75)",
+                  "0 0 8px 0px rgba(224,72,77,0.35)",
                 ],
               }
-            : { boxShadow: "0 0 14px 0px rgba(178,58,46,0.55)" }
+            : { boxShadow: "0 0 14px 0px rgba(224,72,77,0.55)" }
       }
       transition={
         isFailed

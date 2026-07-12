@@ -28,20 +28,8 @@ import { STRATUM_LEVEL } from "@/canvas/depth";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { MiniStructure, layoutStructure } from "@/ui/MiniStructure";
 import { usePrefersReducedMotion } from "@/ui/useReducedMotion";
-import {
-  BAD,
-  CLAIM,
-  HAIR,
-  HAIR_STRONG,
-  INK,
-  INK_2,
-  KEYSTONE,
-  MUTED,
-  OK,
-  PANEL,
-  PANEL_2,
-  THESIS,
-} from "@/ui/tokens";
+import { Eyebrow, Pill } from "@/ui/primitives";
+import type { PillTone } from "@/ui/primitives";
 
 // ── Timeline ────────────────────────────────────────────────────────────────
 // One tick = 80ms. A stage never shows ✓ before BOTH its real data exists AND its cumulative
@@ -292,64 +280,49 @@ export function LivePipeline({
         position: "fixed",
         inset: 0,
         zIndex: 1000,
-        background: "rgba(20,20,15,0.55)",
+        // Cool, theme-neutral scrim + a soft blur so the overlay reads as a modern sheet
+        // floating over the studio (in both light and dark) — not a warm terminal wash.
+        background: "rgba(13,14,18,0.45)",
+        backdropFilter: "blur(3px)",
+        WebkitBackdropFilter: "blur(3px)",
         display: "flex",
         alignItems: "flex-start",
         justifyContent: "center",
-        padding: "24px 20px",
+        padding: "28px 20px",
         overflow: "auto",
         opacity: fading ? 0 : 1,
         transition: `opacity ${FADE_MS}ms linear`,
       }}
     >
       <div
+        className="panel"
         style={{
           width: "100%",
           maxWidth: 1080,
-          background: PANEL,
-          border: `1px solid ${HAIR_STRONG}`,
+          overflow: "hidden",
         }}
       >
-        {/* ── Header — stage strip + LIVE beat + SKIP ─────────────────────── */}
+        {/* ── Header — title + live beat + elapsed + SKIP ─────────────────── */}
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: 12,
             flexWrap: "wrap",
-            padding: "8px 12px",
-            borderBottom: `1px solid ${HAIR_STRONG}`,
-            background: PANEL_2,
+            padding: "14px 18px",
+            borderBottom: "1px solid var(--hair)",
+            background: "var(--panel)",
           }}
         >
-          <span className="label" style={{ letterSpacing: "0.14em", color: INK }}>
-            ▣ LIVE PIPELINE
-          </span>
-          {STAGES.map((s) => {
-            const st = rows.find((r) => r.key === s.key)!.status;
-            return (
-              <span
-                key={s.key}
-                className="label"
-                style={{
-                  letterSpacing: "0.1em",
-                  color: st === "queued" ? MUTED : INK,
-                  borderBottom:
-                    st === "active"
-                      ? `2px solid ${KEYSTONE}`
-                      : st === "done"
-                        ? `2px solid ${OK}`
-                        : "2px solid transparent",
-                  paddingBottom: 2,
-                }}
-              >
-                {s.name}
-              </span>
-            );
-          })}
+          {/* The keystone heartbeat — pulses via `.live-dot` (reduced-motion aware in theme.css). */}
+          <span className="live-dot" aria-hidden />
+          <Eyebrow style={{ letterSpacing: "0.14em", color: "var(--ink)" }}>Live Pipeline</Eyebrow>
           <div style={{ flex: 1 }} />
-          <span className="mono" style={{ fontSize: 11, color: MUTED }}>
-            {running ? "▶ RUNNING" : "■ SETTLING"} · {secs(tick)}
+          <Pill tone={running ? "accent" : "neutral"} dot={false}>
+            {running ? "Running" : "Settling"}
+          </Pill>
+          <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>
+            {secs(tick)}
           </span>
           <button
             type="button"
@@ -358,24 +331,25 @@ export function LivePipeline({
             onClick={dismiss}
             title="Dismiss the overlay — the run continues in the background"
           >
-            ✕ SKIP
+            Dismiss — runs in background
           </button>
         </div>
 
         {/* Tooltip line (hover a stage to inspect) — reserved height so nothing jumps. */}
         <div
           style={{
-            minHeight: 24,
+            minHeight: 26,
             display: "flex",
             alignItems: "center",
-            padding: "0 12px",
-            borderBottom: `1px solid ${HAIR}`,
-            background: PANEL,
-            fontSize: 11,
-            color: tooltip ? INK_2 : MUTED,
+            padding: "6px 18px",
+            borderBottom: "1px solid var(--hair)",
+            background: "var(--panel-2)",
+            fontSize: 12,
+            lineHeight: 1.4,
+            color: tooltip ? "var(--ink-2)" : "var(--muted)",
           }}
         >
-          <span className="mono">
+          <span style={{ fontFamily: "var(--sans)" }}>
             {tooltip ||
               "The whole system, bound to this run: gather → compile → extract → generate → solve. Dismissing keeps the run alive."}
           </span>
@@ -386,11 +360,11 @@ export function LivePipeline({
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(5, 1fr)",
-            gap: 8,
-            padding: 12,
+            gap: 10,
+            padding: 16,
           }}
         >
-          {rows.map((r, i) => {
+          {rows.map((r) => {
             const src: Source =
               r.key === "compile"
                 ? stageSource.context
@@ -415,10 +389,6 @@ export function LivePipeline({
                 pulse={pulse}
                 opacity={dim(r.key)}
                 onHover={() => setHovered(r.key)}
-                flowInto={i < rows.length - 1}
-                flowActive={r.status !== "queued" && rows[i + 1]?.status === "active"}
-                tick={tick}
-                reducedMotion={reducedMotion}
               />
             );
           })}
@@ -428,56 +398,81 @@ export function LivePipeline({
         <div
           onMouseEnter={() => setHovered("solve")}
           style={{
-            borderTop: `1px solid ${HAIR_STRONG}`,
-            background: PANEL,
-            padding: 12,
+            borderTop: "1px solid var(--hair)",
+            background: "var(--panel-2)",
+            padding: 16,
             opacity: dim("solve"),
             transition: "opacity 0.25s ease",
           }}
         >
-          <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 8 }}>
-            <span className="mono" style={{ fontSize: 14, color: graphReady ? KEYSTONE : MUTED }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+            <span
+              className="mono"
+              aria-hidden
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: 22,
+                height: 22,
+                borderRadius: 999,
+                fontSize: 12,
+                color: graphReady ? "#fff" : "var(--muted)",
+                background: graphReady ? "var(--keystone)" : "var(--panel)",
+                border: `1px solid ${graphReady ? "var(--keystone)" : "var(--hair-strong)"}`,
+              }}
+            >
               5
             </span>
-            <span className="label" style={{ letterSpacing: "0.14em", color: graphReady ? INK : MUTED }}>
-              SOLVE · THE MATH
-            </span>
-            {graphReady && (
-              <span className="label" style={{ color: OK, letterSpacing: "0.1em" }}>
-                ● DETERMINISTIC
-              </span>
-            )}
+            <Eyebrow style={{ letterSpacing: "0.14em", color: graphReady ? "var(--ink)" : "var(--muted)" }}>
+              Solve · The Math
+            </Eyebrow>
+            {graphReady && <Pill tone="hold">Deterministic</Pill>}
           </div>
 
           {!math ? (
             <div
-              className="mono"
-              style={{ fontSize: 11, color: MUTED, padding: "24px 0", textAlign: "center" }}
+              style={{
+                fontFamily: "var(--sans)",
+                fontSize: 12,
+                color: "var(--muted)",
+                padding: "28px 0",
+                textAlign: "center",
+              }}
             >
-              awaiting structure · the solver runs the moment the graph lands…
+              Awaiting structure · the solver runs the moment the graph lands…
             </div>
           ) : (
             <div
               style={{
                 display: "grid",
                 gridTemplateColumns: "minmax(280px, 1.1fr) minmax(280px, 1fr)",
-                gap: 12,
+                gap: 14,
                 alignItems: "start",
               }}
             >
               {/* LEFT — the structure assembling bottom-up (reuses the shared renderer). */}
-              <MiniStructure
-                nodes={math.laid.nodes}
-                edges={math.laid.edges}
-                width={math.laid.width}
-                height={math.laid.height}
-                keystoneId={keystoneId ?? ""}
-                tick={genTick}
-                failedIds={failures}
-                cracked={keystoneFailed}
-                tickMs={TICK_MS}
-                testId="live-pipeline-structure"
-              />
+              <div
+                style={{
+                  border: "1px solid var(--hair)",
+                  borderRadius: "var(--radius)",
+                  background: "var(--panel)",
+                  padding: 10,
+                }}
+              >
+                <MiniStructure
+                  nodes={math.laid.nodes}
+                  edges={math.laid.edges}
+                  width={math.laid.width}
+                  height={math.laid.height}
+                  keystoneId={keystoneId ?? ""}
+                  tick={genTick}
+                  failedIds={failures}
+                  cracked={keystoneFailed}
+                  tickMs={TICK_MS}
+                  testId="live-pipeline-structure"
+                />
+              </div>
 
               {/* RIGHT — the numbers: integrity (counting), support decomposition, sensitivity. */}
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -487,37 +482,45 @@ export function LivePipeline({
                     display: "flex",
                     alignItems: "center",
                     gap: 14,
-                    border: `1px solid ${HAIR}`,
-                    background: PANEL_2,
-                    padding: "8px 12px",
+                    border: "1px solid var(--hair)",
+                    borderRadius: "var(--radius)",
+                    background: "var(--panel)",
+                    padding: "12px 14px",
                   }}
                 >
                   <IntegrityGauge value={integrityValue} />
-                  <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                    <span className="label" style={{ letterSpacing: "0.12em", color: MUTED }}>
-                      THESIS SUPPORT
-                    </span>
-                    <span className="mono" data-testid="live-pipeline-integrity" style={{ fontSize: 13, color: INK }}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                    <Eyebrow>Thesis support</Eyebrow>
+                    <span
+                      className="mono"
+                      data-testid="live-pipeline-integrity"
+                      style={{ fontSize: 14, color: "var(--ink)" }}
+                    >
                       {math.integrity.toFixed(1)}% integrity
                     </span>
-                    <span className="mono" style={{ fontSize: 10, color: MUTED }}>
+                    <span className="mono" style={{ fontSize: 10.5, color: "var(--muted)" }}>
                       keystone · {keystoneId ?? "—"}
                     </span>
                   </div>
                 </div>
 
                 {/* SUPPORT DECOMPOSITION — own × dependency = support, filling bottom-up. */}
-                <div style={{ border: `1px solid ${HAIR}`, background: PANEL }}>
+                <div
+                  style={{
+                    border: "1px solid var(--hair)",
+                    borderRadius: "var(--radius)",
+                    background: "var(--panel)",
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     className="label"
                     style={{
-                      letterSpacing: "0.1em",
-                      color: MUTED,
-                      padding: "5px 10px",
-                      borderBottom: `1px solid ${HAIR}`,
+                      padding: "8px 12px",
+                      borderBottom: "1px solid var(--hair)",
                     }}
                   >
-                    SUPPORT = OWN × DEPENDENCY
+                    Support = own × dependency
                   </div>
                   {math.supportRows.map((node, idx) => {
                     const on = idx < Math.ceil(solveProgress * math.supportRows.length);
@@ -529,18 +532,23 @@ export function LivePipeline({
                           display: "grid",
                           gridTemplateColumns: "1fr auto",
                           gap: 8,
-                          padding: "3px 10px",
+                          padding: "5px 12px",
                           borderBottom:
-                            idx < math.supportRows.length - 1 ? `1px solid ${HAIR}` : "none",
-                          opacity: on ? 1 : 0.15,
+                            idx < math.supportRows.length - 1 ? "1px solid var(--hair)" : "none",
+                          opacity: on ? 1 : 0.2,
                           transition: "opacity 0.35s ease",
                         }}
                       >
                         <span
                           style={{
                             fontFamily: "var(--sans)",
-                            fontSize: 10,
-                            color: node.failed ? BAD : isKey ? KEYSTONE : roleColor(node.type),
+                            fontSize: 11.5,
+                            color: node.failed
+                              ? "var(--bad)"
+                              : isKey
+                                ? "var(--keystone)"
+                                : roleColor(node.type),
+                            fontWeight: isKey ? 600 : 400,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -551,10 +559,16 @@ export function LivePipeline({
                         </span>
                         <span
                           className="mono"
-                          style={{ fontSize: 10.5, color: node.failed ? BAD : INK, whiteSpace: "nowrap" }}
+                          style={{
+                            fontSize: 11,
+                            color: node.failed ? "var(--bad)" : "var(--ink-2)",
+                            whiteSpace: "nowrap",
+                          }}
                         >
                           {node.ownConfidence.toFixed(2)} × {node.dependencyFactor.toFixed(2)} ={" "}
-                          <strong>{node.support.toFixed(2)}</strong>
+                          <strong style={{ color: node.failed ? "var(--bad)" : "var(--ink)" }}>
+                            {node.support.toFixed(2)}
+                          </strong>
                         </span>
                       </div>
                     );
@@ -562,19 +576,24 @@ export function LivePipeline({
                 </div>
 
                 {/* SENSITIVITY — knockout impact per assumption; the keystone lights up. */}
-                <div style={{ border: `1px solid ${HAIR}`, background: PANEL }}>
+                <div
+                  style={{
+                    border: "1px solid var(--hair)",
+                    borderRadius: "var(--radius)",
+                    background: "var(--panel)",
+                    overflow: "hidden",
+                  }}
+                >
                   <div
                     className="label"
                     style={{
-                      letterSpacing: "0.1em",
-                      color: MUTED,
-                      padding: "5px 10px",
-                      borderBottom: `1px solid ${HAIR}`,
+                      padding: "8px 12px",
+                      borderBottom: "1px solid var(--hair)",
                     }}
                   >
-                    SENSITIVITY · KNOCKOUT IMPACT
+                    Sensitivity · knockout impact
                   </div>
-                  <div style={{ padding: "6px 10px", display: "flex", flexDirection: "column", gap: 5 }}>
+                  <div style={{ padding: "10px 12px", display: "flex", flexDirection: "column", gap: 7 }}>
                     {math.ranked.slice(0, 5).map((r, idx) => {
                       const isKey = r.id === keystoneId;
                       const on = solveProgress > 0.25 + idx * 0.12;
@@ -584,8 +603,8 @@ export function LivePipeline({
                           <span
                             className="mono"
                             style={{
-                              fontSize: 9.5,
-                              color: isKey ? KEYSTONE : MUTED,
+                              fontSize: 10,
+                              color: isKey ? "var(--keystone)" : "var(--muted)",
                               width: 92,
                               flexShrink: 0,
                               overflow: "hidden",
@@ -596,18 +615,36 @@ export function LivePipeline({
                             {isKey ? "◆ " : ""}
                             {r.id}
                           </span>
-                          <div style={{ flex: 1, height: 8, background: PANEL_2, position: "relative" }}>
+                          <div
+                            style={{
+                              flex: 1,
+                              height: 8,
+                              borderRadius: 999,
+                              background: "var(--panel-2)",
+                              position: "relative",
+                              overflow: "hidden",
+                            }}
+                          >
                             <div
                               style={{
                                 position: "absolute",
                                 inset: 0,
                                 width: on ? `${w}%` : "0%",
-                                background: isKey ? KEYSTONE : HAIR_STRONG,
+                                borderRadius: 999,
+                                background: isKey ? "var(--keystone)" : "var(--hair-strong)",
                                 transition: `width ${TICK_MS * 3}ms ease`,
                               }}
                             />
                           </div>
-                          <span className="mono" style={{ fontSize: 9.5, color: isKey ? KEYSTONE : MUTED, width: 40, textAlign: "right" }}>
+                          <span
+                            className="mono"
+                            style={{
+                              fontSize: 10,
+                              color: isKey ? "var(--keystone)" : "var(--muted)",
+                              width: 40,
+                              textAlign: "right",
+                            }}
+                          >
                             {r.impact.toFixed(1)}
                           </span>
                         </div>
@@ -623,14 +660,13 @@ export function LivePipeline({
           <div
             className="label"
             style={{
-              letterSpacing: "0.12em",
-              color: MUTED,
-              marginTop: 12,
-              paddingTop: 8,
-              borderTop: `1px solid ${HAIR}`,
+              color: "var(--muted)",
+              marginTop: 14,
+              paddingTop: 12,
+              borderTop: "1px solid var(--hair)",
             }}
           >
-            DETERMINISTIC SOLVER · LLM PROPOSED THE SHAPE · CODE COMPUTES THE VERDICT
+            Deterministic solver · LLM proposed the shape · code computes the verdict
           </div>
         </div>
       </div>
@@ -639,10 +675,21 @@ export function LivePipeline({
 }
 
 function roleColor(type: "thesis" | "claim" | "assumption"): string {
-  return type === "thesis" ? THESIS : type === "claim" ? CLAIM : MUTED;
+  return type === "thesis"
+    ? "var(--thesis)"
+    : type === "claim"
+      ? "var(--claim)"
+      : "var(--ink-2)";
 }
 
 // ── Stage card ────────────────────────────────────────────────────────────────
+// A soft inset card (rounded, hair border, panel ground) — a status Pill carries the
+// RUNNING/DONE/QUEUED/SKIPPED state, a compact chip the LIVE/CACHED provenance.
+const STAGE_PILL: Record<StageStatus, { tone: PillTone; label: string }> = {
+  active: { tone: "accent", label: "Running" },
+  done: { tone: "hold", label: "Done" },
+  queued: { tone: "neutral", label: "Queued" },
+};
 function StageCard({
   n,
   name,
@@ -654,10 +701,6 @@ function StageCard({
   pulse,
   opacity,
   onHover,
-  flowInto,
-  flowActive,
-  tick,
-  reducedMotion,
 }: {
   n: string;
   name: string;
@@ -669,62 +712,70 @@ function StageCard({
   pulse: boolean;
   opacity: number;
   onHover: () => void;
-  flowInto: boolean;
-  flowActive: boolean;
-  tick: number;
-  reducedMotion: boolean;
 }) {
-  const accent = status === "done" ? OK : status === "active" ? KEYSTONE : HAIR_STRONG;
-  const inkColor = status === "queued" ? MUTED : INK;
+  const active = status === "active";
+  const numColor =
+    status === "done" ? "var(--ok)" : active ? "var(--accent)" : "var(--muted)";
+  const inkColor = status === "queued" ? "var(--muted)" : "var(--ink)";
+  const pill =
+    status === "done" && skipped ? { tone: "neutral" as PillTone, label: "Skipped" } : STAGE_PILL[status];
   return (
     <div
       onMouseEnter={onHover}
       style={{
         position: "relative",
-        border: `1px solid ${status === "active" ? KEYSTONE : HAIR}`,
-        borderLeft: `3px solid ${accent}`,
-        background: PANEL,
-        padding: 8,
+        border: `1px solid ${active ? "var(--accent)" : "var(--hair)"}`,
+        borderRadius: "var(--radius)",
+        background: "var(--panel)",
+        boxShadow: active ? "var(--shadow-sm)" : "none",
+        padding: 12,
         cursor: "help",
         opacity,
-        transition: "opacity 0.25s ease, border-color 0.25s ease",
+        transition: "opacity 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease",
       }}
     >
-      <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-        <span className="mono" style={{ fontSize: 12, color: accent }}>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 7 }}>
+        <span className="mono" style={{ fontSize: 12, color: numColor }}>
           {n}
         </span>
-        <span className="label" style={{ letterSpacing: "0.08em", color: inkColor, fontSize: 10 }}>
+        <span className="label" style={{ color: inkColor, fontSize: 10.5 }}>
           {name}
         </span>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 6, minHeight: 16 }}>
-        {status === "done" && !skipped && (
-          <span className="mono" style={{ fontSize: 11, color: OK }}>
-            ✓
-          </span>
-        )}
-        {status === "done" && skipped && (
-          <span className="label" style={{ fontSize: 9, color: MUTED }}>
-            SKIPPED
-          </span>
-        )}
-        {status === "active" && (
-          <>
+      <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 10, minHeight: 24 }}>
+        {active ? (
+          <span
+            style={{
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 7,
+              fontFamily: "var(--sans)",
+              fontSize: 12,
+              fontWeight: 600,
+              padding: "5px 11px",
+              borderRadius: 999,
+              background: "var(--accent-weak)",
+              color: "var(--accent)",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {/* The keystone-red RUNNING pulse dot — tick-driven, held steady under reduced motion. */}
             <span
               aria-hidden
-              style={{ width: 6, height: 6, background: KEYSTONE, opacity: pulse ? 1 : 0.25, transition: "opacity 0.12s linear" }}
+              style={{
+                width: 7,
+                height: 7,
+                borderRadius: 999,
+                background: "var(--keystone)",
+                opacity: pulse ? 1 : 0.25,
+                transition: "opacity 0.12s linear",
+              }}
             />
-            <span className="label" style={{ fontSize: 9, color: KEYSTONE }}>
-              RUNNING
-            </span>
-          </>
-        )}
-        {status === "queued" && (
-          <span className="label" style={{ fontSize: 9, color: MUTED }}>
-            QUEUED
+            {pill.label}
           </span>
+        ) : (
+          <Pill tone={pill.tone}>{pill.label}</Pill>
         )}
         <div style={{ flex: 1 }} />
         {/* LIVE / CACHED chip from the real per-stage source. */}
@@ -733,12 +784,13 @@ function StageCard({
             className="mono"
             data-testid="live-pipeline-source"
             style={{
-              fontSize: 8.5,
+              fontSize: 9,
               fontWeight: 600,
-              letterSpacing: "0.08em",
-              padding: "1px 5px",
-              border: `1px solid ${source === "live" ? OK : MUTED}`,
-              color: source === "live" ? OK : MUTED,
+              letterSpacing: "0.06em",
+              padding: "2px 7px",
+              borderRadius: 999,
+              border: `1px solid ${source === "live" ? "var(--ok)" : "var(--hair-strong)"}`,
+              color: source === "live" ? "var(--ok)" : "var(--muted)",
             }}
           >
             {source === "live" ? "LIVE" : "CACHED"}
@@ -747,38 +799,10 @@ function StageCard({
       </div>
 
       {/* Elapsed + gather count. */}
-      <div className="mono" style={{ fontSize: 9, color: MUTED, marginTop: 4, minHeight: 12 }}>
+      <div className="mono" style={{ fontSize: 10, color: "var(--muted)", marginTop: 8, minHeight: 13 }}>
         {gatherCount != null && gatherCount > 0 ? `${gatherCount} findings · ` : ""}
         {elapsed ?? ""}
       </div>
-
-      {/* Hairline flow wire into the next stage — particles travel while data is moving. */}
-      {flowInto && (
-        <svg
-          width={16}
-          height={10}
-          viewBox="0 0 16 10"
-          aria-hidden
-          style={{
-            position: "absolute",
-            right: -12,
-            top: "50%",
-            transform: "translateY(-50%)",
-            overflow: "visible",
-            zIndex: 1,
-          }}
-        >
-          <line x1={0} y1={5} x2={16} y2={5} stroke={HAIR_STRONG} strokeWidth={0.8} />
-          {/* A-3: the traveling dots are pure decoration (provenance already reads from the
-              LIVE/CACHED chip + ✓/RUNNING/QUEUED state) — suppressed under reduced motion. */}
-          {flowActive &&
-            !reducedMotion &&
-            [0, 0.5].map((off) => {
-              const t = ((tick / 8 + off) % 1);
-              return <circle key={off} cx={t * 16} cy={5} r={1.6} fill={CLAIM} />;
-            })}
-        </svg>
-      )}
     </div>
   );
 }

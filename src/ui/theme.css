@@ -16,11 +16,11 @@
   --hair-strong:   #dde1ea;   /* stronger dividers / control borders */
 
   /* the single brand accent */
-  --accent:        #4a5ad4;   /* indigo — active tab, primary CTA, thesis, focus ring */
-  --accent-weak:   #eef0fc;   /* accent wash (weak bg) */
+  --accent:        #3e63dd;   /* indigo — active tab, primary CTA, thesis, focus ring */
+  --accent-weak:   #edf2fe;   /* accent wash (weak bg) */
 
   /* semantic node + verdict colors */
-  --thesis:        #4a5ad4;   /* accent */
+  --thesis:        #3e63dd;   /* accent */
   --claim:         #1f9d57;   /* green */
   --assumption:    #8a93a2;   /* grey */
   --keystone:      #e0484d;   /* red */
@@ -50,8 +50,8 @@
     --bg: #0d0e12; --panel: #16181e; --panel-2: #1a1d24;
     --ink: #eceef3; --ink-2: #a7aebc; --muted: #6e7684;
     --hair: #262a33; --hair-strong: #313641;
-    --accent: #8791f2; --accent-weak: #1e2030;
-    --thesis: #8791f2; --claim: #3dcb79; --assumption: #6e7684; --keystone: #f0656a;
+    --accent: #849dff; --accent-weak: #1d2a5e;
+    --thesis: #849dff; --claim: #3dcb79; --assumption: #6e7684; --keystone: #f0656a;
     --increase: #e0a93c; --decrease: #6e7684;
     --ok: #3dcb79; --ok-weak: #14261b; --warn: #e0a93c; --bad: #f0656a; --bad-bg: #2a1618;
     --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
@@ -60,16 +60,16 @@
 }
 :root[data-theme="light"] {
   --bg: #f5f7fa; --panel: #ffffff; --panel-2: #fbfcfd; --ink: #14161c; --ink-2: #545c6b;
-  --muted: #8a93a2; --hair: #e7eaf0; --hair-strong: #dde1ea; --accent: #4a5ad4;
-  --accent-weak: #eef0fc; --thesis: #4a5ad4; --claim: #1f9d57; --assumption: #8a93a2;
+  --muted: #8a93a2; --hair: #e7eaf0; --hair-strong: #dde1ea; --accent: #3e63dd;
+  --accent-weak: #edf2fe; --thesis: #3e63dd; --claim: #1f9d57; --assumption: #8a93a2;
   --keystone: #e0484d; --increase: #c98a0e; --decrease: #8a93a2; --ok: #1f9d57; --ok-weak: #e6f5ec;
   --warn: #c98a0e; --bad: #e0484d; --bad-bg: #fcecec;
   --shadow-sm: 0 1px 2px rgba(20,22,28,.05); --shadow: 0 1px 2px rgba(20,22,28,.04), 0 4px 16px rgba(20,22,28,.05);
 }
 :root[data-theme="dark"] {
   --bg: #0d0e12; --panel: #16181e; --panel-2: #1a1d24; --ink: #eceef3; --ink-2: #a7aebc;
-  --muted: #6e7684; --hair: #262a33; --hair-strong: #313641; --accent: #8791f2;
-  --accent-weak: #1e2030; --thesis: #8791f2; --claim: #3dcb79; --assumption: #6e7684;
+  --muted: #6e7684; --hair: #262a33; --hair-strong: #313641; --accent: #849dff;
+  --accent-weak: #1d2a5e; --thesis: #849dff; --claim: #3dcb79; --assumption: #6e7684;
   --keystone: #f0656a; --increase: #e0a93c; --decrease: #6e7684; --ok: #3dcb79; --ok-weak: #14261b;
   --warn: #e0a93c; --bad: #f0656a; --bad-bg: #2a1618;
   --shadow-sm: 0 1px 2px rgba(0,0,0,.3); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
@@ -422,7 +422,7 @@ button:focus-visible {
 .term-viewport {
   border: 1px solid var(--hair-strong);
   background: var(--panel);
-  box-shadow: 0 1px 0 var(--hair-strong), 0 18px 40px -28px rgba(26, 26, 21, 0.5);
+  box-shadow: 0 1px 0 var(--hair-strong), 0 18px 40px -28px rgba(20, 22, 28, 0.4);
 }
 .term-header {
   display: flex;

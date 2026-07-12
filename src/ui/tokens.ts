@@ -5,7 +5,7 @@
 // vars directly (var(--panel-2), var(--hair)) so the board is theme-aware; the hexes below are
 // the light-mode source of truth + the fallback for the WebGL leg.
 
-export const THESIS = "#4a5ad4"; // accent (indigo)
+export const THESIS = "#3e63dd"; // accent (indigo)
 export const CLAIM = "#1f9d57"; // green
 export const ASSUMPTION = "#8a93a2"; // grey
 export const KEYSTONE = "#e0484d"; // red
@@ -30,4 +30,4 @@ export const PANEL_2 = "#fbfcfd";
 // driver (the correlation clusters from the probabilistic brain). Ordered so cluster #i always
 // draws the same colour and the GRAPH legend row #i matches. Keystone-red (#e0484d) is
 // deliberately EXCLUDED — it stays reserved for the load-bearing keystone signal.
-export const CLUSTER_PALETTE = ["#4a5ad4", "#2fa3b8", "#c98a0e", "#8b5cf6", "#1f9d57"] as const;
+export const CLUSTER_PALETTE = ["#3e63dd", "#2fa3b8", "#c98a0e", "#8b5cf6", "#1f9d57"] as const;
