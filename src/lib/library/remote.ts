@@ -109,3 +109,27 @@ export async function remoteSetPublic(id: string, isPublic: boolean): Promise<Li
     return null;
   }
 }
+
+// Phase 2 · cross-decision calibration (Task 2). Records the real-world outcome of a decision
+// (did the keystone assumption hold or fail?) plus which risk categories materialized. Guest mode
+// has no calibration story yet (no server to score against), so — like remoteSetPublic — this is
+// exported directly rather than folded into the guest/user index.ts resolver. Server stamps
+// `resolved_at` on the PATCH; never throw (fetch-only, no server imports, no wall-clock reads).
+export async function resolveOutcome(
+  id: string,
+  outcome: "held" | "failed",
+  materializedCategories?: string[],
+): Promise<LibraryEntry | null> {
+  try {
+    const res = await fetch(`${BASE}/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ outcome, materializedCategories }),
+    });
+    if (!res.ok) return null;
+    const body = await safeJson<{ entry: LibraryEntry }>(res);
+    return body?.entry ?? null;
+  } catch {
+    return null;
+  }
+}

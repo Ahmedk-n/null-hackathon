@@ -14,7 +14,7 @@ import * as remote from "./remote";
 import type { LibraryEntry, LibraryVerdict, NewLibraryEntry } from "./types";
 
 export type { LibraryEntry, LibraryVerdict, NewLibraryEntry, LibraryMode } from "./types";
-export { remoteSetPublic } from "./remote";
+export { remoteSetPublic, resolveOutcome } from "./remote";
 
 export type LibraryBackend = "guest" | "user";
 
