@@ -225,19 +225,36 @@ export function createKeystoneStore() {
       set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null, councilLoading: false });
     },
     setConfidence: (id, value) => {
-      const wg = get().workingGraph;
-      if (!wg) return;
-      const next = cloneGraph(wg);
-      const node = next.nodes.find((n) => n.id === id);
-      if (node) node.confidence = Math.min(1, Math.max(0, value));
-      // Re-derive failures only if we are in the post-load state; before load nothing is "failed".
+      const { workingGraph, baseGraph } = get();
+      if (!workingGraph || !baseGraph) return;
+      const v = Math.min(1, Math.max(0, value));
+      // BOTH graphs get the edit. The GRAPH tab renders the STANDING structure from `baseGraph`
+      // (displayGraph = baseGraph ?? workingGraph) and its "Adjust assumptions" sliders read their
+      // value from it — so writing only `workingGraph` (the old behavior) left the slider value
+      // pinned to the unchanged base and the thumb snapped straight back ("can't move the slider").
+      // Keeping both in sync makes the GRAPH what-if react and the STRESS view stay consistent.
+      // cloneGraph strips the engine-inert `drivers` (correlation structure the probabilistic brain
+      // needs) — re-attach them, mirroring setGraph.
+      const nextBase = cloneGraph(baseGraph);
+      nextBase.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(workingGraph);
+      nextWorking.drivers = workingGraph.drivers;
+      const bn = nextBase.nodes.find((n) => n.id === id);
+      if (bn) bn.confidence = v;
+      const wn = nextWorking.nodes.find((n) => n.id === id);
+      if (wn) wn.confidence = v;
+      // Re-derive failures only in the post-load state; before load nothing is "failed".
       const loadApplied = get().loadApplied;
-      const failures = loadApplied ? detectFailures(next) : EMPTY_FAILURES;
-      // Task 7 fold-in — the confidence edit rebuilt `next`, so the probabilistic distribution
-      // over the OLD working graph is now stale. Recompute it from the rebuilt graph while load
-      // is applied (matches the "workingGraph changed under load" contract of the other actions);
-      // at baseline there is no distribution to show, so it stays null.
-      set({ workingGraph: next, failures, reinforcementPlan: null, probabilistic: loadApplied ? solveProbabilistic(next, get().baseGraph) : null });
+      const failures = loadApplied ? detectFailures(nextWorking) : EMPTY_FAILURES;
+      // The edit rebuilt the graphs, so any probabilistic distribution over the old working graph
+      // is stale — recompute it under load; at baseline there is no distribution, so it stays null.
+      set({
+        baseGraph: nextBase,
+        workingGraph: nextWorking,
+        failures,
+        reinforcementPlan: null,
+        probabilistic: loadApplied ? solveProbabilistic(nextWorking, nextBase) : null,
+      });
     },
     // ── V5-3 · GRAPH EDITING ────────────────────────────────────────────────
     // Structural edits (delete / add / flip) reset the stress verdict back to baseline:
