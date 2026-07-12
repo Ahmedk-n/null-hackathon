@@ -1,44 +1,78 @@
-/* Keystone ledger design system (plan §1). Terminal/CAD aesthetic:
-   warm paper, hairline grid, uppercase tracked labels, monospace numerals. */
+/* Keystone clean-modern design system (2026-07 redesign). Soft white cards on a cool canvas,
+   one indigo accent, semantic verdict colors, sans type with mono demoted to numbers/ids. The
+   token NAMES are preserved from the old ledger theme so existing inline/class references pick
+   up the new values automatically; new tokens (--accent, --radius*, --shadow*) power the cards.
+   Light values here; dark in the media + data-theme blocks below. */
 
 :root {
-  /* paper + ink */
-  --bg:            #f5f4ef;   /* page */
-  --panel:         #fbfaf6;   /* raised panel */
-  --panel-2:       #efeee8;   /* inset / header row */
-  --ink:           #1a1a15;   /* primary text */
-  --ink-2:         #45443d;   /* secondary text */
-  --muted:         #6a685f;   /* labels / captions — A-1: darkened from #7a786f (was ~4.2:1
-                                  vs --panel / ~4.0:1 vs --bg, under WCAG AA 4.5:1 for the 11px
-                                  uppercase .label text); measured 5.35:1 / 5.07:1, both ≥4.5:1 */
-  --hair:          #d8d5cc;   /* 1px borders (the grid) */
-  --hair-strong:   #b7b3a7;   /* section dividers */
+  /* surfaces + ink */
+  --bg:            #f5f7fa;   /* page canvas */
+  --panel:         #ffffff;   /* card */
+  --panel-2:       #fbfcfd;   /* inset / subtle fill */
+  --ink:           #14161c;   /* primary text */
+  --ink-2:         #545c6b;   /* secondary text */
+  --muted:         #8a93a2;   /* labels / captions (measured ≥4.5:1 on card/canvas) */
+  --hair:          #e7eaf0;   /* soft 1px borders */
+  --hair-strong:   #dde1ea;   /* stronger dividers / control borders */
 
-  /* semantic accents (desaturated to fit paper) */
-  --thesis:        #2c4a76;   /* blue */
-  --claim:         #2f6b64;   /* teal */
-  --assumption:    #6f6d64;   /* grey */
-  --keystone:      #b23a2e;   /* red */
-  --increase:      #a9741a;   /* amber (weight ▲ / temporal) */
-  --decrease:      #7a786f;   /* grey (weight ▼) */
-  --ok:            #3c7a3a;   /* integrity high / HOLDING */
-  --warn:          #a9741a;   /* integrity mid */
-  --bad:           #b23a2e;   /* integrity low / FAILED */
-  --bad-bg:        #f6ecea;   /* failed-node fill (desaturated red wash) */
+  /* the single brand accent */
+  --accent:        #4a5ad4;   /* indigo — active tab, primary CTA, thesis, focus ring */
+  --accent-weak:   #eef0fc;   /* accent wash (weak bg) */
+
+  /* semantic node + verdict colors */
+  --thesis:        #4a5ad4;   /* accent */
+  --claim:         #1f9d57;   /* green */
+  --assumption:    #8a93a2;   /* grey */
+  --keystone:      #e0484d;   /* red */
+  --increase:      #c98a0e;   /* amber (weight ▲ / temporal) */
+  --decrease:      #8a93a2;   /* grey (weight ▼) */
+  --ok:            #1f9d57;   /* integrity high / HOLDING */
+  --ok-weak:       #e6f5ec;
+  --warn:          #c98a0e;   /* integrity mid */
+  --bad:           #e0484d;   /* integrity low / FAILED */
+  --bad-bg:        #fcecec;   /* failed-node fill (soft red wash) */
 
   /* type — fonts loaded via next/font in src/app/layout.tsx (exposed as
-     --font-inter / --font-jbmono on <html>), with system fallback stacks. */
-  --sans: var(--font-inter), "Söhne", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --mono: var(--font-jbmono), "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+     --font-inter / --font-jbmono on <html>), with system fallback stacks.
+     mono is now reserved for numbers / ids / timestamps only. */
+  --sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: var(--font-jbmono), ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* rhythm */
-  --row-h: 34px;  --gap: 14px;  --pad: 14px;  --radius: 0;  /* sharp corners */
+  /* rhythm + elevation */
+  --row-h: 34px;  --gap: 14px;  --pad: 16px;
+  --radius: 10px;  --radius-sm: 8px;  --radius-lg: 14px;
+  --shadow-sm: 0 1px 2px rgba(20, 22, 28, 0.05);
+  --shadow: 0 1px 2px rgba(20, 22, 28, 0.04), 0 4px 16px rgba(20, 22, 28, 0.05);
 }
 
-/* Zero border-radius reset — the whole screen is a grid of hairline cells.
-   Components that must opt out set border-radius explicitly (e.g. radios). */
-* {
-  border-radius: 0;
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0d0e12; --panel: #16181e; --panel-2: #1a1d24;
+    --ink: #eceef3; --ink-2: #a7aebc; --muted: #6e7684;
+    --hair: #262a33; --hair-strong: #313641;
+    --accent: #8791f2; --accent-weak: #1e2030;
+    --thesis: #8791f2; --claim: #3dcb79; --assumption: #6e7684; --keystone: #f0656a;
+    --increase: #e0a93c; --decrease: #6e7684;
+    --ok: #3dcb79; --ok-weak: #14261b; --warn: #e0a93c; --bad: #f0656a; --bad-bg: #2a1618;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 20px rgba(0, 0, 0, 0.35);
+  }
+}
+:root[data-theme="light"] {
+  --bg: #f5f7fa; --panel: #ffffff; --panel-2: #fbfcfd; --ink: #14161c; --ink-2: #545c6b;
+  --muted: #8a93a2; --hair: #e7eaf0; --hair-strong: #dde1ea; --accent: #4a5ad4;
+  --accent-weak: #eef0fc; --thesis: #4a5ad4; --claim: #1f9d57; --assumption: #8a93a2;
+  --keystone: #e0484d; --increase: #c98a0e; --decrease: #8a93a2; --ok: #1f9d57; --ok-weak: #e6f5ec;
+  --warn: #c98a0e; --bad: #e0484d; --bad-bg: #fcecec;
+  --shadow-sm: 0 1px 2px rgba(20,22,28,.05); --shadow: 0 1px 2px rgba(20,22,28,.04), 0 4px 16px rgba(20,22,28,.05);
+}
+:root[data-theme="dark"] {
+  --bg: #0d0e12; --panel: #16181e; --panel-2: #1a1d24; --ink: #eceef3; --ink-2: #a7aebc;
+  --muted: #6e7684; --hair: #262a33; --hair-strong: #313641; --accent: #8791f2;
+  --accent-weak: #1e2030; --thesis: #8791f2; --claim: #3dcb79; --assumption: #6e7684;
+  --keystone: #f0656a; --increase: #e0a93c; --decrease: #6e7684; --ok: #3dcb79; --ok-weak: #14261b;
+  --warn: #e0a93c; --bad: #f0656a; --bad-bg: #2a1618;
+  --shadow-sm: 0 1px 2px rgba(0,0,0,.3); --shadow: 0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.35);
 }
 
 html,
@@ -64,7 +98,7 @@ body {
 .label {
   font-family: var(--sans);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   font-size: 11px;
   color: var(--muted);
@@ -111,13 +145,13 @@ body {
 .section-header {
   font-family: var(--sans);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   font-size: 11px;
   color: var(--muted);
-  padding-bottom: 6px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--hair-strong);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--hair);
 }
 
 /* ── Hairline borders ───────────────────────────────────────────────── */
@@ -138,28 +172,32 @@ body {
 .panel {
   background: var(--panel);
   border: 1px solid var(--hair);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
 }
 .panel-inset {
   background: var(--panel-2);
+  border-radius: var(--radius);
 }
 
 /* ── Buttons ────────────────────────────────────────────────────────── */
 .btn {
   font-family: var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  font-size: 11px;
+  letter-spacing: 0;
+  font-weight: 550;
+  font-size: 13px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-sm);
   padding: 8px 14px;
   cursor: pointer;
-  line-height: 1;
-  transition: background 0.12s ease;
+  line-height: 1.1;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .btn:hover:not(:disabled) {
   background: var(--panel-2);
+  border-color: var(--muted);
 }
 .btn:disabled {
   color: var(--muted);
@@ -167,12 +205,13 @@ body {
   opacity: 0.6;
 }
 .btn-primary {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--ink-2);
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-color: color-mix(in srgb, var(--accent) 88%, #000);
 }
 
 /* ── Fields ─────────────────────────────────────────────────────────── */
@@ -181,21 +220,24 @@ body {
   background: var(--panel);
   color: var(--ink);
   border: 1px solid var(--hair-strong);
-  padding: 8px 10px;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.4;
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
   resize: vertical;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .field-input:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
 }
-/* A-2: restore a keyboard-only ring — same specificity as `:focus` above, so this rule
+/* A-2: keyboard-only ring — same specificity as `:focus` above, so this rule
    (declared after it) wins for keyboard focus while a mouse click stays quiet. */
 .field-input:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* ── Hairline range control (thin track, square thumb) ──────────────── */
@@ -252,34 +294,34 @@ body {
    there's nothing here to fight. React Flow's own zoom/fit controls get the
    same ring explicitly since they're rendered inside a foreign component. */
 button:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .keystone-controls .react-flow__controls-button:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--accent);
   outline-offset: -2px; /* inset — the buttons are flush inside a 1px hairline frame */
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────────── */
 .tab {
   font-family: var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  font-size: 11px;
+  letter-spacing: 0;
+  font-weight: 550;
+  font-size: 13.5px;
   color: var(--muted);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 12px 16px;
+  padding: 13px 14px;
   cursor: pointer;
+  margin-bottom: -1px;
 }
 .tab:hover {
   color: var(--ink-2);
 }
 .tab-active {
   color: var(--ink);
-  border-bottom-color: var(--ink);
+  border-bottom-color: var(--accent);
 }
 
 /* ── Collapsible detail sections (T4 — Wind Tunnel / Timeline / Re-run) ─ */
@@ -303,11 +345,12 @@ button:focus-visible {
   align-items: center;
   font-family: var(--sans);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   font-size: 10px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border: 1px solid var(--hair-strong);
+  border-radius: 999px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -430,13 +473,12 @@ button:focus-visible {
    mono glyphs. Buttons call the flow API so zoom works even in SECTION mode. */
 .keystone-controls {
   border: 1px solid var(--hair-strong);
-  border-radius: 0;
-  box-shadow: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
   background: var(--panel);
   overflow: hidden;
 }
 .keystone-controls .react-flow__controls-button {
-  border-radius: 0;
   border: none;
   border-bottom: 1px solid var(--hair);
   background: var(--panel);
