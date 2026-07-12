@@ -9,6 +9,10 @@ export interface UseAgentStream {
   events: AgentEvent[];
   findings: GatherFindings | null;
   running: boolean;
+  /** Whole seconds elapsed since the current run started (0 when idle). Ticks once a second while
+   *  `running` so the UI can show a live heartbeat during the business agent's long, silent
+   *  web-search gap — reads as alive, not hung. Counter-based (setInterval), no timestamp math. */
+  elapsedSec: number;
   run: (kind: GatherKind, source: GatherSource) => Promise<void>;
 }
 
@@ -28,11 +32,16 @@ export function useAgentStream(): UseAgentStream {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [findings, setFindings] = useState<GatherFindings | null>(null);
   const [running, setRunning] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   const run = useCallback(async (kind: GatherKind, source: GatherSource) => {
     setEvents([]);
     setFindings(null);
     setRunning(true);
+    // Heartbeat: reset to 0 and tick once a second for the life of the run. setInterval + a
+    // functional increment — no Date.now/timestamp math (GOAL T8). Cleared in `finally`.
+    setElapsedSec(0);
+    const heartbeat = setInterval(() => setElapsedSec((s) => s + 1), 1000);
     const controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), RUN_DEADLINE_MS);
     try {
@@ -79,9 +88,10 @@ export function useAgentStream(): UseAgentStream {
       setEvents((prev) => [...prev, { type: "error", message, ts: CLIENT_TS }]);
     } finally {
       clearTimeout(deadline);
+      clearInterval(heartbeat);
       setRunning(false);
     }
   }, []);
 
-  return { events, findings, running, run };
+  return { events, findings, running, elapsedSec, run };
 }

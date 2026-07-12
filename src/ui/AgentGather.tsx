@@ -99,7 +99,7 @@ export function AgentGather({
    *  local, so it never trips the ContextTab edit-flip that drops the scenario pin. */
   seedKey?: string;
 }) {
-  const { events, findings, running, run } = useAgentStream();
+  const { events, findings, running, elapsedSec, run } = useAgentStream();
 
   // Per-kind source inputs (local state) — initialised from the scenario seed so a pinned
   // demo shows the REAL source values (blank for CUSTOM / an unseeded kind).
@@ -195,14 +195,14 @@ export function AgentGather({
         )}
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <Button onClick={() => void run(kind, buildSource())} disabled={running}>
-            {running ? "RUNNING…" : "RUN AGENT"}
+            {running ? `RUNNING… ${elapsedSec}s` : "RUN AGENT"}
           </Button>
           {doneSource && <SourceChip source={doneSource} />}
         </div>
       </div>
 
       {/* ── AGENT LOG ──────────────────────────────────────────── */}
-      {events.length > 0 && (
+      {(events.length > 0 || running) && (
         <div>
           <SectionHeader>Agent Log</SectionHeader>
           {events.map((e, i) => {
@@ -230,6 +230,26 @@ export function AgentGather({
             // done
             return <LedgerRow key={i} label="done" value={e.source} accent="var(--ok)" />;
           })}
+          {/* Heartbeat — a live, ticking "still working" line while the run is in flight, so the
+              business agent's long silent web-search gap reads as alive rather than hung. The
+              ticking second count is the liveness signal; it vanishes the moment the run ends. */}
+          {running && (
+            <div
+              data-testid="agent-heartbeat"
+              className="mono"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "5px 0 2px",
+                fontSize: 11,
+                color: "var(--muted)",
+              }}
+            >
+              <span aria-hidden>◦</span>
+              <span>working… {elapsedSec}s</span>
+            </div>
+          )}
         </div>
       )}
 

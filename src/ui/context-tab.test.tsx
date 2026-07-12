@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, afterEach, beforeAll, vi } from "vitest";
-import { render, cleanup, fireEvent, within } from "@testing-library/react";
+import { render, cleanup, fireEvent, within, act } from "@testing-library/react";
 import { ContextTab } from "./tabs/ContextTab";
 import { SCENARIOS } from "@/context/fixtures";
 import { RUN_DEADLINE_MS } from "@/lib/useAgentStream";
@@ -290,6 +290,28 @@ describe("ContextTab (R3-UI static structure)", () => {
     // log/findings wiped. Hoisted to module scope → the same DOM node survives the re-render.
     const runBtnAfter = getByText("RUN AGENT");
     expect(runBtnAfter).toBe(runBtnBefore);
+  });
+
+  it("ticks a live heartbeat while a run is in flight (so the silent web-search gap looks alive)", () => {
+    vi.useFakeTimers();
+    try {
+      const { getByText, getByTestId } = render(
+        <ContextTab onAnalyse={() => {}} analysing={false} mode="A" onModeChange={() => {}} />,
+      );
+      // fetch is stubbed to a never-resolving promise (beforeAll), so the run stays in flight.
+      fireEvent.click(getByText("RUN AGENT"));
+
+      // Heartbeat present immediately, counting from 0.
+      expect(getByTestId("agent-heartbeat").textContent).toMatch(/working… 0s/);
+
+      // Three seconds pass with no server event — the counter must tick, proving liveness.
+      act(() => {
+        vi.advanceTimersByTime(3000);
+      });
+      expect(getByTestId("agent-heartbeat").textContent).toMatch(/working… 3s/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("gives a live agent run a deadline long enough for the slow business web agent", () => {
