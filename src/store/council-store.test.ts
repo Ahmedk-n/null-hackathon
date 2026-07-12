@@ -44,6 +44,24 @@ describe("store holds the council result", () => {
   });
 });
 
+describe("councilLoading flag (P4 — live-fetch placeholder)", () => {
+  it("defaults false and round-trips through setCouncilLoading", () => {
+    const store = createKeystoneStore();
+    expect(store.getState().councilLoading).toBe(false);
+    store.getState().setCouncilLoading(true);
+    expect(store.getState().councilLoading).toBe(true);
+    store.getState().setCouncilLoading(false);
+    expect(store.getState().councilLoading).toBe(false);
+  });
+
+  it("is reset to false by setGraph (a new analyse owns its own loading flag)", () => {
+    const store = createKeystoneStore();
+    store.getState().setCouncilLoading(true);
+    store.getState().setGraph(fixtureContextGraph());
+    expect(store.getState().councilLoading).toBe(false);
+  });
+});
+
 describe("solve consumes contextualAttacks from a live grounded council", () => {
   it("with no council, applyLoad still uses reweightAttacksByContext (unchanged)", () => {
     const store = createKeystoneStore();

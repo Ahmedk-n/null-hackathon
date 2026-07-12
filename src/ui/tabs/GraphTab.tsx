@@ -20,10 +20,16 @@ import { KeystoneCanvas } from "@/canvas/KeystoneCanvas";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ConfidenceSlider } from "@/ui/ConfidenceSlider";
 import { SelectionPanel } from "@/ui/SelectionPanel";
-import { LedgerRow, SectionHeader, Field, EmptyCanvas } from "@/ui/primitives";
-// T9 — reuse STRESS's disclosure verbatim so the collapsed FILTER + ASSUMPTIONS read
-// (and animate) identically to the STRESS rail's collapses.
-import { CollapsibleSection } from "@/ui/tabs/StressTab";
+import {
+  LedgerRow,
+  Field,
+  EmptyCanvas,
+  Card,
+  Pill,
+  Eyebrow,
+  Disclosure,
+} from "@/ui/primitives";
+import type { PillTone } from "@/ui/primitives";
 // M-1 — narrow-viewport reflow: below ~820px the fixed rail·canvas·rail row stacks into one
 // scrollable column (canvas first, a LEDGER/SELECTION switch swaps the rails beneath it).
 import { useIsNarrow, PaneSwitch } from "@/ui/useIsNarrow";
@@ -62,25 +68,24 @@ const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
 const EMPTY_SET: ReadonlySet<string> = new Set();
 const NO_ATTACKS: readonly [] = [];
 
+// The rails are now soft cards (see `Card`) on the cool canvas. These carry the
+// fixed widths + the interior scroll; the Card class supplies the white ground,
+// border, radius and shadow.
 const RAIL: React.CSSProperties = {
   width: 340,
   minWidth: 340,
-  borderRight: "1px solid var(--hair)",
-  padding: "var(--pad)",
+  padding: 18,
   overflowY: "auto",
   display: "flex",
   flexDirection: "column",
-  gap: "var(--gap)",
-  background: "var(--panel)",
+  gap: 16,
 };
 
 const RIGHT: React.CSSProperties = {
   width: 300,
   minWidth: 300,
-  borderLeft: "1px solid var(--hair)",
-  padding: "var(--pad)",
+  padding: 18,
   overflowY: "auto",
-  background: "var(--panel)",
 };
 
 // V4-1 · segmented VIEW control. T9 removes SECTION — the 2.5D perspective tilt barely
@@ -96,25 +101,33 @@ function DepthViewToggle({
   mode: ViewMode;
   onChange: (mode: ViewMode) => void;
 }) {
+  // Clean-modern segmented control: a soft inset track, active segment lifts to a white
+  // pill with a subtle shadow (matches the mockup's `.seg`).
   const seg = (active: boolean): React.CSSProperties => ({
-    flex: 1,
-    padding: "7px 8px",
-    fontFamily: "var(--mono)",
-    fontSize: 10,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
+    padding: "5px 13px",
+    fontFamily: "var(--sans)",
+    fontSize: 12,
+    fontWeight: 550,
     textAlign: "center",
     cursor: "pointer",
     border: "none",
-    borderRadius: 0,
-    background: active ? "var(--ink)" : "transparent",
-    color: active ? "var(--bg)" : "var(--muted)",
+    borderRadius: 6,
+    background: active ? "var(--panel)" : "transparent",
+    color: active ? "var(--ink)" : "var(--muted)",
+    boxShadow: active ? "var(--shadow-sm)" : "none",
   });
   return (
-    <div>
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <div
         data-testid="depth-view-toggle"
-        style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
+        style={{
+          display: "inline-flex",
+          padding: 3,
+          gap: 2,
+          background: "var(--panel-2)",
+          border: "1px solid var(--hair)",
+          borderRadius: 8,
+        }}
       >
         <button
           type="button"
@@ -135,9 +148,9 @@ function DepthViewToggle({
         </button>
       </div>
       {mode === "3d" && (
-        <div className="label" style={{ marginTop: 4, fontSize: 10, color: "var(--muted)" }}>
+        <span className="label" style={{ fontSize: 10, color: "var(--muted)" }}>
           Drag to orbit · scroll to zoom
-        </div>
+        </span>
       )}
     </div>
   );
@@ -163,19 +176,16 @@ function DetailToggle({
       disabled={disabled}
       onClick={() => onChange(!detail)}
       style={{
-        marginTop: 8,
-        width: "100%",
-        padding: "7px 8px",
-        fontFamily: "var(--mono)",
-        fontSize: 10,
-        letterSpacing: "0.12em",
-        textTransform: "uppercase",
+        padding: "6px 13px",
+        fontFamily: "var(--sans)",
+        fontSize: 12,
+        fontWeight: 550,
         textAlign: "center",
         cursor: disabled ? "default" : "pointer",
-        border: "1px solid var(--hair-strong)",
-        borderRadius: 0,
-        background: detail && !disabled ? "var(--ink)" : "transparent",
-        color: detail && !disabled ? "var(--bg)" : "var(--muted)",
+        border: `1px solid ${detail && !disabled ? "var(--accent)" : "var(--hair-strong)"}`,
+        borderRadius: "var(--radius-sm)",
+        background: detail && !disabled ? "var(--accent-weak)" : "var(--panel)",
+        color: detail && !disabled ? "var(--accent)" : "var(--muted)",
         opacity: disabled ? 0.5 : 1,
       }}
     >
@@ -301,179 +311,235 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
     return <EmptyCanvas />;
   }
 
-  // M-1 — reflow styles. Desktop: fixed rails + flex canvas. Narrow: full-width rails (the
-  // 340/300 widths, min-widths and side borders dropped so nothing exceeds the viewport) and a
-  // canvas with an explicit height (it can't be `flex:1` once stacked or it collapses to 0).
+  // M-1 — reflow styles. Desktop: fixed-width rail cards + a flex graph card. Narrow: the rails
+  // go full-width (fixed widths dropped) and the graph card takes an explicit height (it can't
+  // be `flex:1` once stacked in a scrolling column or it collapses to 0).
   const railStyle: React.CSSProperties = narrow
-    ? { ...RAIL, width: "100%", minWidth: 0, borderRight: "none", overflowY: "visible" }
+    ? { ...RAIL, width: "100%", minWidth: 0, overflowY: "visible" }
     : RAIL;
   const rightStyle: React.CSSProperties = narrow
-    ? { ...RIGHT, width: "100%", minWidth: 0, borderLeft: "none", overflowY: "visible" }
+    ? { ...RIGHT, width: "100%", minWidth: 0, overflowY: "visible" }
     : RIGHT;
-  const canvasStyle: React.CSSProperties = narrow
-    ? { height: "58vh", minHeight: 320, flex: "0 0 auto" }
-    : { flex: 1, minWidth: 0 };
+  const graphCardStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    ...(narrow ? { height: "58vh", minHeight: 320, flex: "0 0 auto" } : { flex: 1, minWidth: 0 }),
+  };
 
-  // LEFT — VERDICT (gauge + keystone + weakest) · collapsed FILTER · VIEW · collapsed ASSUMPTIONS.
-  // T9 declutter: the rail now LEADS with the answer and its weak point, folds the power-user
-  // FILTER and the ~9 confidence sliders behind disclosures, and drops the Nodes/Links/Assumptions/
-  // Claims count stack — the bottom StatusStrip already carries Nodes/Links/Integrity/Keystone, so
-  // the rail was repeating them. The remaining counts fold into one caption.
-  const leftRail = (
-      <div style={railStyle}>
-        {/* VERDICT — the answer (55% HOLDING gauge) and its weak point (keystone + weakest
-            assumption), the first thing you see. */}
-        <div>
-          <SectionHeader>Verdict</SectionHeader>
-          <IntegrityGauge
-            value={integrityValue}
-            probabilistic={probabilistic}
-            calibration={calibration}
-            calibrationIsSample={calibrationIsSample}
-          />
-          <LedgerRow label="Keystone" value={keystoneId ?? "—"} accent="var(--keystone)" />
-          <LedgerRow
-            label="Weakest Assumption"
-            value={stats.weakest ? stats.weakest.confidence.toFixed(2) : "—"}
-          />
-          {/* De-dupe: the old Nodes/Links/Assumptions/Claims rows collapsed to one caption
-              (StatusStrip carries the canonical Nodes/Links). */}
-          <div className="label" style={{ marginTop: 6, color: "var(--muted)" }}>
-            {`${stats.assumptions.length} assumptions · ${stats.claimCount} claims`}
+  // VERDICT status pill — the one-word read of the standing structure's integrity, on the same
+  // bands the gauge uses (HOLDING ≥35 · STRESSED 10–35 · below → cracking).
+  const verdict: { tone: PillTone; label: string } =
+    integrityValue >= 35
+      ? { tone: "hold", label: "Standing" }
+      : integrityValue >= 10
+        ? { tone: "warn", label: "Under strain" }
+        : { tone: "crack", label: "Cracking" };
+  // One-line, plain-language read of the same verdict — the answer in a sentence, above the
+  // numbers, so the card leads with meaning rather than metrics.
+  const verdictLine =
+    verdict.tone === "hold"
+      ? "This thesis holds — its claims and assumptions currently carry the load."
+      : verdict.tone === "warn"
+        ? "This thesis is under strain — some load-bearing support is thin."
+        : "This thesis is cracking — critical support is giving way.";
+  const keystoneNode = keystoneId ? displayGraph.nodes.find((n) => n.id === keystoneId) ?? null : null;
+
+  // LEFT — the VERDICT card. Leads with the answer (pill + gauge + P(hold)/band) and its weak
+  // point (the keystone callout), then folds structure counts, shared-failure drivers, filter
+  // and the confidence sliders behind progressive-disclosure sections.
+  const leftCardContent = (
+    <>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+        <Eyebrow>Verdict</Eyebrow>
+        <Pill tone={verdict.tone}>{verdict.label}</Pill>
+      </div>
+
+      {/* The answer, in a sentence — leads with meaning before the gauge throws numbers. */}
+      <div style={{ fontSize: 13.5, lineHeight: 1.45, color: "var(--ink-2)", marginTop: -2 }}>
+        {verdictLine}
+      </div>
+
+      <IntegrityGauge
+        value={integrityValue}
+        probabilistic={probabilistic}
+        calibration={calibration}
+        calibrationIsSample={calibrationIsSample}
+        explain
+      />
+
+      {/* Keystone callout — the load-bearing assumption the whole structure hangs from. */}
+      {keystoneNode && (
+        <div
+          style={{
+            padding: 14,
+            borderRadius: "var(--radius-sm)",
+            border: "1px solid var(--bad)",
+            background: "var(--bad-bg)",
+          }}
+        >
+          <div className="label" style={{ color: "var(--bad)" }}>
+            Keystone · load-bearing assumption
+          </div>
+          <div style={{ fontSize: 14, fontWeight: 620, marginTop: 5, lineHeight: 1.3, color: "var(--ink)" }}>
+            {keystoneNode.label}
+          </div>
+          <div style={{ fontSize: 12.5, color: "var(--ink-2)", marginTop: 6, lineHeight: 1.4 }}>
+            The single most load-bearing belief — the rest of the structure hangs from it. If it
+            fails, the thesis craters.
           </div>
         </div>
+      )}
 
-        {/* Task 7 · DRIVER CLUSTERS legend. One row per latent common-mode driver (the
-            correlation clusters the probabilistic brain inferred), colour-matched to the tint
-            on each assumption node's left edge. Only appears once a solve has produced a
-            distribution; it is the cluster SEED for the later semantic-zoom pass (grouping +
-            legend only — no new navigation). */}
-        {driverLegend.length > 0 && (
-          <div data-testid="driver-legend">
-            <SectionHeader>Driver Clusters</SectionHeader>
+      {/* Task 7 · DRIVER CLUSTERS. One row per latent common-mode driver (the correlation
+          clusters the probabilistic brain inferred), colour-matched to the tint on each
+          assumption node's left edge. Only appears once a solve has produced a distribution. */}
+      {driverLegend.length > 0 && (
+        <Disclosure summary="Shared-failure drivers" testId="driver-legend">
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--muted)", marginBottom: 2 }}>
+              Latent factors several assumptions lean on at once. If one gives way, every
+              assumption tied to it tends to fail together.
+            </div>
             {driverLegend.map((d) => (
               <div
                 key={d.id}
                 data-testid="driver-legend-row"
-                style={{ display: "flex", alignItems: "center", gap: 8, padding: "4px 0" }}
+                style={{ display: "flex", alignItems: "center", gap: 9, fontSize: 12.5, color: "var(--ink-2)" }}
               >
                 <span
                   aria-hidden
-                  style={{
-                    width: 10,
-                    height: 10,
-                    background: d.color,
-                    border: "1px solid var(--ink)",
-                    flex: "0 0 auto",
-                  }}
+                  style={{ width: 10, height: 10, borderRadius: 3, background: d.color, flex: "0 0 auto" }}
                 />
-                <span
-                  className="label"
-                  title={d.label}
-                  style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
-                >
+                <span title={d.label} style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {d.label}
                 </span>
               </div>
             ))}
-            <div
-              className="label"
-              style={{ marginTop: 4, fontSize: 10, color: "var(--muted)", letterSpacing: "0.08em" }}
-            >
-              Assumptions Tinted By Shared-Failure Driver
+            <div className="label" style={{ fontSize: 10, color: "var(--muted)" }}>
+              Assumptions tinted by shared-failure driver
             </div>
           </div>
-        )}
+        </Disclosure>
+      )}
 
-        {/* FILTER — power-user search/threshold, not needed for a first read of a 13-node
-            graph, so it folds behind a collapsed-by-default disclosure. */}
-        <CollapsibleSection label="Filter" testId="graph-filter">
-          <Field label="Search" value={search} onChange={setSearch} placeholder="Label…" mono={false} />
-          <label
-            style={{ display: "flex", alignItems: "center", gap: 8, margin: "8px 0", cursor: "pointer" }}
-          >
-            <input
-              type="checkbox"
-              className="ledger-check"
-              checked={failedOnly}
-              onChange={(e) => setFailedOnly(e.target.checked)}
-            />
-            <span className="label">Show Failed Only</span>
-          </label>
-          <label style={{ display: "block" }}>
-            <span
-              className="label"
-              style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}
-            >
-              <span>Min Confidence</span>
-              <span className="mono" style={{ fontSize: 11 }}>
-                {minConf.toFixed(2)}
-              </span>
+      {/* STRUCTURE — the counts + depth + weakest assumption, folded away for a first read. */}
+      <Disclosure summary="Structure" testId="graph-structure">
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--ink-2)" }}>
+          <div style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--muted)" }}>
+            How large and how deep the argument is, and where its thinnest belief sits.
+          </div>
+          <div>
+            <span className="mono" style={{ color: "var(--ink)" }}>{stats.claimCount}</span> claims ·{" "}
+            <span className="mono" style={{ color: "var(--ink)" }}>{stats.assumptions.length}</span> assumptions
+            {depth && (
+              <>
+                {" "}· <span className="mono" style={{ color: "var(--ink)" }}>{depth.strata}/4</span> strata deep
+              </>
+            )}
+          </div>
+          <div>
+            Weakest assumption confidence{" "}
+            <span className="mono" style={{ color: "var(--ink)" }}>
+              {stats.weakest ? stats.weakest.confidence.toFixed(2) : "—"}
             </span>
-            <input
-              type="range"
-              className="ledger-range"
-              min={0}
-              max={1}
-              step={0.01}
-              value={minConf}
-              onChange={(e) => setMinConf(Number(e.target.value))}
-              style={{ width: "100%" }}
-            />
-          </label>
-          <LedgerRow label="Matches" value={`${matches.length} / ${stats.nodeCount}`} />
-        </CollapsibleSection>
-
-        {/* VIEW — the 2D ⟷ 3D render toggle (T9 dropped SECTION) + the DETAIL disclosure.
-            2D is the flat top-down board; 3D swaps in the lazy react-three-fiber scene. The
-            board stays MINIMAL by default; DETAIL reveals stratum labels, the constraint rail,
-            force arrows and per-node evidence. DETAIL is 2D-only, so it disables in 3D. */}
-        <div>
-          <SectionHeader>View</SectionHeader>
-          <DepthViewToggle
-            mode={is3D ? "3d" : "2d"}
-            onChange={(next) => setIs3D(next === "3d")}
-          />
-          <DetailToggle detail={detail} disabled={is3D} onChange={setDetail} />
-          {!is3D && detail && depth && (
-            <>
-              <LedgerRow label="Depth" value={`${depth.strata}/4 strata`} />
-              <LedgerRow
-                label="Grounded"
-                value={`${depth.grounded}/${depth.assumptions}`}
-                accent={
-                  depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
-                    ? "var(--ok)"
-                    : "var(--warn)"
-                }
-              />
-            </>
+          </div>
+          {depth && (
+            <div>
+              Grounded{" "}
+              <span
+                className="mono"
+                style={{
+                  color:
+                    depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
+                      ? "var(--ok)"
+                      : "var(--warn)",
+                }}
+              >
+                {depth.grounded}/{depth.assumptions}
+              </span>
+              <div style={{ fontSize: 11, lineHeight: 1.4, color: "var(--muted)", marginTop: 3 }}>
+                Assumptions that rest on further support, not bare belief.
+              </div>
+            </div>
           )}
         </div>
+      </Disclosure>
 
-        {/* ASSUMPTIONS — the ~9 confidence sliders were the single biggest source of rail
-            length. Folded behind a collapsed-by-default disclosure; every slider stays one
-            click away. */}
-        <CollapsibleSection label="Adjust Assumptions" testId="graph-assumptions">
-          {stats.assumptions.map((a) => (
-            <ConfidenceSlider
-              key={a.id}
-              id={a.id}
-              label={a.label}
-              value={a.confidence}
-              onChange={(id, v) => keystoneStore.getState().setConfidence(id, v)}
-            />
-          ))}
-        </CollapsibleSection>
-      </div>
+      {/* FILTER — power-user search / threshold, folded away. */}
+      <Disclosure summary="Filter" testId="graph-filter">
+        <Field label="Search" value={search} onChange={setSearch} placeholder="Label…" mono={false} />
+        <label style={{ display: "flex", alignItems: "center", gap: 8, margin: "10px 0", cursor: "pointer" }}>
+          <input
+            type="checkbox"
+            className="ledger-check"
+            checked={failedOnly}
+            onChange={(e) => setFailedOnly(e.target.checked)}
+          />
+          <span className="label">Show failed only</span>
+        </label>
+        <label style={{ display: "block" }}>
+          <span className="label" style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+            <span>Min confidence</span>
+            <span className="mono" style={{ fontSize: 11 }}>{minConf.toFixed(2)}</span>
+          </span>
+          <input
+            type="range"
+            className="ledger-range"
+            min={0}
+            max={1}
+            step={0.01}
+            value={minConf}
+            onChange={(e) => setMinConf(Number(e.target.value))}
+            style={{ width: "100%" }}
+          />
+        </label>
+        <LedgerRow label="Matches" value={`${matches.length} / ${stats.nodeCount}`} />
+      </Disclosure>
+
+      {/* ADJUST ASSUMPTIONS — the ~9 confidence sliders, folded away; one click from every slider. */}
+      <Disclosure summary="Adjust assumptions" testId="graph-assumptions">
+        <div style={{ fontSize: 11.5, lineHeight: 1.4, color: "var(--muted)", marginBottom: 12 }}>
+          Drag an assumption&rsquo;s confidence to see the verdict react (what-if).
+        </div>
+        {stats.assumptions.map((a) => (
+          <ConfidenceSlider
+            key={a.id}
+            id={a.id}
+            label={a.label}
+            value={a.confidence}
+            onChange={(id, v) => keystoneStore.getState().setConfidence(id, v)}
+          />
+        ))}
+      </Disclosure>
+    </>
   );
 
-  // CENTER — adaptive board. 2D renders the flat top-down KeystoneCanvas; 3D swaps in the
-  // lazy react-three-fiber scene (native orbit/zoom/pan — its own controls replace the 2D
-  // zoom buttons). Both read the SAME standing base graph + keystone; failures stay empty
-  // on GRAPH. Selecting a node in 3D drives the SAME SelectionPanel via setSelectedNode.
-  const canvasPane = (
-      <div style={canvasStyle}>
+  const leftCard = <Card style={railStyle}>{leftCardContent}</Card>;
+
+  // CENTER — the graph card: a header (title + the 2D/3D + DETAIL controls) over the board.
+  // 2D renders the flat top-down KeystoneCanvas; 3D swaps in the lazy react-three-fiber scene
+  // (native orbit/zoom/pan). Both read the SAME standing base graph + keystone.
+  const graphCard = (
+    <Card style={graphCardStyle}>
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "13px 18px",
+          borderBottom: "1px solid var(--hair)",
+          flexWrap: "wrap",
+        }}
+      >
+        <Eyebrow>Argument structure</Eyebrow>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <DepthViewToggle mode={is3D ? "3d" : "2d"} onChange={(next) => setIs3D(next === "3d")} />
+          <DetailToggle detail={detail} disabled={is3D} onChange={setDetail} />
+        </div>
+      </div>
+      <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
         {is3D ? (
           <Keystone3D
             graph={displayGraph}
@@ -489,9 +555,8 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
             // Standing structure: no failures, no glow/buckle/LOAD arrows, no constraint
             // STRIKES. Planes still render as un-violated standing datums (on-brand).
             failures={EMPTY_SET}
-            // T9 — GRAPH always renders the flat top-down board (SECTION removed). tilt=false
-            // is the flat PLAN inspection; no stratum focus dimming (that was a SECTION-only
-            // affordance). STRESS keeps the perspective view via its own constant tilt=true.
+            // GRAPH always renders the flat top-down board (SECTION removed). tilt=false is the
+            // flat PLAN inspection; STRESS keeps the perspective view via its own constant tilt.
             tilt={false}
             focusLayer={null}
             loadApplied={false}
@@ -508,51 +573,57 @@ export function GraphTab({ fitSignal }: { fitSignal?: number }) {
           />
         )}
       </div>
+    </Card>
   );
 
-  // RIGHT — SELECTION + ENCODING
-  const rightRail = (
-      <div style={rightStyle}>
-        <SelectionPanel
-          graph={displayGraph}
-          selectedNodeId={selectedNodeId}
-          keystoneId={keystoneId}
-          nodeWeights={council?.grounded ? council.nodeWeights : undefined}
-          nodeWeightsSource={council?.grounded ? council.source : undefined}
-          editError={editError}
-          onRename={(id, label) => keystoneStore.getState().renameNode(id, label)}
-          onSetConfidence={(id, v) => keystoneStore.getState().setConfidence(id, v)}
-          onAddAssumption={(parentId, label) => keystoneStore.getState().addAssumption(parentId, label)}
-          onFlipGroup={(nodeId, i) => keystoneStore.getState().flipGroupKind(nodeId, i)}
-          onDelete={(id) => keystoneStore.getState().deleteNode(id)}
-        />
-      </div>
+  // RIGHT — the SELECTION card (the node inspector, wrapped in a soft card).
+  const rightCard = (
+    <Card style={rightStyle}>
+      <SelectionPanel
+        graph={displayGraph}
+        selectedNodeId={selectedNodeId}
+        keystoneId={keystoneId}
+        nodeWeights={council?.grounded ? council.nodeWeights : undefined}
+        nodeWeightsSource={council?.grounded ? council.source : undefined}
+        editError={editError}
+        onRename={(id, label) => keystoneStore.getState().renameNode(id, label)}
+        onSetConfidence={(id, v) => keystoneStore.getState().setConfidence(id, v)}
+        onAddAssumption={(parentId, label) => keystoneStore.getState().addAssumption(parentId, label)}
+        onFlipGroup={(nodeId, i) => keystoneStore.getState().flipGroupKind(nodeId, i)}
+        onDelete={(id) => keystoneStore.getState().deleteNode(id)}
+      />
+    </Card>
   );
 
-  // M-1 — narrow: canvas first, then the LEDGER/SELECTION switch, then the chosen rail, all in
-  // one column the ROOT scrolls (root is overflow-y:auto here because <main> is overflow:hidden
-  // in KeystoneApp; without this the stacked column can't reach its bottom panel). Desktop keeps
-  // the original fixed rail·canvas·rail flex row, unchanged.
+  // The stage: three soft cards on the cool canvas with generous gutters (mockup `.stage`).
+  // M-1 — narrow: graph card first, then the LEDGER/SELECTION switch, then the chosen rail
+  // card, all in one column the ROOT scrolls (root is overflow-y:auto because <main> is
+  // overflow:hidden in KeystoneApp). Desktop keeps the fixed rail·graph·rail row.
+  const stage: React.CSSProperties = {
+    display: "flex",
+    gap: 16,
+    padding: 16,
+    background: "var(--bg)",
+    boxSizing: "border-box",
+  };
   return narrow ? (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto" }}>
-      {canvasPane}
-      <div style={{ padding: "var(--pad) var(--pad) 0" }}>
-        <PaneSwitch
-          options={[
-            { id: "ledger", label: "Ledger" },
-            { id: "selection", label: "Selection" },
-          ]}
-          value={mobilePane}
-          onChange={setMobilePane}
-        />
-      </div>
-      {mobilePane === "ledger" ? leftRail : rightRail}
+    <div style={{ ...stage, flexDirection: "column", height: "100%", overflowY: "auto" }}>
+      {graphCard}
+      <PaneSwitch
+        options={[
+          { id: "ledger", label: "Verdict" },
+          { id: "selection", label: "Selection" },
+        ]}
+        value={mobilePane}
+        onChange={setMobilePane}
+      />
+      {mobilePane === "ledger" ? leftCard : rightCard}
     </div>
   ) : (
-    <div style={{ display: "flex", height: "100%" }}>
-      {leftRail}
-      {canvasPane}
-      {rightRail}
+    <div style={{ ...stage, height: "100%" }}>
+      {leftCard}
+      {graphCard}
+      {rightCard}
     </div>
   );
 }

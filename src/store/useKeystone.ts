@@ -138,6 +138,11 @@ export interface KeystoneState {
   // reinforcementPlan/probabilistic above. Consumed by the four non-timeline solve actions below
   // to swap in `council.contextualAttacks` for the keyword reweight when LIVE + grounded.
   council: CouncilResult | null;
+  // P4 (additive): true while a live council fetch is in flight for the current analyse run, so
+  // the STRESS rail can show an "analysing context…" placeholder during the ~30-40s live wait
+  // instead of a blank gap. Set true by KeystoneApp right before fetchCouncil, false when it
+  // resolves (token-guarded). Never gates the engine — display only.
+  councilLoading: boolean;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
@@ -181,6 +186,7 @@ export interface KeystoneState {
   // KeystoneApp calls fetchCouncil(...) after the extract step and hands the plain result (or
   // null) to this setter.
   setCouncil: (c: CouncilResult | null) => void;
+  setCouncilLoading: (loading: boolean) => void;
 }
 
 export function createKeystoneStore() {
@@ -207,6 +213,7 @@ export function createKeystoneStore() {
     calibration: null,
     calibrationIsSample: false,
     council: null,
+    councilLoading: false,
     setGraph: (g) => {
       // Preserve the engine-inert drivers onto the store's base/working graphs — cloneGraph
       // strips them (see solveProbabilistic above), and they are the correlation structure the
@@ -215,22 +222,39 @@ export function createKeystoneStore() {
       const working = cloneGraph(g);
       base.drivers = g.drivers;
       working.drivers = g.drivers;
-      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null });
+      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null, councilLoading: false });
     },
     setConfidence: (id, value) => {
-      const wg = get().workingGraph;
-      if (!wg) return;
-      const next = cloneGraph(wg);
-      const node = next.nodes.find((n) => n.id === id);
-      if (node) node.confidence = Math.min(1, Math.max(0, value));
-      // Re-derive failures only if we are in the post-load state; before load nothing is "failed".
+      const { workingGraph, baseGraph } = get();
+      if (!workingGraph || !baseGraph) return;
+      const v = Math.min(1, Math.max(0, value));
+      // BOTH graphs get the edit. The GRAPH tab renders the STANDING structure from `baseGraph`
+      // (displayGraph = baseGraph ?? workingGraph) and its "Adjust assumptions" sliders read their
+      // value from it — so writing only `workingGraph` (the old behavior) left the slider value
+      // pinned to the unchanged base and the thumb snapped straight back ("can't move the slider").
+      // Keeping both in sync makes the GRAPH what-if react and the STRESS view stay consistent.
+      // cloneGraph strips the engine-inert `drivers` (correlation structure the probabilistic brain
+      // needs) — re-attach them, mirroring setGraph.
+      const nextBase = cloneGraph(baseGraph);
+      nextBase.drivers = baseGraph.drivers;
+      const nextWorking = cloneGraph(workingGraph);
+      nextWorking.drivers = workingGraph.drivers;
+      const bn = nextBase.nodes.find((n) => n.id === id);
+      if (bn) bn.confidence = v;
+      const wn = nextWorking.nodes.find((n) => n.id === id);
+      if (wn) wn.confidence = v;
+      // Re-derive failures only in the post-load state; before load nothing is "failed".
       const loadApplied = get().loadApplied;
-      const failures = loadApplied ? detectFailures(next) : EMPTY_FAILURES;
-      // Task 7 fold-in — the confidence edit rebuilt `next`, so the probabilistic distribution
-      // over the OLD working graph is now stale. Recompute it from the rebuilt graph while load
-      // is applied (matches the "workingGraph changed under load" contract of the other actions);
-      // at baseline there is no distribution to show, so it stays null.
-      set({ workingGraph: next, failures, reinforcementPlan: null, probabilistic: loadApplied ? solveProbabilistic(next, get().baseGraph) : null });
+      const failures = loadApplied ? detectFailures(nextWorking) : EMPTY_FAILURES;
+      // The edit rebuilt the graphs, so any probabilistic distribution over the old working graph
+      // is stale — recompute it under load; at baseline there is no distribution, so it stays null.
+      set({
+        baseGraph: nextBase,
+        workingGraph: nextWorking,
+        failures,
+        reinforcementPlan: null,
+        probabilistic: loadApplied ? solveProbabilistic(nextWorking, nextBase) : null,
+      });
     },
     // ── V5-3 · GRAPH EDITING ────────────────────────────────────────────────
     // Structural edits (delete / add / flip) reset the stress verdict back to baseline:
@@ -612,6 +636,7 @@ export function createKeystoneStore() {
     // calls fetchCouncil({graph, pack, company, findings}) in the post-extract effect and pushes
     // the result (or null on failure/no-key) in.
     setCouncil: (c) => set({ council: c }),
+    setCouncilLoading: (loading) => set({ councilLoading: loading }),
   }));
 }
 

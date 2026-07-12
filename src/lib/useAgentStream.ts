@@ -9,12 +9,22 @@ export interface UseAgentStream {
   events: AgentEvent[];
   findings: GatherFindings | null;
   running: boolean;
+  /** Whole seconds elapsed since the current run started (0 when idle). Ticks once a second while
+   *  `running` so the UI can show a live heartbeat during the business agent's long, silent
+   *  web-search gap — reads as alive, not hung. Counter-based (setInterval), no timestamp math. */
+  elapsedSec: number;
   run: (kind: GatherKind, source: GatherSource) => Promise<void>;
 }
 
 // Hard client-side deadline so `running` can never spin forever if the server hangs.
 // Uses setTimeout (no Date.now / timestamp math — GOAL T8).
-const RUN_DEADLINE_MS = 75_000;
+//
+// The BUSINESS agent runs live web-search/fetch tools whose latency is unbounded: measured at
+// ~116s end-to-end against a real company, and up to ~275s in the wild. The old 75s ceiling
+// aborted every live business run mid-"Searching the web…", so the log stalled and never
+// produced findings. 300s comfortably covers the observed + worst-case business latency while
+// still capping a genuinely hung server. Technical/temporal finish in seconds and are unaffected.
+export const RUN_DEADLINE_MS = 300_000;
 // Constant placeholder ts for client-generated terminal events (never a live clock).
 const CLIENT_TS = "";
 
@@ -22,11 +32,16 @@ export function useAgentStream(): UseAgentStream {
   const [events, setEvents] = useState<AgentEvent[]>([]);
   const [findings, setFindings] = useState<GatherFindings | null>(null);
   const [running, setRunning] = useState(false);
+  const [elapsedSec, setElapsedSec] = useState(0);
 
   const run = useCallback(async (kind: GatherKind, source: GatherSource) => {
     setEvents([]);
     setFindings(null);
     setRunning(true);
+    // Heartbeat: reset to 0 and tick once a second for the life of the run. setInterval + a
+    // functional increment — no Date.now/timestamp math (GOAL T8). Cleared in `finally`.
+    setElapsedSec(0);
+    const heartbeat = setInterval(() => setElapsedSec((s) => s + 1), 1000);
     const controller = new AbortController();
     const deadline = setTimeout(() => controller.abort(), RUN_DEADLINE_MS);
     try {
@@ -73,9 +88,10 @@ export function useAgentStream(): UseAgentStream {
       setEvents((prev) => [...prev, { type: "error", message, ts: CLIENT_TS }]);
     } finally {
       clearTimeout(deadline);
+      clearInterval(heartbeat);
       setRunning(false);
     }
   }, []);
 
-  return { events, findings, running, run };
+  return { events, findings, running, elapsedSec, run };
 }

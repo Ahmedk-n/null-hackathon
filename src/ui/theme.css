@@ -1,45 +1,58 @@
-/* Keystone ledger design system (plan §1). Terminal/CAD aesthetic:
-   warm paper, hairline grid, uppercase tracked labels, monospace numerals. */
+/* Keystone clean-modern design system (2026-07 redesign). Soft white cards on a cool canvas,
+   one indigo accent, semantic verdict colors, sans type with mono demoted to numbers/ids. The
+   token NAMES are preserved from the old ledger theme so existing inline/class references pick
+   up the new values automatically; new tokens (--accent, --radius*, --shadow*) power the cards.
+   Light values here; dark in the media + data-theme blocks below. */
 
 :root {
-  /* paper + ink */
-  --bg:            #f5f4ef;   /* page */
-  --panel:         #fbfaf6;   /* raised panel */
-  --panel-2:       #efeee8;   /* inset / header row */
-  --ink:           #1a1a15;   /* primary text */
-  --ink-2:         #45443d;   /* secondary text */
-  --muted:         #6a685f;   /* labels / captions — A-1: darkened from #7a786f (was ~4.2:1
-                                  vs --panel / ~4.0:1 vs --bg, under WCAG AA 4.5:1 for the 11px
-                                  uppercase .label text); measured 5.35:1 / 5.07:1, both ≥4.5:1 */
-  --hair:          #d8d5cc;   /* 1px borders (the grid) */
-  --hair-strong:   #b7b3a7;   /* section dividers */
+  color-scheme: light;   /* LIGHT ONLY — the studio never goes dark, regardless of OS preference */
 
-  /* semantic accents (desaturated to fit paper) */
-  --thesis:        #2c4a76;   /* blue */
-  --claim:         #2f6b64;   /* teal */
-  --assumption:    #6f6d64;   /* grey */
-  --keystone:      #b23a2e;   /* red */
-  --increase:      #a9741a;   /* amber (weight ▲ / temporal) */
-  --decrease:      #7a786f;   /* grey (weight ▼) */
-  --ok:            #3c7a3a;   /* integrity high / HOLDING */
-  --warn:          #a9741a;   /* integrity mid */
-  --bad:           #b23a2e;   /* integrity low / FAILED */
-  --bad-bg:        #f6ecea;   /* failed-node fill (desaturated red wash) */
+  /* surfaces + ink — editorial white / near-black / gray / red (the home-page manifesto scheme):
+     white surfaces, a strong neutral near-black, cool grey neutrals, and RED as the single accent. */
+  --bg:            #f4f4f5;   /* cool near-white canvas */
+  --panel:         #ffffff;   /* white card */
+  --panel-2:       #f0f0f2;   /* light-grey inset / subtle fill */
+  --ink:           #18181b;   /* near-black (the dark — manifesto band ground) */
+  --ink-2:         #3f3f46;   /* dark grey (secondary text) */
+  --muted:         #71717a;   /* neutral grey (labels/captions — ≥4.5:1 on white) */
+  --hair:          #e4e4e7;   /* light-grey hairline */
+  --hair-strong:   #d4d4d8;   /* stronger dividers / control borders */
+
+  /* the single brand accent — RED (the keystone red from the manifesto) */
+  --accent:        #c62828;   /* red — active tab, primary CTA, links, keystone, focus ring */
+  --accent-weak:   #fbeaea;   /* red wash (weak bg) */
+
+  /* node + verdict colors. RED is the keystone/critical signal (== accent); the thesis is the dark
+     anchor; claims/assumptions are greys; holds stays green (functional, as the manifesto legend). */
+  --thesis:        #18181b;   /* dark-ink anchor node */
+  --claim:         #4b5563;   /* slate grey */
+  --assumption:    #9ca3af;   /* light grey */
+  --keystone:      #c62828;   /* red */
+  --increase:      #b5850f;   /* amber (weight ▲ / temporal) */
+  --decrease:      #9ca3af;   /* light grey (weight ▼) */
+  --ok:            #2f8a3e;   /* integrity high / HOLDING (green — functional) */
+  --ok-weak:       #e8f4ea;
+  --warn:          #b5850f;   /* integrity mid (amber) */
+  --bad:           #c62828;   /* integrity low / FAILED (red) */
+  --bad-bg:        #fbeaea;   /* failed-node fill (soft red wash) */
 
   /* type — fonts loaded via next/font in src/app/layout.tsx (exposed as
-     --font-inter / --font-jbmono on <html>), with system fallback stacks. */
-  --sans: var(--font-inter), "Söhne", -apple-system, "Helvetica Neue", Arial, sans-serif;
-  --mono: var(--font-jbmono), "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+     --font-inter / --font-jbmono on <html>), with system fallback stacks.
+     mono is now reserved for numbers / ids / timestamps only. */
+  --sans: var(--font-inter), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --mono: var(--font-jbmono), ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* rhythm */
-  --row-h: 34px;  --gap: 14px;  --pad: 14px;  --radius: 0;  /* sharp corners */
+  /* rhythm + elevation */
+  --row-h: 34px;  --gap: 14px;  --pad: 16px;
+  --radius: 10px;  --radius-sm: 8px;  --radius-lg: 14px;
+  /* neutral elevation for the white/grey ground */
+  --shadow-sm: 0 1px 2px rgba(24, 24, 27, 0.06);
+  --shadow: 0 1px 2px rgba(24, 24, 27, 0.05), 0 4px 16px rgba(24, 24, 27, 0.08);
 }
 
-/* Zero border-radius reset — the whole screen is a grid of hairline cells.
-   Components that must opt out set border-radius explicitly (e.g. radios). */
-* {
-  border-radius: 0;
-}
+/* LIGHT ONLY — the dark theme was removed by request. There is no
+   @media(prefers-color-scheme: dark) override, so a dark-OS viewer still gets the warm light
+   studio; `color-scheme: light` on :root keeps native form controls light too. */
 
 html,
 body {
@@ -64,7 +77,7 @@ body {
 .label {
   font-family: var(--sans);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   font-size: 11px;
   color: var(--muted);
@@ -111,13 +124,13 @@ body {
 .section-header {
   font-family: var(--sans);
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   font-size: 11px;
   color: var(--muted);
-  padding-bottom: 6px;
-  margin-bottom: 6px;
-  border-bottom: 1px solid var(--hair-strong);
+  padding-bottom: 8px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid var(--hair);
 }
 
 /* ── Hairline borders ───────────────────────────────────────────────── */
@@ -138,28 +151,32 @@ body {
 .panel {
   background: var(--panel);
   border: 1px solid var(--hair);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
 }
 .panel-inset {
   background: var(--panel-2);
+  border-radius: var(--radius);
 }
 
 /* ── Buttons ────────────────────────────────────────────────────────── */
 .btn {
   font-family: var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  font-size: 11px;
+  letter-spacing: 0;
+  font-weight: 550;
+  font-size: 13px;
   color: var(--ink);
   background: var(--panel);
   border: 1px solid var(--hair-strong);
+  border-radius: var(--radius-sm);
   padding: 8px 14px;
   cursor: pointer;
-  line-height: 1;
-  transition: background 0.12s ease;
+  line-height: 1.1;
+  transition: background 0.12s ease, border-color 0.12s ease;
 }
 .btn:hover:not(:disabled) {
   background: var(--panel-2);
+  border-color: var(--muted);
 }
 .btn:disabled {
   color: var(--muted);
@@ -167,12 +184,13 @@ body {
   opacity: 0.6;
 }
 .btn-primary {
-  background: var(--ink);
-  color: var(--bg);
-  border-color: var(--ink);
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--ink-2);
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  border-color: color-mix(in srgb, var(--accent) 88%, #000);
 }
 
 /* ── Fields ─────────────────────────────────────────────────────────── */
@@ -181,21 +199,24 @@ body {
   background: var(--panel);
   color: var(--ink);
   border: 1px solid var(--hair-strong);
-  padding: 8px 10px;
-  font-family: var(--mono);
-  font-size: 12px;
-  line-height: 1.4;
+  border-radius: var(--radius-sm);
+  padding: 9px 11px;
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.45;
   resize: vertical;
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
 }
 .field-input:focus {
   outline: none;
-  border-color: var(--ink);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-weak);
 }
-/* A-2: restore a keyboard-only ring — same specificity as `:focus` above, so this rule
+/* A-2: keyboard-only ring — same specificity as `:focus` above, so this rule
    (declared after it) wins for keyboard focus while a mouse click stays quiet. */
 .field-input:focus-visible {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 
 /* ── Hairline range control (thin track, square thumb) ──────────────── */
@@ -252,34 +273,34 @@ body {
    there's nothing here to fight. React Flow's own zoom/fit controls get the
    same ring explicitly since they're rendered inside a foreign component. */
 button:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 .keystone-controls .react-flow__controls-button:focus-visible {
-  outline: 2px solid var(--ink);
+  outline: 2px solid var(--accent);
   outline-offset: -2px; /* inset — the buttons are flush inside a 1px hairline frame */
 }
 
 /* ── Tabs ───────────────────────────────────────────────────────────── */
 .tab {
   font-family: var(--sans);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  font-weight: 600;
-  font-size: 11px;
+  letter-spacing: 0;
+  font-weight: 550;
+  font-size: 13.5px;
   color: var(--muted);
   background: transparent;
   border: none;
   border-bottom: 2px solid transparent;
-  padding: 12px 16px;
+  padding: 13px 14px;
   cursor: pointer;
+  margin-bottom: -1px;
 }
 .tab:hover {
   color: var(--ink-2);
 }
 .tab-active {
   color: var(--ink);
-  border-bottom-color: var(--ink);
+  border-bottom-color: var(--accent);
 }
 
 /* ── Collapsible detail sections (T4 — Wind Tunnel / Timeline / Re-run) ─ */
@@ -303,11 +324,12 @@ button:focus-visible {
   align-items: center;
   font-family: var(--sans);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   font-weight: 600;
   font-size: 10px;
-  padding: 2px 8px;
+  padding: 3px 9px;
   border: 1px solid var(--hair-strong);
+  border-radius: 999px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -379,7 +401,7 @@ button:focus-visible {
 .term-viewport {
   border: 1px solid var(--hair-strong);
   background: var(--panel);
-  box-shadow: 0 1px 0 var(--hair-strong), 0 18px 40px -28px rgba(26, 26, 21, 0.5);
+  box-shadow: 0 1px 0 var(--hair-strong), 0 18px 40px -28px rgba(20, 22, 28, 0.4);
 }
 .term-header {
   display: flex;
@@ -430,13 +452,12 @@ button:focus-visible {
    mono glyphs. Buttons call the flow API so zoom works even in SECTION mode. */
 .keystone-controls {
   border: 1px solid var(--hair-strong);
-  border-radius: 0;
-  box-shadow: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm);
   background: var(--panel);
   overflow: hidden;
 }
 .keystone-controls .react-flow__controls-button {
-  border-radius: 0;
   border: none;
   border-bottom: 1px solid var(--hair);
   background: var(--panel);

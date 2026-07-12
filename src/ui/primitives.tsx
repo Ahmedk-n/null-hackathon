@@ -1,8 +1,225 @@
 "use client";
-// Ledger-style reusable primitives (plan §1.2). Every component is hairline,
-// sharp-cornered, with uppercase tracked labels and monospace tabular values.
+// Reusable UI primitives. The clean-modern redesign (2026-07) adds a card / pill /
+// gauge / disclosure vocabulary the tabs compose from; the older ledger primitives
+// (LedgerRow, SectionHeader, …) are kept working alongside them.
 // No `new Date`/`Math.random`/`Date.now` here — this is a client bundle file.
+import { useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
+
+// ── Card ──────────────────────────────────────────────────────────────
+// The soft white panel of the redesign (reuses the `.panel` card class). `pad`
+// adds interior padding: `true` → the standard 18px, or a custom number.
+export function Card({
+  children,
+  pad,
+  style,
+}: {
+  children: ReactNode;
+  pad?: boolean | number;
+  style?: CSSProperties;
+}) {
+  const padding = pad === true ? 18 : typeof pad === "number" ? pad : undefined;
+  return (
+    <div className="panel" style={{ padding, ...style }}>
+      {children}
+    </div>
+  );
+}
+
+// ── Eyebrow ───────────────────────────────────────────────────────────
+// The small uppercase section caption (a lighter, less-shouty `.label`).
+export function Eyebrow({ children, style }: { children: ReactNode; style?: CSSProperties }) {
+  return (
+    <span className="label" style={style}>
+      {children}
+    </span>
+  );
+}
+
+// ── Pill ──────────────────────────────────────────────────────────────
+// Status pill — weak-bg + strong-fg per tone, rounded, sans, with a leading dot.
+export type PillTone = "hold" | "warn" | "crack" | "accent" | "neutral";
+const PILL_TONES: Record<PillTone, { bg: string; fg: string }> = {
+  hold: { bg: "var(--ok-weak)", fg: "var(--ok)" },
+  warn: { bg: "color-mix(in srgb, var(--warn) 15%, var(--panel))", fg: "var(--warn)" },
+  crack: { bg: "var(--bad-bg)", fg: "var(--bad)" },
+  accent: { bg: "var(--accent-weak)", fg: "var(--accent)" },
+  neutral: { bg: "var(--panel-2)", fg: "var(--muted)" },
+};
+export function Pill({
+  tone = "neutral",
+  children,
+  dot = true,
+}: {
+  tone?: PillTone;
+  children: ReactNode;
+  dot?: boolean;
+}) {
+  const { bg, fg } = PILL_TONES[tone];
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        fontFamily: "var(--sans)",
+        fontSize: 12,
+        fontWeight: 600,
+        padding: "5px 11px",
+        borderRadius: 999,
+        background: bg,
+        color: fg,
+        whiteSpace: "nowrap",
+      }}
+    >
+      {dot && (
+        <span
+          aria-hidden
+          style={{ width: 7, height: 7, borderRadius: 999, background: "currentColor" }}
+        />
+      )}
+      {children}
+    </span>
+  );
+}
+
+// ── Gauge ─────────────────────────────────────────────────────────────
+// Pure radial SVG gauge from the mockup: grey track + a colored arc + a centered
+// big number. Deterministic — the dash offset is computed straight from value/max,
+// no Date/Math.random. `tone` selects the arc color; `label` is the small caption
+// beneath the number.
+export type GaugeTone = "ok" | "warn" | "bad" | "accent";
+const GAUGE_TONES: Record<GaugeTone, string> = {
+  ok: "var(--ok)",
+  warn: "var(--warn)",
+  bad: "var(--bad)",
+  accent: "var(--accent)",
+};
+export function Gauge({
+  value,
+  max = 100,
+  tone = "ok",
+  size = 118,
+  label,
+}: {
+  value: number;
+  max?: number;
+  tone?: GaugeTone;
+  size?: number;
+  label?: ReactNode;
+}) {
+  const r = 52;
+  const circumference = 2 * Math.PI * r;
+  const frac = max > 0 ? Math.min(1, Math.max(0, value / max)) : 0;
+  // The arc is drawn from the 12-o'clock position (rotate -90); dashoffset shrinks
+  // as the filled fraction grows.
+  const dashoffset = circumference * (1 - frac);
+  return (
+    <div style={{ position: "relative", width: size, height: size, flex: "0 0 auto" }}>
+      <svg viewBox="0 0 120 120" width={size} height={size} aria-hidden>
+        <circle cx={60} cy={60} r={r} fill="none" stroke="var(--hair-strong)" strokeWidth={9} />
+        <circle
+          cx={60}
+          cy={60}
+          r={r}
+          fill="none"
+          stroke={GAUGE_TONES[tone]}
+          strokeWidth={9}
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={dashoffset}
+          transform="rotate(-90 60 60)"
+        />
+      </svg>
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          display: "grid",
+          placeContent: "center",
+          textAlign: "center",
+        }}
+      >
+        <div
+          className="mono"
+          style={{ fontSize: 30, fontWeight: 680, letterSpacing: "-0.02em", lineHeight: 1 }}
+        >
+          {Math.round(value)}
+          <span style={{ fontSize: 15 }}>%</span>
+        </div>
+        {label && (
+          <div
+            style={{
+              fontSize: 10,
+              color: "var(--muted)",
+              marginTop: 3,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+            }}
+          >
+            {label}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Disclosure ────────────────────────────────────────────────────────
+// Clean expandable `<details>` with a rotating chevron. Reuses `.ledger-details`
+// (theme.css strips the native marker). Controlled so the chevron reflects state
+// without any `[open]` CSS rule.
+export function Disclosure({
+  summary,
+  children,
+  defaultOpen = false,
+  testId,
+}: {
+  summary: ReactNode;
+  children: ReactNode;
+  defaultOpen?: boolean;
+  testId?: string;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
+  return (
+    <details
+      className="ledger-details"
+      data-testid={testId}
+      open={open}
+      onToggle={(e) => setOpen((e.target as HTMLDetailsElement).open)}
+      style={{ borderTop: "1px solid var(--hair)" }}
+    >
+      <summary
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          padding: "11px 0",
+          fontFamily: "var(--sans)",
+          fontSize: 13,
+          fontWeight: 550,
+          color: "var(--ink)",
+        }}
+      >
+        <span>{summary}</span>
+        <span
+          aria-hidden
+          style={{
+            color: "var(--muted)",
+            fontSize: 15,
+            lineHeight: 1,
+            transition: "transform 0.15s ease",
+            transform: open ? "rotate(90deg)" : "none",
+          }}
+        >
+          ›
+        </span>
+      </summary>
+      <div style={{ paddingBottom: 12 }}>{children}</div>
+    </details>
+  );
+}
 
 // ── LedgerRow ─────────────────────────────────────────────────────────
 // label left (uppercase muted), value right (mono, tabular). accent recolors

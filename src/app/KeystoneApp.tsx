@@ -326,8 +326,15 @@ export default function KeystoneApp({
       // result (guest/offline with no key, or any failure — fetchCouncil never throws) just means
       // "no contextual overlay this run", the deterministic keyword-reweight view stays exactly as
       // before. Reuses the same gathered `findings` snapshot fed to extraction above.
+      // P4 · flag the live council fetch as in-flight so the STRESS rail shows an
+      // "analysing context…" placeholder during the ~30-40s live wait. Cleared when the fetch
+      // resolves — but only if this run still owns the token (a newer analyse owns its own flag).
+      keystoneStore.getState().setCouncilLoading(true);
       fetchCouncil({ graph, pack, company: companyContext, findings }).then((council) => {
-        if (analyseRunTokenRef.current === runToken) keystoneStore.getState().setCouncil(council);
+        if (analyseRunTokenRef.current === runToken) {
+          keystoneStore.getState().setCouncil(council);
+          keystoneStore.getState().setCouncilLoading(false);
+        }
       });
       // V5-4 · auto-save the analysis. savedAtISO = the server-passed startedAt (NEVER a client
       // clock — T8); seq/id come from the library's persisted monotonic counter. The verdict is

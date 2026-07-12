@@ -315,9 +315,9 @@ export function MiniStructure({
             const accent = failed ? BAD : isKey ? KEYSTONE : ROLE_ACCENT[n.role];
             const glow = isKey
               ? cracked
-                ? "0 0 26px 4px rgba(178,58,46,0.85)"
-                : "inset 0 0 0 1px rgba(178,58,46,0.35), 0 0 12px 0 rgba(178,58,46,0.4)"
-              : "0 6px 12px rgba(26,26,21,0.10)";
+                ? "0 0 26px 4px rgba(224,72,77,0.85)"
+                : "inset 0 0 0 1px rgba(224,72,77,0.35), 0 0 12px 0 rgba(224,72,77,0.4)"
+              : "0 6px 12px rgba(20,22,28,0.10)";
             // COMPACT = a thumbnail box too small to hold a wrapped label legibly
             // (the auto-laid structures: rivals, studio graphs). It shows a single,
             // centered role glyph instead of a clipped/garbled tag+label. Tall

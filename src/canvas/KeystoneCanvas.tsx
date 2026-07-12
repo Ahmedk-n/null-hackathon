@@ -18,7 +18,7 @@ import { normaliseCategory } from "@/context/weights";
 // V4-2 — constraint planes (ideas have constraints). Deep import respects the barrel guard.
 import { planeStrikes, type ConstraintPlane, type PlaneStrike } from "@/context/constraints";
 import type { ContextWeightAdjustment } from "@/context";
-import { KEYSTONE, HAIR, HAIR_STRONG, BG, BAD, MUTED } from "@/ui/tokens";
+import { KEYSTONE, HAIR, HAIR_STRONG, BAD, MUTED } from "@/ui/tokens";
 import { layoutPositions, pickLayoutMode } from "./layout";
 import {
   LAYER_Z,
@@ -442,7 +442,9 @@ export function KeystoneCanvas({
         width: "100%",
         height: "100%",
         perspective: section ? "1400px" : "none",
-        background: BG,
+        // Theme-aware board ground (was the static warm BG token) — a hair inset from the white
+        // card it sits inside, and it follows light/dark via the CSS var.
+        background: "var(--panel-2)",
         // Task 7 · CLIP to the canvas bounds. Without this the React Flow edge SVG (and the
         // SECTION tilt's projected nodes) could bleed past the pane into the flanking rails —
         // the "connection lines overflow to the side panes" bug. Clipping here contains every
@@ -504,14 +506,14 @@ export function KeystoneCanvas({
             {/* Redesign · a single quiet DOT grid replaces the ruled graph-paper lines — the
                 same alignment cue at a fraction of the visual weight (the Excalidraw / tldraw /
                 Obsidian-Canvas default). One layer, faint hairline dots, wide gap. */}
-            <Background variant={BackgroundVariant.Dots} gap={28} size={1.2} color={HAIR} />
+            <Background variant={BackgroundVariant.Dots} gap={28} size={1.2} color="var(--hair)" />
             {detail && (
               <Background
                 id="grid-major"
                 variant={BackgroundVariant.Dots}
                 gap={112}
                 size={1.6}
-                color={HAIR_STRONG}
+                color="var(--hair-strong)"
               />
             )}
             <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} section={section} />

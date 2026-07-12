@@ -25,10 +25,11 @@ import {
   type DesignLens,
 } from "@/context/fixtures";
 import type { ContextMode } from "@/ui/tabs/ContextTab";
-import { Button, SectionHeader } from "@/ui/primitives";
+import { Button, Card, Eyebrow, Pill } from "@/ui/primitives";
+import type { PillTone } from "@/ui/primitives";
 import { MiniStructure, layoutStructure } from "@/ui/MiniStructure";
 import { usePrefersReducedMotion } from "@/ui/useReducedMotion";
-import { BAD, MUTED, OK, WARN } from "@/ui/tokens";
+import { BAD, OK, WARN } from "@/ui/tokens";
 
 // ── Deterministic tournament clock (one tick = 45ms). ────────────────────────
 const TICK_MS = 45;
@@ -62,6 +63,8 @@ type Band = "STANDS" | "STRESSED" | "COLLAPSED";
 const bandOf = (i: number): Band => (i >= 35 ? "STANDS" : i >= 10 ? "STRESSED" : "COLLAPSED");
 const bandColor: Record<Band, string> = { STANDS: OK, STRESSED: WARN, COLLAPSED: BAD };
 const bandMark: Record<Band, string> = { STANDS: "✓ STANDS", STRESSED: "⚠ STRESSED", COLLAPSED: "✗ COLLAPSED" };
+// Verdict band → the clean-modern status Pill tone (STANDS green · STRESSED amber · COLLAPSED red).
+const bandTone: Record<Band, PillTone> = { STANDS: "hold", STRESSED: "warn", COLLAPSED: "crack" };
 
 // The goal/constraints seed for a given studio mode. R = the pinned showcase goal (V6-1 §1);
 // A/B seed from their scenario decision; custom starts blank.
@@ -186,65 +189,70 @@ export function DesignTab({
   const settled = tick >= STAMP_AT;
 
   return (
-    <div style={{ height: "100%", overflow: "auto", padding: "var(--pad)" }}>
-      <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
-        <SectionHeader>Generative Design</SectionHeader>
-        <p style={{ fontSize: 12, color: "var(--ink-2)", lineHeight: 1.55, margin: 0 }}>
-          GENERATIVE DESIGN — three rival structures for the same goal, stress-tested under identical
-          load; the solver picks the survivor.
-        </p>
-
-        {/* GOAL + CONSTRAINTS. M-2: the `design-io-grid` class collapses this to one column
-            below ~700px (theme.css) so the two textareas don't cramp on a phone. */}
-        <div className="design-io-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "var(--gap)" }}>
-          <label style={{ display: "block" }}>
-            <span className="label" style={{ display: "block", marginBottom: 5 }}>
-              Goal
-            </span>
-            <textarea
-              className="field-input"
-              data-testid="design-goal"
-              value={goal}
-              onChange={(e) => setGoal(e.target.value)}
-              rows={3}
-              placeholder="State the decision goal…"
-              style={{ fontFamily: "var(--sans)" }}
-            />
-          </label>
-          <label style={{ display: "block" }}>
-            <span className="label" style={{ display: "block", marginBottom: 5 }}>
-              Constraints
-            </span>
-            <textarea
-              className="field-input"
-              data-testid="design-constraints"
-              value={constraints}
-              onChange={(e) => setConstraints(e.target.value)}
-              rows={3}
-              placeholder="Team size, budget, deadlines, regulatory…"
-              style={{ fontFamily: "var(--sans)" }}
-            />
-          </label>
+    <div style={{ height: "100%", overflowY: "auto", padding: 16, background: "var(--bg)" }}>
+      <div style={{ maxWidth: 1100, margin: "0 auto", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Header — one Eyebrow caption + a plain-language explainer (no page chrome, matching
+            the other tabs, which lead straight into their cards). */}
+        <div>
+          <Eyebrow>Generative Design</Eyebrow>
+          <p style={{ fontSize: 13, color: "var(--ink-2)", lineHeight: 1.55, margin: "6px 0 0" }}>
+            Three rival structures for the same goal, stress-tested under identical load — the solver
+            picks the survivor.
+          </p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--gap)" }}>
+        {/* GOAL + CONSTRAINTS as two clean input Cards. M-2: the `design-io-grid` class collapses
+            this to one column below ~700px (theme.css) so the two textareas don't cramp on a phone. */}
+        <div className="design-io-grid" style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+          <Card pad>
+            <label style={{ display: "block" }}>
+              <Eyebrow style={{ display: "block", marginBottom: 7 }}>Goal</Eyebrow>
+              <textarea
+                className="field-input"
+                data-testid="design-goal"
+                value={goal}
+                onChange={(e) => setGoal(e.target.value)}
+                rows={3}
+                placeholder="State the decision goal…"
+                style={{ fontFamily: "var(--sans)" }}
+              />
+            </label>
+          </Card>
+          <Card pad>
+            <label style={{ display: "block" }}>
+              <Eyebrow style={{ display: "block", marginBottom: 7 }}>Constraints</Eyebrow>
+              <textarea
+                className="field-input"
+                data-testid="design-constraints"
+                value={constraints}
+                onChange={(e) => setConstraints(e.target.value)}
+                rows={3}
+                placeholder="Team size, budget, deadlines, regulatory…"
+                style={{ fontFamily: "var(--sans)" }}
+              />
+            </label>
+          </Card>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           <Button primary onClick={generate} disabled={loading}>
             {loading ? "Generating…" : "Generate Rivals"}
           </Button>
-          <span className="label" style={{ color: MUTED }}>
-            {mode === "custom" ? "LIVE — three lenses in parallel" : "PINNED — deterministic showcase"}
-          </span>
+          <Pill tone={mode === "custom" ? "hold" : "neutral"}>
+            {mode === "custom" ? "Live · three lenses in parallel" : "Pinned · deterministic showcase"}
+          </Pill>
         </div>
 
-        {/* Tournament. */}
+        {/* Tournament — three rival structures as soft cards, each with its verdict Pill. */}
         {verdicts && (
           <div
             data-testid="tournament"
             className="design-tournament"
-            style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "var(--gap)", marginTop: 4 }}
+            style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 16, marginTop: 4 }}
           >
             {verdicts.map((v, idx) => {
               const isSurvivor = idx === survivorIndex;
+              const survivorLit = isSurvivor && settled;
               const collapsing = tick >= CRACK_AT;
               const gauge =
                 tick < LOAD_START
@@ -259,22 +267,36 @@ export function DesignTab({
               const phase =
                 tick < LOAD_START ? "ASSEMBLING" : tick < COLLAPSE_END ? "UNDER LOAD" : bandMark[v.band];
               return (
-                <div key={`${v.lens}-${idx}`} data-testid="candidate" data-lens={v.lens} style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                  {/* Candidate header — lens + name + source chip. */}
-                  <div style={{ display: "flex", alignItems: "baseline", gap: 8, minHeight: 34 }}>
-                    <span className="label" style={{ color: isSurvivor ? "var(--keystone)" : "var(--muted)", letterSpacing: "0.1em" }}>
+                <div
+                  key={`${v.lens}-${idx}`}
+                  className="panel"
+                  data-testid="candidate"
+                  data-lens={v.lens}
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 10,
+                    padding: 16,
+                    // The survivor lifts on the single indigo accent once the verdict settles.
+                    border: survivorLit ? "1px solid var(--accent)" : undefined,
+                    boxShadow: survivorLit
+                      ? "var(--shadow), 0 0 0 1px var(--accent)"
+                      : undefined,
+                    transition: "border-color 0.3s ease, box-shadow 0.3s ease",
+                  }}
+                >
+                  {/* Candidate header — lens eyebrow + source pill. */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 24 }}>
+                    <Eyebrow style={{ color: survivorLit ? "var(--accent)" : undefined, letterSpacing: "0.08em" }}>
                       {LENS_LABEL[v.lens]}
-                    </span>
-                    <span
-                      className="chip"
-                      data-testid="candidate-source"
-                      data-source={v.source}
-                      style={{ marginLeft: "auto" }}
-                    >
-                      {v.source === "live" ? "LIVE" : "CACHED"}
+                    </Eyebrow>
+                    <span data-testid="candidate-source" data-source={v.source} style={{ marginLeft: "auto" }}>
+                      <Pill tone={v.source === "live" ? "accent" : "neutral"} dot={false}>
+                        {v.source === "live" ? "LIVE" : "CACHED"}
+                      </Pill>
                     </span>
                   </div>
-                  <div style={{ fontFamily: "var(--sans)", fontSize: 13, fontWeight: 600, color: "var(--ink)", minHeight: 30 }}>
+                  <div style={{ fontFamily: "var(--sans)", fontSize: 14, fontWeight: 600, color: "var(--ink)", lineHeight: 1.3, minHeight: 36 }}>
                     {v.label}
                   </div>
 
@@ -289,26 +311,23 @@ export function DesignTab({
                     failedIds={collapsing ? v.failed : EMPTY}
                     cracked={collapsing}
                     tickMs={TICK_MS}
-                    accented={isSurvivor && settled}
+                    // The survivor's emphasis now lives on the card's single indigo accent
+                    // (border + SURVIVOR pill + primary action), so the mini keeps a plain frame.
+                    accented={false}
                     readout={{ gaugeInt, status, statusColor, phase }}
                   />
 
-                  {/* Verdict stamp + OPEN IN STUDIO (revealed once the collapse settles). */}
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 34, opacity: settled ? 1 : 0, transition: "opacity 0.3s ease" }}>
+                  {/* Verdict Pill + OPEN IN STUDIO (revealed once the collapse settles). */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 40, opacity: settled ? 1 : 0, transition: "opacity 0.3s ease" }}>
                     {settled && (
                       <>
-                        <span
-                          data-testid="candidate-stamp"
-                          data-band={v.band}
-                          className="chip"
-                          style={{ color: bandColor[v.band], borderColor: bandColor[v.band], fontSize: 12, padding: "3px 10px" }}
-                        >
-                          {bandMark[v.band]}
+                        <span data-testid="candidate-stamp" data-band={v.band} style={{ display: "inline-flex" }}>
+                          <Pill tone={bandTone[v.band]} dot={false}>
+                            {bandMark[v.band]}
+                          </Pill>
                         </span>
                         {isSurvivor && (
-                          <span className="label" style={{ color: "var(--keystone)" }}>
-                            SURVIVOR
-                          </span>
+                          <Eyebrow style={{ color: "var(--accent)" }}>Survivor</Eyebrow>
                         )}
                         <Button
                           primary={isSurvivor}
@@ -329,10 +348,12 @@ export function DesignTab({
         )}
 
         {!verdicts && (
-          <p style={{ fontSize: 12, color: "var(--muted)", lineHeight: 1.55, margin: "8px 0 0" }}>
-            Press GENERATE RIVALS to synthesize three rival structures and watch them stress-tested
-            side by side.
-          </p>
+          <Card pad style={{ borderStyle: "dashed" }}>
+            <p style={{ fontSize: 13, color: "var(--muted)", lineHeight: 1.55, margin: 0 }}>
+              Press Generate Rivals to synthesize three rival structures and watch them stress-tested
+              side by side.
+            </p>
+          </Card>
         )}
       </div>
     </div>

@@ -5,8 +5,8 @@
 // file never imports @/agents/* server code, so the key never enters the bundle.
 import { useEffect, useRef, useState } from "react";
 import type { GatherFinding, GatherKind, GatherSource } from "@/agents/types";
-import { useAgentStream } from "@/lib/useAgentStream";
-import { Button, Field, LedgerRow, SectionHeader } from "@/ui/primitives";
+import type { UseAgentStream } from "@/lib/useAgentStream";
+import { Button, Eyebrow, Field } from "@/ui/primitives";
 
 // muted provenance tag rendered on the right of a finding/log value.
 function Source({ children }: { children: React.ReactNode }) {
@@ -34,8 +34,10 @@ function Chip({
       className="mono"
       style={{
         fontSize: 10,
-        padding: "1px 5px",
+        padding: "2px 7px",
         border: "1px solid var(--hair-strong)",
+        borderRadius: 999,
+        background: "var(--panel)",
         color: tone === "ink" ? "var(--ink-2)" : "var(--muted)",
         whiteSpace: "nowrap",
       }}
@@ -49,25 +51,78 @@ function Chip({
 // CACHED (offline/fixture data, calm neutral tone) — factual provenance, not an apology.
 function SourceChip({ source }: { source: "live" | "fixture" }) {
   const live = source === "live";
-  const color = live ? "var(--ok)" : "var(--muted)";
+  const fg = live ? "var(--ok)" : "var(--muted)";
+  const bg = live ? "var(--ok-weak)" : "var(--panel-2)";
   return (
     <span
-      className="mono"
       data-testid="gather-source-chip"
       style={{
-        fontSize: 10,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontFamily: "var(--sans)",
+        fontSize: 11,
         fontWeight: 600,
-        letterSpacing: "0.1em",
-        textTransform: "uppercase",
-        padding: "2px 8px",
-        border: `1px solid ${color}`,
-        borderRadius: 0,
-        color,
+        letterSpacing: "0.04em",
+        padding: "4px 10px",
+        borderRadius: 999,
+        background: bg,
+        color: fg,
         whiteSpace: "nowrap",
       }}
     >
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: "currentColor" }} />
       {live ? "LIVE" : "CACHED"}
     </span>
+  );
+}
+
+// A WRAPPING ledger line for the agent log + each finding's header. Unlike the shared
+// LedgerRow (whose `.ledger-value` is `white-space:nowrap` and right-aligned — fine for a
+// short numeral, but it lets a long status/finding sentence run outside the card), this keeps
+// a fixed muted tag on the left and lets the value fill the rest and BREAK onto new lines, so
+// the text always stays inside its box. `min-width:0` on the value is what lets it wrap.
+function Line({
+  label,
+  value,
+  accent,
+  divider = true,
+}: {
+  label: React.ReactNode;
+  value: React.ReactNode;
+  accent?: string;
+  divider?: boolean;
+}) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 10,
+        alignItems: "baseline",
+        minWidth: 0,
+        padding: "5px 0",
+        borderBottom: divider ? "1px solid var(--hair)" : "none",
+      }}
+    >
+      <span className="label" style={{ flex: "0 0 auto", fontSize: 10, lineHeight: 1.5 }}>
+        {label}
+      </span>
+      <span
+        style={{
+          flex: "1 1 auto",
+          minWidth: 0,
+          textAlign: "left",
+          overflowWrap: "anywhere",
+          wordBreak: "break-word",
+          fontFamily: "var(--sans)",
+          fontSize: 12.5,
+          lineHeight: 1.45,
+          color: accent ?? "var(--ink)",
+        }}
+      >
+        {value}
+      </span>
+    </div>
   );
 }
 
@@ -83,12 +138,17 @@ export interface AgentSeed {
 
 export function AgentGather({
   kind,
+  stream,
   onSummary,
   onFindings,
   seed,
   seedKey,
 }: {
   kind: GatherKind;
+  /** The agent stream state + run(), OWNED BY ContextTab (one per kind) so it survives this
+   *  component unmounting on a sub-tab switch — otherwise the log/findings vanished when you
+   *  left and came back to a kind. AgentGather is now purely presentational over it. */
+  stream: UseAgentStream;
   onSummary: (summary: string) => void;
   /** V3-8: lifts the gathered facts so live extraction can ground confidences (V3-6). */
   onFindings?: (facts: GatherFinding[]) => void;
@@ -99,7 +159,7 @@ export function AgentGather({
    *  local, so it never trips the ContextTab edit-flip that drops the scenario pin. */
   seedKey?: string;
 }) {
-  const { events, findings, running, run } = useAgentStream();
+  const { events, findings, running, elapsedSec, run } = stream;
 
   // Per-kind source inputs (local state) — initialised from the scenario seed so a pinned
   // demo shows the REAL source values (blank for CUSTOM / an unseeded kind).
@@ -162,8 +222,13 @@ export function AgentGather({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       {/* ── SOURCE ─────────────────────────────────────────────── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <SectionHeader>Agent Gather</SectionHeader>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+          <Eyebrow>Agent-gathered</Eyebrow>
+          <span style={{ fontFamily: "var(--sans)", fontSize: 11.5, color: "var(--muted)", lineHeight: 1.4 }}>
+            The agent reads these real sources and reports what it finds below.
+          </span>
+        </div>
         {kind === "technical" && (
           <>
             <Field label="Repo URL" value={repoUrl} onChange={setRepoUrl} placeholder="github.com/org/repo" />
@@ -193,31 +258,34 @@ export function AgentGather({
             mono={false}
           />
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Button onClick={() => void run(kind, buildSource())} disabled={running}>
-            {running ? "RUNNING…" : "RUN AGENT"}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+          <Button primary={!running} onClick={() => void run(kind, buildSource())} disabled={running}>
+            {running ? `RUNNING… ${elapsedSec}s` : "RUN AGENT"}
           </Button>
           {doneSource && <SourceChip source={doneSource} />}
         </div>
       </div>
 
       {/* ── AGENT LOG ──────────────────────────────────────────── */}
-      {events.length > 0 && (
+      {(events.length > 0 || running) && (
         <div>
-          <SectionHeader>Agent Log</SectionHeader>
+          <Eyebrow style={{ display: "block", marginBottom: 8 }}>Agent Log</Eyebrow>
+          <div
+            className="panel-inset"
+            style={{ padding: "6px 12px", border: "1px solid var(--hair)", minWidth: 0, overflowWrap: "anywhere" }}
+          >
           {events.map((e, i) => {
             if (e.type === "status") {
-              return <LedgerRow key={i} label="status" value={e.message} mono={false} />;
+              return <Line key={i} label="status" value={e.message} />;
             }
             if (e.type === "error") {
-              return <LedgerRow key={i} label="error" value={e.message} mono={false} accent="var(--bad)" />;
+              return <Line key={i} label="error" value={e.message} accent="var(--bad)" />;
             }
             if (e.type === "finding") {
               return (
-                <LedgerRow
+                <Line
                   key={i}
                   label={e.finding.label}
-                  mono={false}
                   value={
                     <>
                       {e.finding.value}
@@ -228,20 +296,46 @@ export function AgentGather({
               );
             }
             // done
-            return <LedgerRow key={i} label="done" value={e.source} accent="var(--ok)" />;
+            return <Line key={i} label="done" value={e.source} accent="var(--ok)" />;
           })}
+          {/* Heartbeat — a live, ticking "still working" line while the run is in flight, so the
+              business agent's long silent web-search gap reads as alive rather than hung. The
+              ticking second count is the liveness signal; it vanishes the moment the run ends. */}
+          {running && (
+            <div
+              data-testid="agent-heartbeat"
+              className="mono"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "5px 0 2px",
+                fontSize: 11,
+                color: "var(--muted)",
+              }}
+            >
+              <span aria-hidden>◦</span>
+              <span>working… {elapsedSec}s</span>
+            </div>
+          )}
+          </div>
         </div>
       )}
 
       {/* ── FINDINGS ───────────────────────────────────────────── */}
       {findings && (
         <div>
-          <SectionHeader>Findings</SectionHeader>
+          <Eyebrow style={{ display: "block", marginBottom: 8 }}>Findings</Eyebrow>
           {findings.facts.map((f, i) => (
-            <div key={i} data-testid="finding" style={{ paddingBottom: 8 }}>
-              <LedgerRow
+            <div
+              key={i}
+              data-testid="finding"
+              className="panel-inset"
+              style={{ padding: "8px 12px", border: "1px solid var(--hair)", marginBottom: 8, minWidth: 0, overflowWrap: "anywhere" }}
+            >
+              <Line
                 label={f.label}
-                mono={false}
+                divider={false}
                 value={
                   <>
                     {f.value}

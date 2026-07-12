@@ -1,31 +1,30 @@
-// TS mirror of the theme.css accents (plan §1.1 / §2.201) for inline styles —
-// React Flow node styling, SVG strokes, and anywhere a CSS variable can't reach.
-// Keep these in exact sync with src/ui/theme.css.
+// TS mirror of the theme.css accents (editorial white/near-black/grey/RED — the manifesto scheme)
+// for inline styles — React Flow node styling, SVG strokes, and anywhere a CSS variable can't reach
+// (e.g. the WebGL 3D leg). Keep these in exact sync with src/ui/theme.css. Light-only.
+// NOTE: the 2D canvas paints surfaces via CSS vars (var(--panel-2), var(--hair)) so they follow tokens.
 
-export const THESIS = "#2c4a76";
-export const CLAIM = "#2f6b64";
-export const ASSUMPTION = "#6f6d64";
-export const KEYSTONE = "#b23a2e";
-export const INCREASE = "#a9741a";
-export const DECREASE = "#7a786f";
-export const OK = "#3c7a3a";
-export const WARN = "#a9741a";
-export const BAD = "#b23a2e";
-export const BAD_BG = "#f6ecea"; // failed-node fill (--bad-bg)
+export const THESIS = "#18181b"; // dark-ink anchor
+export const CLAIM = "#4b5563"; // slate grey
+export const ASSUMPTION = "#9ca3af"; // light grey
+export const KEYSTONE = "#c62828"; // red
+export const INCREASE = "#b5850f"; // amber
+export const DECREASE = "#9ca3af"; // light grey
+export const OK = "#2f8a3e"; // green (holds)
+export const WARN = "#b5850f"; // amber
+export const BAD = "#c62828"; // red
+export const BAD_BG = "#fbeaea"; // failed-node fill (--bad-bg)
 
-export const HAIR = "#d8d5cc";
-export const HAIR_STRONG = "#b7b3a7";
-export const INK = "#1a1a15";
-export const INK_2 = "#45443d";
-export const MUTED = "#7a786f";
-export const BG = "#f5f4ef";
-export const PANEL = "#fbfaf6";
-export const PANEL_2 = "#efeee8";
+export const HAIR = "#e4e4e7";
+export const HAIR_STRONG = "#d4d4d8";
+export const INK = "#18181b";
+export const INK_2 = "#3f3f46";
+export const MUTED = "#71717a";
+export const BG = "#f4f4f5";
+export const PANEL = "#ffffff";
+export const PANEL_2 = "#f0f0f2";
 
 // ── Driver-cluster palette (Task 7) ──────────────────────────────────────
-// Muted, ledger-safe accents used ONLY to tag/group assumption nodes by their
-// dominant latent driver (the correlation clusters from the probabilistic brain).
-// Ordered so cluster #i (by clusters[] index) always draws the same colour, and the
-// GRAPH legend row #i matches. Keystone-red (#b23a2e) is deliberately EXCLUDED — it
-// stays reserved for the load-bearing keystone signal, never a cluster hue.
-export const CLUSTER_PALETTE = ["#2c4a76", "#2f6b64", "#a9741a", "#6d5773", "#4a6b3a"] as const;
+// Distinct accents used ONLY to tag/group assumption nodes by their dominant latent driver.
+// Ordered so cluster #i always draws the same colour and the GRAPH legend row #i matches. The
+// keystone RED (#c62828) is deliberately EXCLUDED — it stays reserved for the keystone signal.
+export const CLUSTER_PALETTE = ["#4b5563", "#b5850f", "#2f8a3e", "#0e7490", "#7c3aed"] as const;

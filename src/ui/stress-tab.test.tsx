@@ -449,6 +449,47 @@ describe("StressTab (R4)", () => {
     expect(screen.queryByTestId("council-findings")).toBeNull();
   });
 
+  // ── P4 · council loading placeholder + flat STRESS board ──────────────
+  it("shows an analysing-context placeholder while the live council fetch is in flight", () => {
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph()); // nulls council + resets councilLoading
+    s.applyLoad(fixtureContextAttacks());
+    s.setCouncilLoading(true); // fetch in flight, no grounded council yet
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    expect(screen.getByTestId("council-loading")).toBeDefined();
+    // The real findings block isn't there yet — only the placeholder.
+    expect(screen.queryByTestId("council-findings")).toBeNull();
+  });
+
+  it("replaces the placeholder with the findings once a grounded council lands", () => {
+    const s = keystoneStore.getState();
+    s.setGraph(fixtureContextGraph());
+    s.setContext(fixtureCompanyContext(), fixtureDecisionContextPack(), "fixture");
+    s.setCouncilLoading(true);
+    s.setCouncil(fixtureCouncil("A")); // grounded result arrives
+    s.applyLoad(fixtureContextAttacks());
+
+    render(<StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />);
+
+    // Grounded council wins: findings shown, placeholder gone (even though the flag is still set).
+    expect(screen.getByTestId("council-findings")).toBeDefined();
+    expect(screen.queryByTestId("council-loading")).toBeNull();
+  });
+
+  it("renders the STRESS board FLAT (no perspective tilt) so pan/drag stay live", () => {
+    // beforeEach seeds a 13-node graph (not the ≤8 flat band), so a leftover tilt=true would
+    // put the board in SECTION mode (perspective 1400px) and disable pan/drag. tilt=false keeps
+    // it flat like the redesigned GRAPH tab.
+    const { container } = render(
+      <StressTab onApplyLoad={() => {}} onReset={() => {}} loading={false} />,
+    );
+    const persp = container.querySelector<HTMLElement>("[data-canvas-perspective]");
+    expect(persp).not.toBeNull();
+    expect(persp!.style.perspective).toBe("none");
+  });
+
   // ── P4-T5 · DE-RISK THESE action tail ─────────────────────────────────
   it("renders a DE-RISK THESE action per surviving remediation, spine suppressed only when no shift", async () => {
     // Scenario A has a spine-shift (a_audit != topological keystone) -> spine row SHOWN.
