@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GatherFinding, GatherKind, GatherSource } from "@/agents/types";
 import type { UseAgentStream } from "@/lib/useAgentStream";
-import { Button, Field, LedgerRow, SectionHeader } from "@/ui/primitives";
+import { Button, Eyebrow, Field, LedgerRow } from "@/ui/primitives";
 
 // muted provenance tag rendered on the right of a finding/log value.
 function Source({ children }: { children: React.ReactNode }) {
@@ -34,8 +34,10 @@ function Chip({
       className="mono"
       style={{
         fontSize: 10,
-        padding: "1px 5px",
+        padding: "2px 7px",
         border: "1px solid var(--hair-strong)",
+        borderRadius: 999,
+        background: "var(--panel)",
         color: tone === "ink" ? "var(--ink-2)" : "var(--muted)",
         whiteSpace: "nowrap",
       }}
@@ -49,23 +51,27 @@ function Chip({
 // CACHED (offline/fixture data, calm neutral tone) — factual provenance, not an apology.
 function SourceChip({ source }: { source: "live" | "fixture" }) {
   const live = source === "live";
-  const color = live ? "var(--ok)" : "var(--muted)";
+  const fg = live ? "var(--ok)" : "var(--muted)";
+  const bg = live ? "var(--ok-weak)" : "var(--panel-2)";
   return (
     <span
-      className="mono"
       data-testid="gather-source-chip"
       style={{
-        fontSize: 10,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontFamily: "var(--sans)",
+        fontSize: 11,
         fontWeight: 600,
-        letterSpacing: "0.1em",
-        textTransform: "uppercase",
-        padding: "2px 8px",
-        border: `1px solid ${color}`,
-        borderRadius: 0,
-        color,
+        letterSpacing: "0.04em",
+        padding: "4px 10px",
+        borderRadius: 999,
+        background: bg,
+        color: fg,
         whiteSpace: "nowrap",
       }}
     >
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: "currentColor" }} />
       {live ? "LIVE" : "CACHED"}
     </span>
   );
@@ -167,8 +173,8 @@ export function AgentGather({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: "var(--gap)" }}>
       {/* ── SOURCE ─────────────────────────────────────────────── */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <SectionHeader>Agent Gather</SectionHeader>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        <Eyebrow>Agent Gather</Eyebrow>
         {kind === "technical" && (
           <>
             <Field label="Repo URL" value={repoUrl} onChange={setRepoUrl} placeholder="github.com/org/repo" />
@@ -198,8 +204,8 @@ export function AgentGather({
             mono={false}
           />
         )}
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <Button onClick={() => void run(kind, buildSource())} disabled={running}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+          <Button primary={!running} onClick={() => void run(kind, buildSource())} disabled={running}>
             {running ? `RUNNING… ${elapsedSec}s` : "RUN AGENT"}
           </Button>
           {doneSource && <SourceChip source={doneSource} />}
@@ -209,7 +215,8 @@ export function AgentGather({
       {/* ── AGENT LOG ──────────────────────────────────────────── */}
       {(events.length > 0 || running) && (
         <div>
-          <SectionHeader>Agent Log</SectionHeader>
+          <Eyebrow style={{ display: "block", marginBottom: 8 }}>Agent Log</Eyebrow>
+          <div className="panel-inset" style={{ padding: "6px 12px", border: "1px solid var(--hair)" }}>
           {events.map((e, i) => {
             if (e.type === "status") {
               return <LedgerRow key={i} label="status" value={e.message} mono={false} />;
@@ -255,15 +262,21 @@ export function AgentGather({
               <span>working… {elapsedSec}s</span>
             </div>
           )}
+          </div>
         </div>
       )}
 
       {/* ── FINDINGS ───────────────────────────────────────────── */}
       {findings && (
         <div>
-          <SectionHeader>Findings</SectionHeader>
+          <Eyebrow style={{ display: "block", marginBottom: 8 }}>Findings</Eyebrow>
           {findings.facts.map((f, i) => (
-            <div key={i} data-testid="finding" style={{ paddingBottom: 8 }}>
+            <div
+              key={i}
+              data-testid="finding"
+              className="panel-inset"
+              style={{ padding: "8px 12px", border: "1px solid var(--hair)", marginBottom: 8 }}
+            >
               <LedgerRow
                 label={f.label}
                 mono={false}

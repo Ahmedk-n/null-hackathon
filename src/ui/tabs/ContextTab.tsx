@@ -18,7 +18,7 @@ import { SCENARIOS } from "@/context/fixtures";
 import type { GatherFinding, GatherKind } from "@/agents/types";
 import { AgentGather } from "@/ui/AgentGather";
 import { useAgentStream, type UseAgentStream } from "@/lib/useAgentStream";
-import { Button, Field, SectionHeader, Tabs } from "@/ui/primitives";
+import { Button, Card, Eyebrow, Field, Tabs } from "@/ui/primitives";
 // C-3 · the store singleton — read directly (no prop-drilling) for the post-compile strip below.
 import { useKeystone } from "@/store/useKeystone";
 // V5-4 · decision library — the localStorage/Supabase snapshot layer (SSR-safe, no wall-clock).
@@ -98,28 +98,32 @@ function ContextPane({
   const seed = mode === "custom" ? undefined : SCENARIOS[mode].sources?.[kind];
   return (
     <div className="context-pane">
-      <div className="context-pane-gather" style={COL}>
+      <div className="context-pane-gather">
         {/* Agent summaries layer onto the manual text but do NOT trip the edit-flip — only a
             direct user keystroke drops the scenario pin (V3-5 spec: "if the user EDITS"). */}
-        <AgentGather
-          kind={kind}
-          stream={stream}
-          seed={seed}
-          seedKey={mode}
-          onSummary={(s) => manualSet(mergeSummary(manualValue, s))}
-          onFindings={(facts) => onGatherFindings?.(kind, facts)}
-        />
+        <Card pad style={COL}>
+          <AgentGather
+            kind={kind}
+            stream={stream}
+            seed={seed}
+            seedKey={mode}
+            onSummary={(s) => manualSet(mergeSummary(manualValue, s))}
+            onFindings={(facts) => onGatherFindings?.(kind, facts)}
+          />
+        </Card>
       </div>
-      <div className="context-pane-manual" style={COL}>
-        <SectionHeader>Manual</SectionHeader>
-        <Field
-          label={`${kind} context`}
-          value={manualValue}
-          onChange={onManualEdit}
-          rows={12}
-          placeholder="layer your own context on top of the agent summary…"
-          mono={false}
-        />
+      <div className="context-pane-manual">
+        <Card pad style={COL}>
+          <Eyebrow>Your context</Eyebrow>
+          <Field
+            label={`${kind} context`}
+            value={manualValue}
+            onChange={onManualEdit}
+            rows={12}
+            placeholder="layer your own context on top of the agent summary…"
+            mono={false}
+          />
+        </Card>
       </div>
     </div>
   );
@@ -142,52 +146,73 @@ function ModeSelect({
   mode: ContextMode;
   onSelect: (m: ContextMode) => void;
 }) {
-  const segs: { id: ContextMode; idLabel: string; name: string; outcome: string; full: string }[] = [
-    { id: "R", idLabel: "R", name: "EXCALIDRAW", outcome: "REAL", full: "R — Real: Excalidraw" },
-    { id: "A", idLabel: "A", name: "MIGRATE BEFORE PILOT", outcome: "COLLAPSES", full: SCENARIOS.A.label },
-    { id: "B", idLabel: "B", name: "REINFORCE FIRST", outcome: "HOLDS", full: SCENARIOS.B.label },
-    { id: "custom", idLabel: "C", name: "CUSTOM", outcome: "LIVE", full: "C — Custom (Live)" },
+  const segs: {
+    id: ContextMode;
+    idLabel: string;
+    name: string;
+    outcome: string;
+    full: string;
+    tone: string;
+  }[] = [
+    { id: "R", idLabel: "R", name: "EXCALIDRAW", outcome: "REAL", full: "R — Real: Excalidraw", tone: "var(--ink-2)" },
+    { id: "A", idLabel: "A", name: "MIGRATE BEFORE PILOT", outcome: "COLLAPSES", full: SCENARIOS.A.label, tone: "var(--bad)" },
+    { id: "B", idLabel: "B", name: "REINFORCE FIRST", outcome: "HOLDS", full: SCENARIOS.B.label, tone: "var(--ok)" },
+    { id: "custom", idLabel: "C", name: "CUSTOM", outcome: "LIVE", full: "C — Custom (Live)", tone: "var(--accent)" },
   ];
+  // Clean-modern segmented control (matches GraphTab's view toggle / StressTab's attack-basis):
+  // a soft inset track; the active segment lifts to a white pill with a subtle shadow.
   const segStyle = (active: boolean): React.CSSProperties => ({
     flex: 1,
     minWidth: 0,
     display: "flex",
     flexDirection: "column",
-    gap: 2,
-    padding: "6px 8px",
-    fontFamily: "var(--mono)",
+    gap: 3,
+    padding: "8px 11px",
+    fontFamily: "var(--sans)",
     textAlign: "left",
     cursor: "pointer",
     border: "none",
-    borderRadius: 0,
-    background: active ? "var(--ink)" : "transparent",
-    color: active ? "var(--bg)" : "var(--muted)",
+    borderRadius: 6,
+    background: active ? "var(--panel)" : "transparent",
+    color: active ? "var(--ink)" : "var(--muted)",
+    boxShadow: active ? "var(--shadow-sm)" : "none",
   });
   // Line 1 (id + short name) may still ellipsis on a very narrow segment — it's the least
   // informative part now that the outcome has its own line.
   const nameLine: React.CSSProperties = {
-    fontSize: 10,
-    letterSpacing: "0.1em",
-    textTransform: "uppercase",
+    fontSize: 11.5,
+    fontWeight: 550,
+    letterSpacing: "0.01em",
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   };
   // Line 2 — the outcome. Short by construction (REAL/COLLAPSES/HOLDS/LIVE); no clipping rule
-  // applied on purpose, so it can never be the thing that truncates.
-  const outcomeLine: React.CSSProperties = {
-    fontSize: 9,
+  // applied on purpose, so it can never be the thing that truncates. Semantic-tinted when
+  // active (COLLAPSES red · HOLDS green · LIVE accent), dimmed to muted when inactive.
+  const outcomeLine = (active: boolean, tone: string): React.CSSProperties => ({
+    fontSize: 9.5,
     fontWeight: 700,
     letterSpacing: "0.08em",
-  };
+    textTransform: "uppercase",
+    color: active ? tone : "var(--muted)",
+  });
   return (
     <div>
-      <span className="label" style={{ display: "block", marginBottom: 5 }}>
-        Mode
-      </span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 8 }}>
+        <Eyebrow>Mode</Eyebrow>
+        <ModeChip mode={mode} />
+      </div>
       <div
         data-testid="scenario-select"
-        style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
+        style={{
+          display: "flex",
+          gap: 2,
+          padding: 3,
+          background: "var(--panel-2)",
+          border: "1px solid var(--hair)",
+          borderRadius: 8,
+        }}
       >
         {segs.map((s) => (
           <button
@@ -202,11 +227,10 @@ function ModeSelect({
             <span style={nameLine}>
               {s.idLabel} — {s.name}
             </span>
-            <span style={outcomeLine}>{s.outcome}</span>
+            <span style={outcomeLine(mode === s.id, s.tone)}>{s.outcome}</span>
           </button>
         ))}
       </div>
-      <ModeChip mode={mode} />
     </div>
   );
 }
@@ -216,27 +240,31 @@ function ModeSelect({
 // labelled honestly as "CUSTOM · LIVE" and the per-stage Source status tells the real outcome.
 function ModeChip({ mode }: { mode: ContextMode }) {
   const custom = mode === "custom";
-  const color = custom ? "var(--ok)" : "var(--muted)";
+  // Soft status pill (matches the Pill primitive): CUSTOM reads --ok (the live path), pinned
+  // A/B/R read neutral. A leading dot + weak-bg wash keeps it in the clean-modern language.
+  const fg = custom ? "var(--ok)" : "var(--muted)";
+  const bg = custom ? "var(--ok-weak)" : "var(--panel-2)";
   const text = custom ? "CUSTOM · LIVE" : `PINNED · SCENARIO ${mode}`;
   return (
     <span
-      className="mono"
       data-testid="mode-chip"
       data-mode={mode}
       style={{
-        display: "inline-block",
-        marginTop: 8,
-        fontSize: 10,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 7,
+        fontFamily: "var(--sans)",
+        fontSize: 11,
         fontWeight: 600,
-        letterSpacing: "0.1em",
-        textTransform: "uppercase",
-        padding: "2px 8px",
-        border: `1px solid ${color}`,
-        borderRadius: 0,
-        color,
+        letterSpacing: "0.04em",
+        padding: "4px 10px",
+        borderRadius: 999,
+        background: bg,
+        color: fg,
         whiteSpace: "nowrap",
       }}
     >
+      <span aria-hidden style={{ width: 6, height: 6, borderRadius: 999, background: "currentColor" }} />
       {text}
     </span>
   );
@@ -265,37 +293,29 @@ function CompiledStrip({
   return (
     <div
       data-testid="compiled-strip"
-      className="mono"
       style={{
         display: "flex",
         alignItems: "center",
         justifyContent: "space-between",
-        gap: 8,
-        padding: "6px 10px",
-        border: "1px solid var(--hair-strong)",
-        background: "var(--panel-2)",
+        gap: 12,
+        padding: "11px 16px",
+        borderRadius: "var(--radius)",
+        border: "1px solid var(--accent-weak)",
+        background: "var(--accent-weak)",
       }}
     >
-      <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
-        COMPILED — {factCount} FACTS · {live ? "LIVE" : "PINNED"}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: 8, fontFamily: "var(--sans)", fontSize: 13, color: "var(--ink)" }}>
+        <span style={{ fontWeight: 600 }}>Compiled</span>
+        <span style={{ color: "var(--ink-2)" }}>
+          <span className="mono" style={{ color: "var(--ink)" }}>{factCount}</span> facts · {live ? "Live" : "Pinned"}
+        </span>
       </span>
       {onOpenGraph && (
         <button
           type="button"
           data-testid="compiled-strip-open-graph"
           onClick={onOpenGraph}
-          style={{
-            fontFamily: "var(--mono)",
-            fontSize: 10,
-            fontWeight: 600,
-            letterSpacing: "0.1em",
-            textTransform: "uppercase",
-            padding: "2px 8px",
-            border: "1px solid var(--hair-strong)",
-            background: "transparent",
-            color: "var(--ink)",
-            cursor: "pointer",
-          }}
+          className="btn"
         >
           View Graph →
         </button>
@@ -311,15 +331,15 @@ function CompiledStrip({
 // DUP (duplicate), DEL (delete). SSR-safe: initial render is the empty-state (listEntries() → []
 // off-browser and before the mount effect), so there is no hydration mismatch.
 const LIB_ACTION: React.CSSProperties = {
-  fontFamily: "var(--mono)",
-  fontSize: 9,
-  letterSpacing: "0.1em",
-  textTransform: "uppercase",
-  padding: "2px 5px",
+  fontFamily: "var(--sans)",
+  fontSize: 11,
+  fontWeight: 550,
+  letterSpacing: 0,
+  padding: "3px 9px",
   border: "1px solid var(--hair-strong)",
-  borderRadius: 0,
-  background: "transparent",
-  color: "var(--muted)",
+  borderRadius: "var(--radius-sm)",
+  background: "var(--panel)",
+  color: "var(--ink-2)",
   cursor: "pointer",
 };
 
@@ -370,25 +390,29 @@ function LibrarySection({
 
   return (
     <div data-testid="library-ledger">
-      <span className="label" style={{ display: "block", marginBottom: 5 }}>
-        Library
-      </span>
+      <Eyebrow style={{ display: "block", marginBottom: 10 }}>Library</Eyebrow>
       {entries.length === 0 ? (
         <div
           style={{
             border: "1px dashed var(--hair-strong)",
-            borderRadius: 0,
-            padding: "12px 10px",
+            borderRadius: "var(--radius-sm)",
+            padding: "18px 12px",
             textAlign: "center",
           }}
         >
-          <span className="label" style={{ letterSpacing: "0.14em", color: "var(--muted)" }}>
+          <span className="label" style={{ letterSpacing: "0.06em", color: "var(--muted)" }}>
             No saved analyses
           </span>
         </div>
       ) : (
-        <div style={{ border: "1px solid var(--hair)", borderRadius: 0 }}>
-          {entries.map((e) => {
+        <div
+          style={{
+            border: "1px solid var(--hair)",
+            borderRadius: "var(--radius-sm)",
+            overflow: "hidden",
+          }}
+        >
+          {entries.map((e, i) => {
             const word = statusWord(e.verdict.integrity);
             const active = e.id === currentEntryId;
             return (
@@ -399,16 +423,17 @@ function LibrarySection({
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 8,
-                  padding: "6px 8px",
-                  borderBottom: "1px solid var(--hair)",
-                  background: active ? "var(--panel-2)" : "transparent",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderTop: i === 0 ? "none" : "1px solid var(--hair)",
+                  background: active ? "var(--accent-weak)" : "transparent",
                 }}
               >
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      fontSize: 11,
+                      fontSize: 13,
+                      fontWeight: 550,
                       color: "var(--ink)",
                       overflow: "hidden",
                       textOverflow: "ellipsis",
@@ -418,19 +443,19 @@ function LibrarySection({
                   >
                     {e.title}
                   </div>
-                  <div style={{ display: "flex", gap: 6, alignItems: "baseline", marginTop: 2 }}>
+                  <div style={{ display: "flex", gap: 8, alignItems: "baseline", marginTop: 3 }}>
                     <span
                       className="mono"
-                      style={{ fontSize: 10, color: statusAccent(word) }}
+                      style={{ fontSize: 11, color: statusAccent(word) }}
                     >
                       {Math.round(e.verdict.integrity)}% {word}
                     </span>
-                    <span className="mono" style={{ fontSize: 10, color: "var(--muted)" }}>
+                    <span className="mono" style={{ fontSize: 11, color: "var(--muted)" }}>
                       {e.verdict.keystoneId ?? "—"}
                     </span>
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 4 }}>
+                <div style={{ display: "flex", gap: 5, flex: "0 0 auto" }}>
                   <button
                     type="button"
                     data-testid="library-reopen"
@@ -587,16 +612,19 @@ export function ContextTab({
     );
   };
 
+  // Whether either top card exists — controls the row so it doesn't render an empty gutter.
+  const hasModeCard = Boolean(onModeChange);
+
   return (
     <div
       style={{
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        padding: "var(--pad)",
-        gap: "var(--gap)",
+        padding: 16,
+        gap: 16,
         overflowY: "auto",
-        background: "var(--panel)",
+        background: "var(--bg)",
       }}
     >
       {/* C-3 · additive — hidden until a compile has actually happened. */}
@@ -604,39 +632,49 @@ export function ContextTab({
         <CompiledStrip pack={decisionContextPack} source={contextSource} onOpenGraph={onOpenGraph} />
       )}
 
-      {onModeChange && <ModeSelect mode={mode} onSelect={selectMode} />}
-
-      {/* V5-4 · LIBRARY ledger — compact list of saved analyses under the mode control. */}
-      <LibrarySection
-        version={libraryVersion}
-        currentEntryId={currentEntryId}
-        onReopen={onReopen}
-        onChange={onLibraryChange}
-      />
-
-      <Tabs tabs={SUB_TABS} active={active} onChange={setActive} />
-
-      <div style={{ flex: 1, minWidth: 0 }}>
-        {active === "business" && renderPane("business")}
-        {active === "technical" && renderPane("technical")}
-        {active === "temporal" && renderPane("temporal")}
-        {active === "decision" && (
-          <div style={{ maxWidth: 640 }}>
-            <SectionHeader>Decision</SectionHeader>
-            <Field
-              label="Decision"
-              value={decisionText}
-              onChange={editing(setDecision)}
-              rows={4}
-              placeholder="What decision are you weighing?"
-              mono={false}
-            />
-          </div>
+      {/* Scenario mode + saved-analysis library — soft cards, side-by-side on wide viewports,
+          stacking below the flex-basis on narrow. */}
+      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
+        {hasModeCard && (
+          <Card pad style={{ flex: "1 1 360px", minWidth: 0 }}>
+            <ModeSelect mode={mode} onSelect={selectMode} />
+          </Card>
         )}
+        <Card pad style={{ flex: hasModeCard ? "1 1 360px" : "1 1 100%", minWidth: 0 }}>
+          <LibrarySection
+            version={libraryVersion}
+            currentEntryId={currentEntryId}
+            onReopen={onReopen}
+            onChange={onLibraryChange}
+          />
+        </Card>
+      </div>
+
+      {/* Sub-tabs + the active pane. The tab bar reads as a clean header row above the panes. */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+        <Tabs tabs={SUB_TABS} active={active} onChange={setActive} />
+
+        <div style={{ minWidth: 0 }}>
+          {active === "business" && renderPane("business")}
+          {active === "technical" && renderPane("technical")}
+          {active === "temporal" && renderPane("temporal")}
+          {active === "decision" && (
+            <Card pad style={{ maxWidth: 680 }}>
+              <Field
+                label="Decision"
+                value={decisionText}
+                onChange={editing(setDecision)}
+                rows={4}
+                placeholder="What decision are you weighing?"
+                mono={false}
+              />
+            </Card>
+          )}
+        </div>
       </div>
 
       {/* ── ANALYSE — runs the compile/extract pipeline on the four textareas ── */}
-      <div style={{ borderTop: "1px solid var(--hair-strong)", paddingTop: "var(--gap)", display: "flex" }}>
+      <div style={{ display: "flex", paddingTop: 4 }}>
         <Button
           primary
           disabled={analysing}
