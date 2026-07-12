@@ -333,15 +333,16 @@ export function KeystoneCanvas({
             id: `${childId}->${parent.id}`,
             source: childId,
             target: parent.id,
-            // Task 7 · straight hairlines read as CAD load-path members, not soft bezier
-            // curves — crisper and truer to the drafting aesthetic the founder wanted.
-            type: "straight",
+            // Redesign · orthogonal smoothstep connectors read like an engineering schematic and
+            // untangle the layered tree (straight lines crossed everywhere). Rounded corners keep
+            // them refined rather than blocky.
+            type: "smoothstep",
             style: {
-              // Support edges use the STRONG hairline (the faint --hair was near-invisible on
-              // paper); the keystone load-path stays keystone-red and a touch heavier so it
-              // reads as the spine without shouting.
+              // Support edges recede to the faint hairline so the structure is legible but quiet;
+              // the keystone load-path stays keystone-red and heavier — the one line that draws
+              // the eye down the spine.
               stroke: fromKeystone ? KEYSTONE : HAIR_STRONG,
-              strokeWidth: fromKeystone ? 1.5 : 1,
+              strokeWidth: fromKeystone ? 1.75 : 1,
             },
             animated: fromKeystone,
           });
@@ -500,17 +501,19 @@ export function KeystoneCanvas({
             nodesDraggable={!section}
             proOptions={{ hideAttribution: true }}
           >
-            {/* W3-1 — ruled CAD graph paper. V9-1 calms it: the fine grid only rules in the
-                DETAIL board; at rest a single faint major grid keeps the paper quiet. */}
+            {/* Redesign · a single quiet DOT grid replaces the ruled graph-paper lines — the
+                same alignment cue at a fraction of the visual weight (the Excalidraw / tldraw /
+                Obsidian-Canvas default). One layer, faint hairline dots, wide gap. */}
+            <Background variant={BackgroundVariant.Dots} gap={28} size={1.2} color={HAIR} />
             {detail && (
-              <Background id="grid-fine" variant={BackgroundVariant.Lines} gap={26} color={HAIR} />
+              <Background
+                id="grid-major"
+                variant={BackgroundVariant.Dots}
+                gap={112}
+                size={1.6}
+                color={HAIR_STRONG}
+              />
             )}
-            <Background
-              id="grid-coarse"
-              variant={BackgroundVariant.Lines}
-              gap={130}
-              color={detail ? HAIR_STRONG : HAIR}
-            />
             <FitController fitSignal={fitSignal} hasPlanes={hasPlanes} section={section} />
             {/* FIX 2 — zoom in/out/fit buttons, restyled to the terminal/CAD aesthetic
                 (zero radius, hairline border, mono, paper ground). They call the flow API,
@@ -525,23 +528,15 @@ export function KeystoneCanvas({
               the constraint rail and the force arrows so the structure reads at a glance; the
               DETAIL toggle brings them back. The keystone glow + crack/failure visuals live on
               the nodes themselves, so the important signals survive minimal mode. */}
+          {/* Redesign · stratum rules/labels and the CONSTRAINTS gutter are gone (horizontal +
+              vertical chrome the user called out). Only the LOAD arrows remain in DETAIL — the
+              keystone glow + crack/failure visuals live on the nodes and survive minimal mode. */}
           {detail && (
-            <>
-              {/* V4-1 — stratum chrome: faint plane rules + L0..L3 labels, fogging with depth. */}
-              <StratumChrome strata={strata} focusLayer={focusLayer} />
-              {/* V4-2 — constraint boundary planes, DOCKED in the right gutter (never over nodes). */}
-              <ConstraintFrame
-                planes={constraintPlanes}
-                strikes={strikes}
-                active={effectiveLoadApplied}
-                targetPoints={targetPoints}
-              />
-              <ForceArrows
-                arrows={forceArrows}
-                x0={hasPlanes ? BOARD_X0 : 12}
-                x1={hasPlanes ? BOARD_RIGHT_PCT : 88}
-              />
-            </>
+            <ForceArrows
+              arrows={forceArrows}
+              x0={hasPlanes ? BOARD_X0 : 12}
+              x1={hasPlanes ? BOARD_RIGHT_PCT : 88}
+            />
           )}
         </div>
       </motion.div>

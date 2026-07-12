@@ -22,9 +22,9 @@ const NODE_H = 68;
 /** Dagre layered layout, edges pointing child -> parent, thesis on top (rankdir BT). */
 export function layoutPositions(graph: Graph): Map<string, { x: number; y: number }> {
   const g = new dagre.graphlib.Graph();
-  // T3 — nodesep tightened (less horizontal fan) and ranksep raised (taller stack) so the
-  // wide-and-short 13-node graph rebalances toward the board's aspect and the fit fills it.
-  g.setGraph({ rankdir: "BT", ranksep: 250, nodesep: 22 });
+  // Redesign · widen nodesep so siblings breathe (22 was cramped), keep a tall ranksep for the
+  // orthogonal connectors + optional evidence plates to route cleanly between ranks.
+  g.setGraph({ rankdir: "BT", ranksep: 210, nodesep: 52 });
   g.setDefaultEdgeLabel(() => ({}));
 
   for (const node of graph.nodes) g.setNode(node.id, { width: NODE_W, height: NODE_H });

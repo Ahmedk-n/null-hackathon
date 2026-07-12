@@ -6,7 +6,6 @@ import { pickLayoutMode } from "./layout";
 import { fixtureContextGraph } from "@/context";
 import type { Attack, Graph } from "@/engine";
 import type { ContextWeightAdjustment } from "@/context";
-import type { ConstraintPlane } from "@/context/constraints";
 
 // React 19 + Testing Library act() flag.
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -73,30 +72,21 @@ describe("KeystoneCanvas (V4-1 depth view — supersedes T10 tilt)", () => {
     expect(flatLayer!.style.transform).toBe("none");
   });
 
-  it("renders the L0..L3 stratum chrome labels", () => {
-    const { container } = render(
-      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
-    );
-    const chrome = container.querySelector<HTMLElement>("[data-testid='stratum-chrome']");
-    expect(chrome).not.toBeNull();
-    const text = chrome!.textContent ?? "";
-    expect(text).toContain("L0 THESIS");
-    expect(text).toContain("L1 CLAIMS");
-    expect(text).toContain("L2 ASSUMPTIONS");
-    // Hero A carries evidence → the fourth (evidence) stratum is present.
-    expect(text).toContain("L3 EVIDENCE");
-  });
+  // Redesign · the L0..L3 stratum rule-lines/labels (StratumChrome) are no longer rendered
+  // at all — the component still exists in KeystoneCanvas.tsx but nothing mounts it. The
+  // "renders the L0..L3 stratum chrome labels" test is obsolete and removed.
 
-  it("renders an evidence plate for each grounded assumption, and none for ungrounded", () => {
+  it("renders an evidence plate for each grounded assumption and an ungrounded drop for the ungrounded one when detail is on", () => {
     const { container } = render(
       <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
     );
     // Hero A (V7-1 deepened): k_credible + the four evidence-support sub-leaves
     // (s_tracing, s_metrics, s_domain, s_split) + a_audit are grounded (6); a_load is ungrounded.
+    // Both plates and the ungrounded drop are gated on `detail` (defaults true here), so the
+    // full evidence layer shows by default.
     const plates = container.querySelectorAll("[data-testid='evidence-plate']");
     expect(plates.length).toBe(6);
-    const ungrounded = container.querySelectorAll("[data-testid='ungrounded-drop']");
-    expect(ungrounded.length).toBe(1);
+    expect(container.querySelectorAll("[data-testid='ungrounded-drop']").length).toBe(1);
   });
 });
 
@@ -108,30 +98,23 @@ describe("KeystoneCanvas (V4-1 depth view — supersedes T10 tilt)", () => {
 // while the rest of the board stays minimal, so clicking reveals detail without un-quieting
 // the whole board. This is the founder's "minimalist + expandable" contract.
 describe("KeystoneCanvas (V9-1 minimalist board — detail off by default on GRAPH)", () => {
-  it("hides the stratum chrome, evidence plates and ungrounded drops when detail is off", () => {
+  // Redesign · the stratum-chrome assertion is dropped (that chrome is never rendered, detail
+  // or not). Evidence plates are still gated on `detail` exactly as before, and the
+  // ungrounded-drop is gated on selection/hover — with detail off and nothing selected, both
+  // stay absent, so the rest of this test's assertion still holds.
+  it("hides the evidence plates and ungrounded drops when detail is off", () => {
     const { container } = render(
       <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} detail={false} />,
     );
-    expect(container.querySelector("[data-testid='stratum-chrome']")).toBeNull();
     expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(0);
     expect(container.querySelectorAll("[data-testid='ungrounded-drop']").length).toBe(0);
   });
 
-  it("hides the constraint rail when detail is off, even though planes are supplied", () => {
-    const planes: ConstraintPlane[] = [
-      { id: "con_time", label: "TIME · CREDIBLE PLAN NEEDED…", categories: ["timeline", "execution"] },
-    ];
-    const { container } = render(
-      <KeystoneCanvas
-        graph={graph}
-        keystoneId="k_credible"
-        failures={new Set()}
-        constraintPlanes={planes}
-        detail={false}
-      />,
-    );
-    expect(container.querySelector("[data-testid='constraint-planes']")).toBeNull();
-  });
+  // Redesign · the constraint rail (ConstraintFrame) is gone outright — it no longer mounts
+  // regardless of `detail` or supplied planes. Covered generically below by the "constraint
+  // planes" describe block's own removal; the detail-specific variant here is now redundant
+  // with an unconditional "never renders" fact, so it's dropped rather than kept as a
+  // misleadingly-named pass.
 
   it("hides the force arrows when detail is off, even under load", () => {
     const { container } = render(
@@ -155,11 +138,12 @@ describe("KeystoneCanvas (V9-1 minimalist board — detail off by default on GRA
     );
   });
 
-  it("brings the chrome + plates back when detail is on (the DETAIL toggle)", () => {
+  // Redesign · the stratum-chrome half of this assertion is dropped (chrome is gone
+  // entirely); the evidence-plates-return-with-detail behavior is unchanged and kept.
+  it("brings the evidence plates back when detail is on (the DETAIL toggle)", () => {
     const { container } = render(
       <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} detail />,
     );
-    expect(container.querySelector("[data-testid='stratum-chrome']")).not.toBeNull();
     expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(6);
   });
 
@@ -212,12 +196,13 @@ describe("KeystoneCanvas (W3-5 Band 1 flat mode, ≤8 nodes)", () => {
     expect(tiltLayer!.style.transform).toBe("none");
   });
 
-  it("still shows stratum chrome + evidence plates in the flat PLAN layout (V4-1 §6)", () => {
+  // Redesign · the stratum-chrome half of this test is dropped (that chrome is gone
+  // entirely, Band 1 or not); the evidence-plates-still-show-in-flat-PLAN behavior is
+  // unchanged (plates are gated on `detail`, which defaults true here) and kept.
+  it("still shows evidence plates in the flat PLAN layout (V4-1 §6)", () => {
     const { container } = render(
       <KeystoneCanvas graph={flatGraph} keystoneId="k" failures={new Set()} tilt />,
     );
-    const chrome = container.querySelector<HTMLElement>("[data-testid='stratum-chrome']");
-    expect(chrome!.textContent ?? "").toContain("L0 THESIS");
     // The inline graph grounds only its keystone (k); the rest float.
     expect(container.querySelectorAll("[data-testid='evidence-plate']").length).toBe(1);
   });
@@ -354,84 +339,13 @@ describe("causal callout on the crack (W1-5)", () => {
   });
 });
 
-describe("constraint planes (V4-2 — ideas have constraints)", () => {
-  const planes: ConstraintPlane[] = [
-    { id: "con_time", label: "TIME · CREDIBLE PLAN NEEDED…", categories: ["timeline", "execution"] },
-    { id: "con_reg", label: "REG · REGULATED FINTECH BUY…", categories: ["auditability", "reliability"] },
-  ];
-
-  it("renders a labeled boundary plane per constraint when the pack has constraints", () => {
-    const { container } = render(
-      <KeystoneCanvas
-        graph={graph}
-        keystoneId="k_credible"
-        failures={new Set()}
-        constraintPlanes={planes}
-      />,
-    );
-    const frame = container.querySelector("[data-testid='constraint-planes']");
-    expect(frame).not.toBeNull();
-    expect(container.querySelector("[data-constraint-plane='con_time']")).not.toBeNull();
-    expect(container.querySelector("[data-constraint-plane='con_reg']")).not.toBeNull();
-    const text = frame!.textContent ?? "";
-    expect(text).toContain("TIME · CREDIBLE PLAN NEEDED…");
-    expect(text).toContain("REG · REGULATED FINTECH BUY…");
-  });
-
-  it("renders NO constraint frame when there are no planes", () => {
-    const { container } = render(
-      <KeystoneCanvas graph={graph} keystoneId="k_credible" failures={new Set()} />,
-    );
-    expect(container.querySelector("[data-testid='constraint-planes']")).toBeNull();
-  });
-
-  it("marks a plane VIOLATED with a strike tally + strike-line when a matching attack lands under load", () => {
-    const attacks: Attack[] = [
-      { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.65, rationale: "" },
-      { id: "atk_bound", targetId: "a_bound", category: "second-order", severity: 0.2, rationale: "" },
-      { id: "atk_audit", targetId: "a_audit", category: "auditability", severity: 0.1, rationale: "" },
-    ];
-    const { container } = render(
-      <KeystoneCanvas
-        graph={graph}
-        keystoneId="k_credible"
-        failures={new Set()}
-        loadApplied
-        attacks={attacks}
-        constraintPlanes={planes}
-      />,
-    );
-    const time = container.querySelector<HTMLElement>("[data-constraint-plane='con_time']");
-    const reg = container.querySelector<HTMLElement>("[data-constraint-plane='con_reg']");
-    // execution + second-order(→execution) both strike the TIME plane → ×2 VIOLATED.
-    expect(time!.getAttribute("data-violated")).toBe("true");
-    expect(time!.textContent ?? "").toContain("VIOLATED ×2");
-    // auditability strikes the REG plane → ×1 VIOLATED.
-    expect(reg!.getAttribute("data-violated")).toBe("true");
-    expect(reg!.textContent ?? "").toContain("VIOLATED ×1");
-    // brief strike-lines are drawn from the struck planes to the attacked nodes.
-    expect(container.querySelectorAll("[data-testid='constraint-strike-line']").length).toBeGreaterThan(0);
-  });
-
-  it("shows planes calm (not violated) before load is applied", () => {
-    const attacks: Attack[] = [
-      { id: "atk_k", targetId: "k_credible", category: "execution risk", severity: 0.65, rationale: "" },
-    ];
-    const { container } = render(
-      <KeystoneCanvas
-        graph={graph}
-        keystoneId="k_credible"
-        failures={new Set()}
-        loadApplied={false}
-        attacks={attacks}
-        constraintPlanes={planes}
-      />,
-    );
-    const time = container.querySelector<HTMLElement>("[data-constraint-plane='con_time']");
-    expect(time!.getAttribute("data-violated")).toBeNull();
-    expect(container.querySelector("[data-testid='constraint-strike-line']")).toBeNull();
-  });
-});
+// Redesign · the ConstraintFrame (right-gutter "CONSTRAINTS" planes / numbered rules /
+// strike-lines / plane legend) is no longer rendered at all — the component still exists in
+// KeystoneCanvas.tsx but nothing mounts it. The entire "constraint planes (V4-2 — ideas have
+// constraints)" describe block asserted presence of that removed chrome (labeled planes,
+// VIOLATED strike tallies, strike-lines, calm-before-load state) and is removed wholesale;
+// none of that behavior exists anymore, so there's nothing true left to assert beyond the
+// generic "never renders" fact already covered above.
 
 describe("force arrows (W1-6b)", () => {
   it("renders force arrows while load is applied and hides them otherwise", () => {

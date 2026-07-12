@@ -229,7 +229,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         <KeystoneGlow loadApplied={data.loadApplied ?? false} isFailed={data.isFailed} />
       )}
 
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
+      <Handle type="target" position={Position.Bottom} style={{ opacity: 0 }} />
       <div
         style={{
           display: "flex",
@@ -324,7 +324,7 @@ export function StructuralNode({ data }: { data: StructuralNodeData }) {
         <UngroundedDrop hover={hover} dimmed={data.plateDimmed ?? false} />
       )}
 
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
+      <Handle type="source" position={Position.Top} style={{ opacity: 0 }} />
     </motion.div>
   );
 }
