@@ -470,7 +470,11 @@ export function createKeystoneStore() {
     reset: () => {
       const base = get().baseGraph;
       if (!base) return;
-      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null });
+      // P3-T7 fix · council describes the graph/pack/company/findings, none of which change on a
+      // load-reset — keep it. Clearing it here wrongly downgraded the next Apply Load to the
+      // keyword fallback with no re-fetch. (setGraph still nulls it — a NEW graph is the correct
+      // invalidation point.)
+      set({ workingGraph: cloneGraph(base), attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null });
     },
     setSelectedNode: (id) => set({ selectedNodeId: id }),
     setTilt: (tilt) => set({ tilt }),

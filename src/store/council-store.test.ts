@@ -23,19 +23,24 @@ describe("store holds the council result", () => {
     expect(selectCouncil(store.getState())).toBe(council);
   });
 
-  it("is reset to null by setGraph and reset()", () => {
+  it("is reset to null by setGraph, but PERSISTS through reset()", () => {
     const store = createKeystoneStore();
     store.getState().setGraph(fixtureContextGraph());
     store.getState().setCouncil(fixtureCouncil("A"));
     expect(selectCouncil(store.getState())).not.toBeNull();
 
+    // setGraph: a NEW graph invalidates the council read against the old one.
     store.getState().setGraph(fixtureContextGraph());
     expect(selectCouncil(store.getState())).toBeNull();
 
-    store.getState().setCouncil(fixtureCouncil("A"));
+    // reset() (the "Reset load" action): the graph/pack/company/findings the council describes
+    // don't change on a load-reset, so the council must survive it — clearing it here would
+    // wrongly downgrade the next Apply Load to the keyword fallback with no re-fetch.
+    const council = fixtureCouncil("A");
+    store.getState().setCouncil(council);
     store.getState().applyLoad(fixtureContextAttacks());
     store.getState().reset();
-    expect(selectCouncil(store.getState())).toBeNull();
+    expect(selectCouncil(store.getState())).toBe(council);
   });
 });
 

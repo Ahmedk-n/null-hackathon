@@ -107,6 +107,11 @@ export default function KeystoneApp({
   // without the user re-typing the form. null until the first analyse() call. Not state — retrying
   // doesn't need a render, and it must survive past a failed run.
   const lastAnalyseInputRef = useRef<ContextInput | null>(null);
+  // P3-T7 fix · staleness guard for the fire-and-forget council fetch. Bumped at the top of every
+  // analyse() call; the council fetch only applies its result if this run is still the latest one
+  // when it resolves, so a slow first fetch can never overwrite a newer graph's council (mirrors
+  // the `cancelled`-flag idiom used for fetchCalibration above).
+  const analyseRunTokenRef = useRef(0);
 
   // V5-4 · the library entry THIS session is editing. analyse() creates one; Apply Load / Reinforce
   // patch its verdict; reopening a snapshot adopts its id. null = nothing saved yet this session.
@@ -239,6 +244,7 @@ export default function KeystoneApp({
 
   // Orchestration reaches the model ONLY over HTTP — never imports server modules.
   async function analyse(input: ContextInput) {
+    const runToken = ++analyseRunTokenRef.current;
     lastAnalyseInputRef.current = input;
     setLastRunKind("analyse");
     setBuilding(true);
@@ -321,7 +327,7 @@ export default function KeystoneApp({
       // "no contextual overlay this run", the deterministic keyword-reweight view stays exactly as
       // before. Reuses the same gathered `findings` snapshot fed to extraction above.
       fetchCouncil({ graph, pack, company: companyContext, findings }).then((council) => {
-        keystoneStore.getState().setCouncil(council);
+        if (analyseRunTokenRef.current === runToken) keystoneStore.getState().setCouncil(council);
       });
       // V5-4 · auto-save the analysis. savedAtISO = the server-passed startedAt (NEVER a client
       // clock — T8); seq/id come from the library's persisted monotonic counter. The verdict is
