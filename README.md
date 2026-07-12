@@ -1,89 +1,134 @@
 # ▣ Keystone — a CAD tool for thinking
 
-> *Cognitive CAD: "Can we design thoughts the way engineers design machines? Ideas have
-> constraints. Beliefs have dependencies. Plans have load-bearing assumptions. Taste has
-> geometry. What would a CAD tool for thinking look like?"*
+> *"Ideas have constraints. Beliefs have dependencies. Plans have load-bearing assumptions.
+> Taste has geometry. **What would a CAD tool for thinking look like?**"*
 
-A CAD tool for thinking treats a decision as a **load-bearing structure**: the LLM proposes the
-shape, and a deterministic solver decides whether the structure stands — which assumption is the
-keystone, which constraints it violates, and how it fails under load.
+Keystone treats a decision the way an engineer treats a bridge: as a **load-bearing structure**.
+An LLM proposes the shape — the thesis, the claims it rests on, the assumptions underneath — and a
+**pure, deterministic solver** decides whether it stands: which assumption is the *keystone*, how it
+fails under load, and the cheapest way to shore it up.
 
-Keystone is the full CAD loop — **DESIGN · TEST · ASSEMBLE**:
+![Keystone landing](docs/screenshots/01-landing.png)
 
-- **DESIGN** — state a goal; three rival structures are synthesized under different strategy lenses
-  and stress-tested under identical load. The solver picks the survivor.
-- **TEST** — interrogate the survivor: grounded load, an adversarial **wind tunnel** (two agents
-  argue, a deterministic solver referees), and the minimal de-risking plan.
-- **ASSEMBLE** — every decision joins the **skyline**; shared foundations reveal which single
-  assumption props up multiple structures — where systemic risk hides.
+---
 
-## Manifesto → mechanism
+## Why
 
-The track names four properties of thought. Keystone renders each as engineering geometry:
+Every important decision hides a single assumption that quietly carries everything. Get it wrong and
+the whole plan collapses — but it's rarely the one you're arguing about. Keystone finds it, shows you
+*why* it's load-bearing, stress-tests the structure against your **real context**, and tells you the
+one cheap thing to prove before you commit.
 
-| Track line | What Keystone builds |
+The whole thing runs on one honest rule: **the LLM proposes structure; the solver decides integrity.**
+The model never moves the numbers — it only supplies a structure to analyze. Same inputs → same
+verdict, every time.
+
+---
+
+## The idea: manifesto → mechanism
+
+The manifesto names four properties of thought. Keystone renders each as engineering geometry.
+
+| Manifesto line | What Keystone builds |
 |---|---|
-| **Ideas have constraints** | Context constraints render as CAD **datum planes** the structure sits inside (`RUNWAY ≤ 7 MO`, `SLA 99.9%`). An attack that maps to a constraint **strikes** its plane — a visible collision, marked `VIOLATED ×n`. |
+| **Ideas have constraints** | Context constraints become CAD **datum planes** the structure sits inside (`RUNWAY ≤ 7 MO`, `SLA 99.9%`). An attack that maps to a constraint **strikes** its plane — a visible collision, marked `VIOLATED`. |
 | **Beliefs have dependencies** | The graph is an **AND/OR dependency network**. Support propagates from evidence up through assumptions and claims to the thesis; knock out a support and the loss ripples along the real edges. |
-| **Plans have load-bearing assumptions** | A pure solver finds the **keystone** — the single assumption whose removal costs the most integrity — via knockout sensitivity, then computes the **minimal reinforcement set** that heals the structure. |
-| **Taste has geometry** | The Z-axis encodes **reasoning depth**, not decoration. Strata descend `L0 THESIS → L1 CLAIMS → L2 ASSUMPTIONS → L3 EVIDENCE`. Grounded assumptions rest on evidence **plates**; ungrounded ones **float** with nothing beneath them. A `DEPTH n/4 · GROUNDED m/k` metric reads the shape as judgment quality. |
+| **Plans have load-bearing assumptions** | A pure solver finds the **keystone** — the assumption whose removal costs the most integrity — via knock-out sensitivity, then computes the **minimal reinforcement set** that heals the structure. |
+| **Taste has geometry** | Depth encodes *reasoning*, not decoration: `THESIS → CLAIMS → ASSUMPTIONS → EVIDENCE`. Grounded assumptions rest on evidence **plates**; ungrounded ones **float** with nothing beneath them. |
 
-The v6 loop adds three mechanics on top of that geometry:
+![Manifesto](docs/screenshots/02-manifesto.png)
 
-| Mechanic | What Keystone builds |
-|---|---|
-| **Generative design** | One goal yields **rival candidates** — three structures under different **strategy lenses** (AGGRESSIVE / CONSERVATIVE / HYBRID), stress-tested under identical grounded load. The pure engine ranks them by integrity; the survivor wins. The LLM never ranks. |
-| **Wind tunnel** | An **adversarial interrogation** of one structure: a PROSECUTOR agent proposes novel attacks, an ADVOCATE agent counters with evidence, and the pure solver **referees** every round — its verdict cannot be overridden. Agents propose; only the referee moves numbers. |
-| **Skyline** | The whole library rendered as one **assembly** — each decision a building, **shared foundations** as columns beneath. Cracking one foundation re-verdicts every structure resting on it, exposing systemic risk. |
+---
 
-## The honest architecture claim
+## Walk through it
 
-- **The LLM proposes structure; the solver decides integrity.** Extraction turns a decision into
-  a graph; a **pure, deterministic engine** (no model, no randomness, no wall-clock) computes
-  integrity, keystone, constraint violations, and the reinforcement set. The LLM **cannot override
-  the solver** — it only supplies structure to analyze.
-- **Every live path falls back to a pinned fixture.** Context, extraction, and attacks each run
-  live when `ANTHROPIC_API_KEY` is present and otherwise replay pinned outputs. The API routes
-  never 500; each stage reports its true `live | fixture` source.
-- **The offline demo works fully, keyless.** With no key, the entire flow is deterministic and
-  identical every run.
+### 1 · Context — ground it in reality
 
-## Scenario R — generated live against a real project
+State the decision. Agents gather from **real sources** (your repo, website, competitors, calendar)
+and their findings merge into your editable context; on analyse it's compacted into the pack the
+engine reasons over.
 
-R is not a toy. It was produced by **actually running the pipeline** against
-[github.com/excalidraw/excalidraw](https://github.com/excalidraw/excalidraw) and
-[excalidraw.com](https://excalidraw.com) — real repo, real site, real competitors
-(tldraw / FigJam / Miro) — for the decision *"Should Excalidraw build a paid realtime-collaboration
-backend now?"*. The live findings (real file paths and URLs, clickable provenance) were captured
-and **pinned as fixtures**, so R replays deterministically offline while every citation is real.
+![Context tab](docs/screenshots/03-context.png)
 
-R baseline integrity **52.6%**, keystone `team_has_backend_capacity`, 5 constraint planes,
-evidence coverage **6/6**.
+### 2 · Design — three rivals, one survivor
 
-## Demo script (90 seconds)
+One goal yields three **rival structures** under different strategy lenses (aggressive / conservative
+/ hybrid), stress-tested under identical load. The pure engine ranks them by integrity — the survivor
+wins. *The LLM never ranks.*
 
-1. **DESIGN — type the goal.** In the DESIGN tab, state *"win enterprise collaboration revenue
-   without burning the team"* and GENERATE RIVALS. Three structures assemble, then collapse
-   **simultaneously** under identical grounded load until one stands. Open the survivor in the studio.
-2. **TEST — grounded load.** The `roadmap meeting in 2 days` evidence sharpens the attacks; the
-   keystone **cracks**, a constraint plane shows `VIOLATED`, and a causal callout cites a **real
-   source**. The solver returns the **minimal** de-risking set that heals it.
-3. **TEST — wind tunnel (2 rounds).** PROSECUTOR proposes a novel attack, the solver referees,
-   ADVOCATE counters with a pack citation, the solver referees again. The transcript reads
-   `PROSECUTOR ▶ / SOLVER ■ / ADVOCATE ◀`; the session clone lands on `STANDS` or `FALLS`.
-4. **ASSEMBLE — skyline crack.** Open `/skyline`: every saved decision is a building, shared
-   foundations columns beneath. Crack one foundation — the buildings resting on it re-verdict and
-   drop: `1 ASSUMPTION FEEDS N STRUCTURES · M COLLAPSE`.
+![Design tournament](docs/screenshots/04-design.png)
 
-## How to run
+### 3 · Graph — the verdict
+
+The studio shows the standing structure: **structural integrity**, the **probability it holds** under
+sampled uncertainty (Monte-Carlo, calibrated to your track record), and the **keystone** called out in
+red — the one belief the whole thesis hangs from.
+
+![Graph tab](docs/screenshots/05-graph.png)
+
+### 4 · Stress — watch it crack
+
+Apply the grounded load. The keystone cracks, the integrity craters, constraint planes show
+`VIOLATED`, and the failure cascade orders *what breaks first and why* — then the de-risking plan
+returns the minimal set of things to prove to make it survive.
+
+![Stress tab](docs/screenshots/06-stress.png)
+
+---
+
+## Under the hood
+
+Keystone is a frozen deterministic engine wrapped in four analytical layers and an agentic context
+pipeline. The engine math never changes; every feature reshapes the *load* and the *overlays*.
+
+- **Deterministic engine (frozen).** Integrity, keystone (knock-out sensitivity), constraint
+  violations, failure cascade, and the minimal reinforcement set — pure functions, no model, no
+  randomness, no wall-clock. Dependency support propagates with a **depth-robust** rule (corroborating
+  premises averaged via geometric mean, sub-goals multiplied) — not a naïve product.
+- **Probabilistic layer.** A Monte-Carlo brain samples evidence-grounded uncertainty and correlated
+  latent drivers over the frozen engine to produce **P(hold)** + a p05–p95 band, a variance keystone,
+  and correlated co-failure clusters.
+- **Cross-decision calibration.** Learns from your *resolved* decisions (shrunk bias-Platt + category
+  rates) to turn a raw P(hold) into a **calibrated** one — honestly labelled sample-vs-real.
+- **Contextual analysis council.** A server-side council of agents reads *this* decision's situation
+  and reshapes the analysis: a SALC-style weighting agent names the **real spine** (which can differ
+  from the topological keystone), a stress agent generates situation-specific attacks, a skeptic
+  surfaces hidden assumptions, and a deterministic critic drops anything not grounded in real evidence.
+- **De-risking.** Turns each finding — the real spine and the hidden assumptions — into one concrete,
+  cheap falsifying test to run *before* committing.
+
+### The honesty guarantees
+
+- **The LLM cannot override the solver.** It supplies structure; code computes the verdict.
+- **Every live path falls back to a pinned fixture.** Context, extraction, attacks, and the council
+  each run live when `ANTHROPIC_API_KEY` is present, otherwise replay pinned outputs. API routes
+  **never 500**, and each stage reports its true `live | fixture` source — fixtures are tagged
+  *illustrative* and kept out of the engine.
+- **The offline demo works fully, keyless** — deterministic and identical every run.
+
+---
+
+## Run it
 
 ```bash
 npm i
-npm run dev     # http://localhost:3000 — offline demo works with no key
-npm test        # unit + engine + UI suites (vitest)
-npm run e2e      # scripted rehearsal, 0 console errors
+npm run dev     # http://localhost:3000  — the offline demo works with no key
+npm test        # engine + agents + UI suites (vitest) — 836 tests
 ```
 
-`ANTHROPIC_API_KEY` in `.env.local` is **optional** — it enables the live gather chain and the
-judge-typed **CUSTOM** mode (drop the scenario pin, watch the real chain fire). Without it,
-everything runs from pinned fixtures. Model: `claude-opus-4-8`.
+`ANTHROPIC_API_KEY` in `.env.local` is **optional**. With it, the live gather chain, the contextual
+council, and the judge-typed **CUSTOM** mode fire against real sources; without it, everything runs
+from pinned fixtures. Model: `claude-opus-4-8`.
+
+Signed-in accounts (Supabase) add a saved decision library and per-user calibration; the
+`supabase/migrations/` folder holds the schema.
+
+---
+
+## Stack
+
+Next.js 15 (App Router) · React 19 · TypeScript (strict) · `@xyflow/react` for the canvas ·
+`@anthropic-ai/sdk` (forced-tool-call transport) · Supabase (RLS) · vitest · Playwright.
+
+The design system is a single editorial theme (`src/ui/theme.css`) — white, near-black, gray, and a
+keystone red, light-only — shared by the landing manifesto and the studio.
