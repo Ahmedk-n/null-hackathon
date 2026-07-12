@@ -138,6 +138,11 @@ export interface KeystoneState {
   // reinforcementPlan/probabilistic above. Consumed by the four non-timeline solve actions below
   // to swap in `council.contextualAttacks` for the keyword reweight when LIVE + grounded.
   council: CouncilResult | null;
+  // P4 (additive): true while a live council fetch is in flight for the current analyse run, so
+  // the STRESS rail can show an "analysing context…" placeholder during the ~30-40s live wait
+  // instead of a blank gap. Set true by KeystoneApp right before fetchCouncil, false when it
+  // resolves (token-guarded). Never gates the engine — display only.
+  councilLoading: boolean;
   setGraph: (g: Graph) => void;
   setConfidence: (id: string, value: number) => void;
   // V5-3 (additive): inspector-panel graph editing. Every action runs the edit on a CLONE and
@@ -181,6 +186,7 @@ export interface KeystoneState {
   // KeystoneApp calls fetchCouncil(...) after the extract step and hands the plain result (or
   // null) to this setter.
   setCouncil: (c: CouncilResult | null) => void;
+  setCouncilLoading: (loading: boolean) => void;
 }
 
 export function createKeystoneStore() {
@@ -207,6 +213,7 @@ export function createKeystoneStore() {
     calibration: null,
     calibrationIsSample: false,
     council: null,
+    councilLoading: false,
     setGraph: (g) => {
       // Preserve the engine-inert drivers onto the store's base/working graphs — cloneGraph
       // strips them (see solveProbabilistic above), and they are the correlation structure the
@@ -215,7 +222,7 @@ export function createKeystoneStore() {
       const working = cloneGraph(g);
       base.drivers = g.drivers;
       working.drivers = g.drivers;
-      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null });
+      set({ baseGraph: base, workingGraph: working, attacks: [], rawAttacks: [], loadApplied: false, failures: EMPTY_FAILURES, reinforcementPlan: null, timelineDay: 0, failsInDay: null, probabilistic: null, council: null, councilLoading: false });
     },
     setConfidence: (id, value) => {
       const wg = get().workingGraph;
@@ -612,6 +619,7 @@ export function createKeystoneStore() {
     // calls fetchCouncil({graph, pack, company, findings}) in the post-extract effect and pushes
     // the result (or null on failure/no-key) in.
     setCouncil: (c) => set({ council: c }),
+    setCouncilLoading: (loading) => set({ councilLoading: loading }),
   }));
 }
 

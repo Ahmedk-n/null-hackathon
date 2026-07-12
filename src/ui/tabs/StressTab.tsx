@@ -1153,6 +1153,9 @@ export function StressTab({
   // P3-T8 · the contextual analysis council's result (null offline-with-no-key or before analyse).
   // Surfaced ONLY when grounded; the store holds it, this client only reads it.
   const council = useKeystone(selectCouncil);
+  // P4 · true while the live council fetch is in flight — drives the "analysing context…"
+  // placeholder so the ~30-40s live wait isn't a blank gap where the findings will land.
+  const councilLoading = useKeystone((s) => s.councilLoading);
 
   // Sort by severity desc — highest-impact attack reads first.
   const sorted = useMemo(
@@ -1230,6 +1233,32 @@ export function StressTab({
             point, context-keystone, hidden assumptions). Rendered only when a grounded council is
             present; otherwise this view is unchanged. Sits right under the verdict/toggle cluster
             so the "given your situation, here's the real story" lands before the raw ledgers. */}
+        {/* P4 — while a live council fetch is in flight (and no grounded result has landed yet),
+            show an "analysing…" placeholder so the ~30-40s live wait isn't a blank gap. Once the
+            council resolves grounded, councilLoading flips false and the findings replace this. */}
+        {councilLoading && !(council && council.grounded) && (
+          <div data-testid="council-loading" style={{ marginTop: 4 }}>
+            <SectionHeader>What The Council Found</SectionHeader>
+            <div
+              style={{
+                fontFamily: "var(--sans)",
+                fontSize: 11,
+                color: "var(--muted)",
+                lineHeight: 1.5,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+              }}
+            >
+              <span className="mono" aria-hidden style={{ color: "var(--muted)" }}>
+                ◦
+              </span>
+              A council of context agents is analysing this decision — the real spine, hidden
+              assumptions, and de-risking moves land here.
+            </div>
+          </div>
+        )}
+
         {council && council.grounded && (
           <CouncilFindings council={council} topoKeystoneId={keystoneId} labelFor={labelFor} />
         )}
@@ -1313,11 +1342,12 @@ export function StressTab({
             graph={graph}
             keystoneId={keystoneId}
             failures={failures}
-            // T9 — STRESS's collapse view is INTENTIONALLY the perspective strata view, so it
-            // pins tilt=true. Previously it read the shared store `tilt`, the same flag GRAPH's
-            // old SECTION toggle set — with SECTION gone that coupling is severed here so STRESS
-            // renders identically regardless of anything GRAPH does.
-            tilt={true}
+            // P4 — STRESS now renders the SAME flat top-down board as GRAPH (tilt=false). The old
+            // 2.5D perspective (tilt=true) was a leftover from before the flat dot-grid redesign;
+            // a tilted ancestor breaks React Flow's pointer math, so it silently disabled
+            // pan-on-drag and node dragging in STRESS — the "graph controls are broken" bug.
+            // Flat restores pan/drag and keeps STRESS visually consistent with the redesign.
+            tilt={false}
             loadApplied={loadApplied}
             attacks={attacks}
             rawAttacks={rawAttacks}
