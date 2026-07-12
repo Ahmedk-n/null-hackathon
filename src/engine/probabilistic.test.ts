@@ -55,3 +55,37 @@ describe("runProbabilistic", () => {
     expect(r.samples).toBe(500);
   });
 });
+
+describe("runProbabilistic — sensitivity & clusters", () => {
+  const drivers = [
+    { id: "d1", label: "vendor", loadings: [{ assumptionId: "a1", loading: 0.95 }, { assumptionId: "a2", loading: 0.95 }] },
+  ];
+  const g = {
+    thesisId: "t",
+    drivers,
+    nodes: [
+      { id: "t", type: "thesis", label: "T", confidence: 1, groups: [{ kind: "AND", childIds: ["c"] }] },
+      { id: "c", type: "claim", label: "C", confidence: 1, groups: [{ kind: "AND", childIds: ["a1", "a2"] }] },
+      { id: "a1", type: "assumption", label: "A1", confidence: 0.6, evidenceStrength: "weak", groups: [] },
+      { id: "a2", type: "assumption", label: "A2", confidence: 0.6, evidenceStrength: "weak", groups: [] },
+    ],
+  } as any;
+
+  it("ranks the wired driver as top sensitivity", () => {
+    const r = runProbabilistic(g, { seed: 11, samples: 6000 });
+    expect(r.keystoneDrivers[0]?.id).toBe("d1");
+    expect(r.keystoneDrivers[0]?.sensitivity).toBeGreaterThan(0);
+  });
+
+  it("clusters both assumptions under the shared driver", () => {
+    const r = runProbabilistic(g, { seed: 11, samples: 2000 });
+    const cluster = r.clusters.find((c) => c.driverId === "d1");
+    expect(cluster?.assumptionIds.sort()).toEqual(["a1", "a2"]);
+  });
+
+  it("reports co-failure of the loaded assumptions under a driver shock", () => {
+    const r = runProbabilistic(g, { seed: 11, samples: 2000 });
+    const cf = r.coFailure.find((c) => c.driverId === "d1");
+    expect(cf?.assumptionIds.length).toBeGreaterThan(0);
+  });
+});

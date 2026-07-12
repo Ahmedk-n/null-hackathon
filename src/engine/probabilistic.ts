@@ -105,23 +105,84 @@ export function sampleRun(graph: Graph, samples: number, seed: number): { prep: 
   return { prep, trace: { integrities, holds, z, conf } };
 }
 
+function corr(a: number[], b: number[]): number {
+  const n = a.length;
+  let ma = 0, mb = 0;
+  for (let i = 0; i < n; i++) { ma += a[i]; mb += b[i]; }
+  ma /= n; mb /= n;
+  let cov = 0, va = 0, vb = 0;
+  for (let i = 0; i < n; i++) {
+    const da = a[i] - ma, db = b[i] - mb;
+    cov += da * db; va += da * da; vb += db * db;
+  }
+  if (va === 0 || vb === 0) return 0;
+  return cov / Math.sqrt(va * vb);
+}
+
+// Deterministic single-shock pass: fix driver `di` at -2σ, all other factors/idiosyncratic at 0.
+function shockDriver(prep: Prepared, graph: Graph, di: number): Set<string> {
+  const clone: Graph = { ...graph, nodes: graph.nodes.map((n) => ({ ...n })) };
+  const byId = new Map(clone.nodes.map((n) => [n.id, n]));
+  for (const a of prep.assumptions) {
+    const x = a.loadings[di] * -2; // others zeroed
+    byId.get(a.id)!.confidence = sigmoid(a.m + a.s * x);
+  }
+  const support = computeSupport(clone);
+  const failed = new Set<string>();
+  for (const a of prep.assumptions) {
+    if ((support.get(a.id) ?? 0) < FAILURE_THRESHOLD) failed.add(a.id);
+  }
+  return failed;
+}
+
 export function runProbabilistic(
   graph: Graph,
   opts?: { samples?: number; seed?: number },
 ): ProbabilisticResult {
   const samples = opts?.samples ?? DEFAULT_SAMPLES;
   const seed = opts?.seed ?? hashSeed(seedString(graph));
-  const { trace } = sampleRun(graph, samples, seed);
+  const { prep, trace } = sampleRun(graph, samples, seed);
   const sorted = [...trace.integrities].sort((a, b) => a - b);
   const mean = trace.integrities.reduce((s, v) => s + v, 0) / samples;
+
+  const keystoneDrivers = prep.drivers
+    .map((d, di) => ({ id: d.id, label: d.label, sensitivity: corr(trace.integrities, trace.z.map((row) => row[di])) ** 2 }))
+    .sort((a, b) => b.sensitivity - a.sensitivity);
+
+  const keystoneAssumptions = prep.assumptions
+    .map((a) => ({ id: a.id, influence: corr(trace.integrities, trace.conf[a.id]) ** 2 }))
+    .sort((a, b) => b.influence - a.influence);
+
+  const influenceById = new Map(keystoneAssumptions.map((k) => [k.id, k.influence]));
+  const sensById = new Map(keystoneDrivers.map((k) => [k.id, k.sensitivity]));
+  const clusters = prep.drivers
+    .map((d, di) => {
+      const members = prep.assumptions.filter((a) => {
+        const max = Math.max(...a.loadings, 0);
+        return a.loadings[di] > 0 && a.loadings[di] === max;
+      });
+      return {
+        driverId: d.id,
+        label: d.label,
+        assumptionIds: members.map((m) => m.id),
+        variance: sensById.get(d.id) ?? 0,
+        loadBearing: members.reduce((s, m) => s + (influenceById.get(m.id) ?? 0), 0),
+      };
+    })
+    .filter((c) => c.assumptionIds.length > 0);
+
+  const coFailure = prep.drivers
+    .map((d, di) => ({ driverId: d.id, label: d.label, assumptionIds: [...shockDriver(prep, graph, di)] }))
+    .filter((c) => c.assumptionIds.length > 0);
+
   return {
     pHold: trace.holds / samples,
     mean,
     band: [quantile(sorted, 0.05), quantile(sorted, 0.95)],
     samples,
-    keystoneDrivers: [],       // Task 3
-    keystoneAssumptions: [],   // Task 3
-    clusters: [],              // Task 3
-    coFailure: [],             // Task 3
+    keystoneDrivers,
+    keystoneAssumptions,
+    clusters,
+    coFailure,
   };
 }
