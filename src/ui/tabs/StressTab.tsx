@@ -35,7 +35,17 @@ import { analysisDepth } from "@/canvas/depth";
 import { constraintPlanes } from "@/context/constraints";
 import { IntegrityGauge } from "@/ui/IntegrityGauge";
 import { ContextUsedPanel } from "@/ui/ContextUsedPanel";
-import { SectionHeader, Button, EmptyCanvas, LedgerRow } from "@/ui/primitives";
+import {
+  SectionHeader,
+  Button,
+  EmptyCanvas,
+  LedgerRow,
+  Card,
+  Eyebrow,
+  Pill,
+  Disclosure,
+} from "@/ui/primitives";
+import type { PillTone } from "@/ui/primitives";
 // M-1 — narrow-viewport reflow: below ~820px the fixed rail·canvas·rail row stacks into one
 // scrollable column (canvas first, an ANALYSIS/CONTEXT switch swaps the rails beneath it).
 import { useIsNarrow, PaneSwitch } from "@/ui/useIsNarrow";
@@ -45,25 +55,28 @@ import type { ReinforcementPlan } from "@/engine";
 // Stable empty reference — avoids a fresh [] each render churning the memoized canvas.
 const EMPTY_ADJUSTMENTS: readonly ContextWeightAdjustment[] = [];
 
+// The rails are now soft cards (see `Card`) on the cool canvas, matching the GRAPH tab.
+// RAIL carries the fixed width + interior scroll + padding; the Card class supplies the
+// white ground, border, radius and shadow. The right column is a STACK of cards (support
+// breakdown + the context panel, which is already its own `.panel`), so it is a plain
+// flex column with a gutter — not a single Card — to avoid a card-in-card double frame.
 const RAIL: React.CSSProperties = {
   width: 340,
   minWidth: 340,
-  borderRight: "1px solid var(--hair)",
-  padding: "var(--pad)",
+  padding: 18,
   overflowY: "auto",
   display: "flex",
   flexDirection: "column",
-  gap: "var(--gap)",
-  background: "var(--panel)",
+  gap: 16,
 };
 
 const RIGHT: React.CSSProperties = {
   width: 300,
   minWidth: 300,
-  borderLeft: "1px solid var(--hair)",
-  padding: "var(--pad)",
   overflowY: "auto",
-  background: "var(--panel)",
+  display: "flex",
+  flexDirection: "column",
+  gap: 16,
 };
 
 // A/B toggle — the demo. IGNORE CONTEXT (raw attacks, structure survives) ⟷
@@ -78,36 +91,46 @@ function ContextToggle({
   onChange: (grounded: boolean) => void;
   disabled?: boolean;
 }) {
-  const seg = (active: boolean): React.CSSProperties => ({
+  // Clean-modern segmented control (matches the mockup's `.seg` + GraphTab's view toggle):
+  // a soft inset track; the active segment lifts to a white pill with a subtle shadow. The
+  // GROUNDED segment recolors its active text to the keystone red — grounding is what cracks
+  // the structure — while IGNORE stays neutral ink.
+  const seg = (active: boolean, danger: boolean): React.CSSProperties => ({
     flex: 1,
-    padding: "7px 8px",
-    fontFamily: "var(--mono)",
-    fontSize: 10,
-    letterSpacing: "0.12em",
-    textTransform: "uppercase",
+    padding: "6px 10px",
+    fontFamily: "var(--sans)",
+    fontSize: 12,
+    fontWeight: 550,
     textAlign: "center",
     cursor: disabled ? "default" : "pointer",
     border: "none",
-    borderRadius: 0,
-    background: active ? (grounded ? "var(--bad)" : "var(--ink)") : "transparent",
-    color: active ? "var(--bg)" : "var(--muted)",
+    borderRadius: 6,
+    background: active ? "var(--panel)" : "transparent",
+    color: active ? (danger ? "var(--bad)" : "var(--ink)") : "var(--muted)",
+    boxShadow: active ? "var(--shadow-sm)" : "none",
     opacity: disabled ? 0.5 : 1,
   });
   return (
     <div>
-      <span className="label" style={{ display: "block", marginBottom: 5 }}>
-        Attack Basis
-      </span>
+      <Eyebrow>Attack basis</Eyebrow>
       <div
         data-testid="context-toggle"
-        style={{ display: "flex", border: "1px solid var(--hair-strong)", borderRadius: 0 }}
+        style={{
+          display: "flex",
+          gap: 2,
+          padding: 3,
+          marginTop: 6,
+          background: "var(--panel-2)",
+          border: "1px solid var(--hair)",
+          borderRadius: 8,
+        }}
       >
         <button
           type="button"
           aria-pressed={!grounded}
           disabled={disabled}
           onClick={() => onChange(false)}
-          style={seg(!grounded)}
+          style={seg(!grounded, false)}
         >
           Ignore Context
         </button>
@@ -116,7 +139,7 @@ function ContextToggle({
           aria-pressed={grounded}
           disabled={disabled}
           onClick={() => onChange(true)}
-          style={seg(grounded)}
+          style={seg(grounded, true)}
         >
           Ground In Context
         </button>
@@ -210,37 +233,40 @@ function VerdictHeader({
   const labelFor = (id: string | null) =>
     (id && baseGraph?.nodes.find((n) => n.id === id)?.label) || id || "—";
 
+  const headRow = (pill: React.ReactNode) => (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+      <Eyebrow>Verdict</Eyebrow>
+      {pill}
+    </div>
+  );
+
   if (!loadApplied || !summary) {
     return (
-      <div data-testid="verdict-header" style={{ padding: "2px 0 10px", borderBottom: "1px solid var(--hair-strong)" }}>
-        <span className="label" style={{ color: "var(--muted)" }}>
-          Awaiting Load
-        </span>
-      </div>
+      <div data-testid="verdict-header">{headRow(<Pill tone="neutral">Awaiting load</Pill>)}</div>
     );
   }
 
   const baseline = summary.baselineIntegrity;
   const post = summary.postLoadIntegrity;
   const survived = post >= summary.threshold * 100;
+  const tone: PillTone = survived ? "hold" : "crack";
   const accent = survived ? "var(--ok)" : "var(--bad)";
   const keystoneLabel = labelFor(summary.keystoneBeforeLoad);
 
   return (
-    <div data-testid="verdict-header" style={{ padding: "2px 0 10px", borderBottom: "1px solid var(--hair-strong)" }}>
-      <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
-        <span
-          className="mono"
-          style={{ fontSize: 15, fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase", color: accent }}
-        >
-          {survived ? "Stands" : "Collapses"}
-        </span>
-        <span className="mono" style={{ fontSize: 13, color: accent }}>
-          {`${baseline.toFixed(0)}% → ${post.toFixed(0)}%`}
-        </span>
-      </div>
-      <div className="label" style={{ marginTop: 4, color: "var(--ink-2)" }}>
-        {`Keystone · ${keystoneLabel} · ${cascade.length} Fell`}
+    <div data-testid="verdict-header">
+      {headRow(<Pill tone={tone}>{survived ? "Stands" : "Collapses"}</Pill>)}
+      <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 5 }}>
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 8 }}>
+          <span className="label">Baseline → Post-Load</span>
+          <span className="mono" style={{ fontSize: 13, color: accent }}>
+            {`${baseline.toFixed(0)}% → ${post.toFixed(0)}%`}
+          </span>
+        </div>
+        <div style={{ fontSize: 12.5, color: "var(--ink-2)", lineHeight: 1.4 }}>
+          Keystone <span style={{ color: "var(--ink)", fontWeight: 600 }}>{keystoneLabel}</span> ·{" "}
+          <span className="mono" style={{ color: "var(--ink)" }}>{cascade.length}</span> fell
+        </div>
       </div>
     </div>
   );
@@ -335,7 +361,6 @@ function SensitivityBars({ graph, keystoneId }: { graph: Graph | null; keystoneI
   const ratioText = ratio === Infinity ? "∞" : ratio >= 10 ? ratio.toFixed(0) : ratio.toFixed(1);
   return (
     <div>
-      <SectionHeader>Knock-out Sensitivity</SectionHeader>
       {explanation && explanation.keystoneId && (
         <div data-testid="keystone-explanation" style={{ marginBottom: 8 }}>
           <div
@@ -587,7 +612,6 @@ function TimelineSection() {
   const fails = failsInDay !== null;
   return (
     <div data-testid="timeline-section">
-      <SectionHeader>Timeline Stress</SectionHeader>
       <label style={{ display: "block", marginTop: 4 }}>
         <span style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
           <span className="label">Scrub · Days From Now</span>
@@ -767,7 +791,6 @@ function WindTunnelSection({ baseGraph }: { baseGraph: Graph }) {
 
   return (
     <div data-testid="wind-tunnel">
-      <SectionHeader>Wind Tunnel</SectionHeader>
       <p className="label" style={{ padding: "0 0 6px", color: "var(--muted)", lineHeight: 1.5, textTransform: "none", letterSpacing: 0 }}>
         WIND TUNNEL — two agents argue; the solver referees. Its verdict cannot be overridden.
       </p>
@@ -1186,35 +1209,47 @@ export function StressTab({
   // and in jsdom) is untouched. `mobilePane` is inert on desktop where both rails render.
   const narrow = useIsNarrow(820);
   const [mobilePane, setMobilePane] = useState<"analysis" | "context">("analysis");
-  // Reflow styles. Narrow: full-width rails (fixed widths, min-widths, side borders dropped so
-  // nothing exceeds the viewport); canvas gets an explicit height (it can't be `flex:1` stacked).
+  // Reflow styles. Narrow: full-width rail card + right column (fixed/min widths dropped so
+  // nothing exceeds the viewport); the graph card gets an explicit height (it can't be `flex:1`
+  // once stacked in a scrolling column). Mirrors the GRAPH tab's card layout exactly.
   const railStyle: React.CSSProperties = narrow
-    ? { ...RAIL, width: "100%", minWidth: 0, borderRight: "none", overflowY: "visible" }
+    ? { ...RAIL, width: "100%", minWidth: 0, overflowY: "visible" }
     : RAIL;
   const rightStyle: React.CSSProperties = narrow
-    ? { ...RIGHT, width: "100%", minWidth: 0, borderLeft: "none", overflowY: "visible" }
+    ? { ...RIGHT, width: "100%", minWidth: 0, overflowY: "visible" }
     : RIGHT;
-  const canvasStyle: React.CSSProperties = narrow
-    ? { height: "58vh", minHeight: 320, flex: "0 0 auto", position: "relative" }
-    : { flex: 1, minWidth: 0, position: "relative" };
+  const graphCardStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+    ...(narrow ? { height: "58vh", minHeight: 320, flex: "0 0 auto" } : { flex: 1, minWidth: 0 }),
+  };
 
   // LEFT — VERDICT + ATTACK BASIS first (the "read this first" cluster), then the
   // attack/collapse/keystone/de-risk story, deep interrogation tools folded below.
   const leftRail = (
-      <div style={railStyle}>
-        {/* T4 — VERDICT: one line, top of rail, same numbers as Load Result (never a second
-            engine read — see `useLoadSummary`). */}
+      <Card style={railStyle}>
+        {/* T4 — VERDICT: leads the rail with the answer (Eyebrow + status Pill + baseline→post),
+            same numbers as Load Result (never a second engine read — see `useLoadSummary`). */}
         <VerdictHeader loadApplied={loadApplied} baseGraph={baseGraph} summary={loadSummary} cascade={loadCascade} />
 
-        {/* T4/S-3 — the demo's fulcrum, elevated: "what's the verdict + what flips it" reads
-            as one cluster with the VERDICT header above. */}
+        {/* The live integrity gauge — the post-load structural read, in the verdict card (mirrors
+            the GRAPH tab, which leads with its gauge). */}
+        <IntegrityGauge
+          value={integrityValue}
+          probabilistic={probabilistic}
+          calibration={calibration}
+          calibrationIsSample={calibrationIsSample}
+        />
+
+        {/* T4/S-3 — the demo's fulcrum: "what's the verdict + what flips it" as one cluster. */}
         <div>
           <ContextToggle
             grounded={applyContextWeights}
             disabled={loading}
             onChange={(g) => keystoneStore.getState().setApplyContextWeights(g)}
           />
-          <div className="label" style={{ marginTop: 6, color: "var(--muted)", fontSize: 10, lineHeight: 1.4 }}>
+          <div style={{ marginTop: 7, color: "var(--muted)", fontSize: 12, lineHeight: 1.45 }}>
             Grounding the same attacks in this decision&rsquo;s context cracks the keystone.
           </div>
         </div>
@@ -1230,60 +1265,52 @@ export function StressTab({
         </div>
 
         {/* P3-T8 — WHAT THE COUNCIL FOUND: the contextual council's situation-aware read (fracture
-            point, context-keystone, hidden assumptions). Rendered only when a grounded council is
-            present; otherwise this view is unchanged. Sits right under the verdict/toggle cluster
-            so the "given your situation, here's the real story" lands before the raw ledgers. */}
+            point, context-keystone, hidden assumptions + the DE-RISK THESE tail). Set apart on a
+            soft inset so the "given your situation, here's the real story" reads as its own block.
+            Rendered only when a grounded council is present; otherwise this view is unchanged. */}
         {/* P4 — while a live council fetch is in flight (and no grounded result has landed yet),
-            show an "analysing…" placeholder so the ~30-40s live wait isn't a blank gap. Once the
-            council resolves grounded, councilLoading flips false and the findings replace this. */}
+            show an "analysing…" placeholder so the ~30-40s live wait isn't a blank gap. */}
         {councilLoading && !(council && council.grounded) && (
-          <div data-testid="council-loading" style={{ marginTop: 4 }}>
-            <SectionHeader>What The Council Found</SectionHeader>
-            <div
-              style={{
-                fontFamily: "var(--sans)",
-                fontSize: 11,
-                color: "var(--muted)",
-                lineHeight: 1.5,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-              }}
-            >
-              <span className="mono" aria-hidden style={{ color: "var(--muted)" }}>
-                ◦
-              </span>
-              A council of context agents is analysing this decision — the real spine, hidden
-              assumptions, and de-risking moves land here.
+          <div
+            className="panel-inset"
+            style={{ padding: 14, border: "1px solid var(--hair)" }}
+          >
+            <div data-testid="council-loading">
+              <SectionHeader>What The Council Found</SectionHeader>
+              <div
+                style={{
+                  fontFamily: "var(--sans)",
+                  fontSize: 12,
+                  color: "var(--muted)",
+                  lineHeight: 1.5,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+              >
+                <span className="mono" aria-hidden style={{ color: "var(--muted)" }}>
+                  ◦
+                </span>
+                A council of context agents is analysing this decision — the real spine, hidden
+                assumptions, and de-risking moves land here.
+              </div>
             </div>
           </div>
         )}
 
         {council && council.grounded && (
-          <CouncilFindings council={council} topoKeystoneId={keystoneId} labelFor={labelFor} />
-        )}
-
-        {/* V4-1 — DEPTH: dimensionality of the analysis (strata + evidence coverage). */}
-        {depth && (
-          <div data-testid="stress-depth">
-            <SectionHeader>Depth</SectionHeader>
-            <LedgerRow label="Strata" value={`${depth.strata}/4`} />
-            <LedgerRow
-              label="Grounded"
-              value={`${depth.grounded}/${depth.assumptions}`}
-              accent={
-                depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
-                  ? "var(--ok)"
-                  : "var(--warn)"
-              }
-            />
+          <div
+            className="panel-inset"
+            style={{ padding: 14, border: "1px solid var(--hair)" }}
+          >
+            <CouncilFindings council={council} topoKeystoneId={keystoneId} labelFor={labelFor} />
           </div>
         )}
 
-        <div>
-          <SectionHeader>Attack Ledger</SectionHeader>
+        {/* ATTACK LEDGER — the loaded attacks, open by default (the primary collapse story). */}
+        <Disclosure summary="Attack ledger" defaultOpen>
           {sorted.length === 0 ? (
-            <div className="label" style={{ padding: "12px 0" }}>
+            <div className="label" style={{ padding: "4px 0" }}>
               Apply load to stress the structure
             </div>
           ) : (
@@ -1291,7 +1318,7 @@ export function StressTab({
               <AttackRow key={a.id} attack={a} targetLabel={labelFor(a.targetId)} />
             ))
           )}
-        </div>
+        </Disclosure>
 
         {/* V7-3 — load-result summary + ordered failure cascade (what breaks first, and why).
             summary/cascade are the SAME values the VERDICT header used above. */}
@@ -1299,96 +1326,120 @@ export function StressTab({
           <LoadResultPanel baseGraph={baseGraph} summary={loadSummary} cascade={loadCascade} />
         )}
 
-        {/* Task 7 — VARIANCE KEYSTONE: the probabilistic "what actually moves the outcome"
-            (top variance driver + correlated co-failure sentence). Leads the deterministic
-            knock-out below once a solve has produced a distribution. */}
+        {/* Task 7 — VARIANCE KEYSTONE: the probabilistic "what actually moves the outcome". */}
         {probabilistic && <VarianceKeystone probabilistic={probabilistic} labelFor={labelFor} />}
 
-        {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone) — kept as the
-            secondary, deterministic view beneath the variance keystone. */}
-        <SensitivityBars graph={baseGraph ?? graph} keystoneId={keystoneId} />
+        {/* W2-1 — knock-out sensitivity ranking (why the keystone is the keystone), folded. */}
+        <Disclosure summary="Knock-out sensitivity">
+          <SensitivityBars graph={baseGraph ?? graph} keystoneId={keystoneId} />
+        </Disclosure>
 
         {/* V3-2 — minimum-reinforcement prescription (the inverse of sensitivity) */}
         {reinforcementPlan && (
           <ReinforcementPanel plan={reinforcementPlan} baseGraph={baseGraph} attacks={attacks} pack={pack} />
         )}
 
-        {/* T4/S-2 — deep interrogation tools, folded below the primary story so the rail
-            reads without scrolling. Collapsed by default; content stays mounted (state,
-            SSE sessions, timers survive a collapse/expand). */}
+        {/* V4-1 — DEPTH: dimensionality of the analysis (strata + evidence coverage), folded. */}
+        {depth && (
+          <Disclosure summary="Structure & depth">
+            <div data-testid="stress-depth">
+              <LedgerRow label="Strata" value={`${depth.strata}/4`} />
+              <LedgerRow
+                label="Grounded"
+                value={`${depth.grounded}/${depth.assumptions}`}
+                accent={
+                  depth.assumptions > 0 && depth.grounded / depth.assumptions >= 0.6
+                    ? "var(--ok)"
+                    : "var(--warn)"
+                }
+              />
+            </div>
+          </Disclosure>
+        )}
+
+        {/* T4/S-2 — deep interrogation tools, folded below the primary story so the rail reads
+            without scrolling. Content stays mounted (state, SSE sessions, timers survive a
+            collapse/expand — the Disclosure renders its children in a closed <details>). */}
         {loadApplied && applyContextWeights && baseGraph && (
-          <CollapsibleSection label="Wind Tunnel" testId="wind-tunnel-details">
+          <Disclosure summary="Wind tunnel" testId="wind-tunnel-details">
             <WindTunnelSection baseGraph={baseGraph} />
-          </CollapsibleSection>
+          </Disclosure>
         )}
 
         {loadApplied && applyContextWeights && pack && (
-          <CollapsibleSection label="Timeline Stress" testId="timeline-details">
+          <Disclosure summary="Timeline stress" testId="timeline-details">
             <TimelineSection />
-          </CollapsibleSection>
+          </Disclosure>
         )}
 
-        <CollapsibleSection label="Re-run" testId="rerun-details">
+        <Disclosure summary="Re-run analysis" testId="rerun-details">
           <RerunControl />
-        </CollapsibleSection>
-      </div>
+        </Disclosure>
+      </Card>
   );
 
-  // CENTER — 3D adaptive canvas + integrity gauge overlay
-  const canvasPane = (
-      <div style={canvasStyle}>
-        {graph ? (
-          <KeystoneCanvas
-            graph={graph}
-            keystoneId={keystoneId}
-            failures={failures}
-            // P4 — STRESS now renders the SAME flat top-down board as GRAPH (tilt=false). The old
-            // 2.5D perspective (tilt=true) was a leftover from before the flat dot-grid redesign;
-            // a tilted ancestor breaks React Flow's pointer math, so it silently disabled
-            // pan-on-drag and node dragging in STRESS — the "graph controls are broken" bug.
-            // Flat restores pan/drag and keeps STRESS visually consistent with the redesign.
-            tilt={false}
-            loadApplied={loadApplied}
-            attacks={attacks}
-            rawAttacks={rawAttacks}
-            contextAdjustments={pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS}
-            constraintPlanes={planes}
-            buildKey={baseGraph}
-            onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
-          />
-        ) : (
-          <EmptyCanvas />
-        )}
+  // CENTER — the graph card: a header (Eyebrow) over the flat top-down board. The integrity
+  // gauge now lives in the LEFT verdict card (mirrors the GRAPH tab), leaving the board clean.
+  const graphCard = (
+      <Card style={graphCardStyle}>
         <div
           style={{
-            position: "absolute",
-            top: "var(--pad)",
-            right: "var(--pad)",
-            background: "var(--panel)",
-            border: "1px solid var(--hair)",
-            padding: 8,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 12,
+            padding: "13px 18px",
+            borderBottom: "1px solid var(--hair)",
+            flexWrap: "wrap",
           }}
         >
-          <IntegrityGauge
-            value={integrityValue}
-            probabilistic={probabilistic}
-            calibration={calibration}
-            calibrationIsSample={calibrationIsSample}
-          />
+          <Eyebrow>Structure under load</Eyebrow>
+          {loadApplied && (
+            <span className="mono" style={{ fontSize: 12, color: "var(--muted)" }}>
+              {`${Math.round(integrityValue)}% integrity`}
+            </span>
+          )}
         </div>
-      </div>
+        <div style={{ flex: 1, minHeight: 0, position: "relative" }}>
+          {graph ? (
+            <KeystoneCanvas
+              graph={graph}
+              keystoneId={keystoneId}
+              failures={failures}
+              // P4 — STRESS renders the SAME flat top-down board as GRAPH (tilt=false). A tilted
+              // ancestor breaks React Flow's pointer math (silently disabling pan-on-drag + node
+              // dragging), so flat both restores controls and keeps STRESS visually consistent.
+              tilt={false}
+              loadApplied={loadApplied}
+              attacks={attacks}
+              rawAttacks={rawAttacks}
+              contextAdjustments={pack?.contextWeightAdjustments ?? EMPTY_ADJUSTMENTS}
+              constraintPlanes={planes}
+              buildKey={baseGraph}
+              onSelect={(id) => keystoneStore.getState().setSelectedNode(id)}
+            />
+          ) : (
+            <EmptyCanvas />
+          )}
+        </div>
+      </Card>
   );
 
-  // RIGHT — CONTEXT USED + SUPPORT BREAKDOWN (why integrity is that number)
+  // RIGHT — a stack of soft cards: SUPPORT BREAKDOWN (why integrity is that number) then the
+  // CONTEXT USED panel (already its own `.panel` card, so it sits as a sibling — no nesting).
   const rightRail = (
       <div style={rightStyle}>
-        {graph && <SupportBreakdownPanel graph={graph} keystoneId={keystoneId} />}
+        {graph && (
+          <Card pad>
+            <SupportBreakdownPanel graph={graph} keystoneId={keystoneId} />
+          </Card>
+        )}
         {pack ? (
           <ContextUsedPanel pack={pack} source={source ?? "fixture"} />
         ) : (
-          <div className="label" style={{ padding: "var(--pad)" }}>
-            Run analyse to ground the decision
-          </div>
+          <Card pad>
+            <div className="label">Run analyse to ground the decision</div>
+          </Card>
         )}
       </div>
   );
@@ -1397,25 +1448,31 @@ export function StressTab({
   // one column the ROOT scrolls (root is overflow-y:auto here because <main> is overflow:hidden
   // in KeystoneApp; without this the stacked column can't reach its bottom panel). Desktop keeps
   // the original fixed rail·canvas·rail flex row, unchanged.
+  // The stage: soft cards on the cool canvas with generous gutters (mirrors the GRAPH tab).
+  const stage: React.CSSProperties = {
+    display: "flex",
+    gap: 16,
+    padding: 16,
+    background: "var(--bg)",
+    boxSizing: "border-box",
+  };
   return narrow ? (
-    <div style={{ display: "flex", flexDirection: "column", height: "100%", overflowY: "auto" }}>
-      {canvasPane}
-      <div style={{ padding: "var(--pad) var(--pad) 0" }}>
-        <PaneSwitch
-          options={[
-            { id: "analysis", label: "Analysis" },
-            { id: "context", label: "Context" },
-          ]}
-          value={mobilePane}
-          onChange={setMobilePane}
-        />
-      </div>
+    <div style={{ ...stage, flexDirection: "column", height: "100%", overflowY: "auto" }}>
+      {graphCard}
+      <PaneSwitch
+        options={[
+          { id: "analysis", label: "Analysis" },
+          { id: "context", label: "Context" },
+        ]}
+        value={mobilePane}
+        onChange={setMobilePane}
+      />
       {mobilePane === "analysis" ? leftRail : rightRail}
     </div>
   ) : (
-    <div style={{ display: "flex", height: "100%" }}>
+    <div style={{ ...stage, height: "100%" }}>
       {leftRail}
-      {canvasPane}
+      {graphCard}
       {rightRail}
     </div>
   );
